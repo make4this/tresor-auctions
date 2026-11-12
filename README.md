@@ -4,7 +4,7 @@
 
 Projet individuel du cours *Machine Learning for Finance* (emlyon, G. Coqueret).
 
-> État actuel : phase 5 sur 11. `--fetch` collecte les 11 tables brutes dans `data/raw/`. `--clean` produit les adjudications nettoyées, 55 séries de marché datées de leur publication et la table des 47 variables point-in-time (`data/clean/features.parquet`), ainsi que les contrôles de qualité et le taux de valeurs manquantes par variable (`data/output/`). Les modèles ne sont pas encore écrits : `--all` s'arrête donc à l'étape `backtest`. Le détail du travail prévu est dans [PLAN.md](PLAN.md).
+> État actuel : phase 5 sur 11. `--fetch` collecte les 11 tables brutes dans `data/raw/`. `--clean` produit les adjudications nettoyées, 55 séries de marché datées de leur publication et la table des 46 variables point-in-time (`data/clean/features.parquet`), ainsi que les contrôles de qualité et le taux de valeurs manquantes par variable (`data/output/`). Les modèles ne sont pas encore écrits : `--all` s'arrête donc à l'étape `backtest`. Le détail du travail prévu est dans [PLAN.md](PLAN.md).
 
 ## Installation
 

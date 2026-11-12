@@ -47,6 +47,13 @@ TFF_HISTORY_PUBLISHED = pd.Timestamp("2010-12-03")
 # Rapports publiés en retard, d'après les annonces officielles de la CFTC (page « COT Historical
 # Special Announcements ») : date du rapport -> date de publication.
 DELAYED_RELEASES = {
+    # Fermeture d'octobre 2013 : communiqué 6745-13 (23/10/2013). Premier rapport le 25/10, deux
+    # la semaine du 28/10, deux autres la semaine du 4/11 : on retient le vendredi de la semaine.
+    "2013-10-01": "2013-10-25",
+    "2013-10-08": "2013-11-01",
+    "2013-10-15": "2013-11-01",
+    "2013-10-22": "2013-11-08",
+    "2013-10-29": "2013-11-08",
     # Fermeture de l'administration 2018-2019 : calendrier du communiqué 7864-19 (29/01/2019).
     "2018-12-24": "2019-02-01",
     "2018-12-31": "2019-02-05",
@@ -81,11 +88,6 @@ DELAYED_RELEASES = {
     "2025-12-16": "2025-12-23",
 }
 
-# Fermeture d'octobre 2013 : aucune date officielle trouvée. Par prudence, les rapports d'octobre
-# et novembre 2013 ne sont considérés comme publics qu'au 31/12/2013.
-UNDOCUMENTED_DELAY = (pd.Timestamp("2013-10-01"), pd.Timestamp("2013-11-30"))
-UNDOCUMENTED_DELAY_AVAILABLE = pd.Timestamp("2013-12-31")
-
 
 def _days(dates: pd.Series) -> np.ndarray:
     return dates.to_numpy(dtype="datetime64[D]")
@@ -111,11 +113,7 @@ def release_dates(report_dates: pd.Series) -> pd.Series:
     ).astype("datetime64[ns]")
 
     official = pd.to_datetime(report_dates.dt.strftime("%Y-%m-%d").map(DELAYED_RELEASES))
-    release = official.fillna(normal)
-    in_gap = report_dates.between(*UNDOCUMENTED_DELAY)
-    too_early = in_gap & (release < UNDOCUMENTED_DELAY_AVAILABLE)
-    release = release.mask(too_early, UNDOCUMENTED_DELAY_AVAILABLE)
-    return release.clip(lower=TFF_HISTORY_PUBLISHED)
+    return official.fillna(normal).clip(lower=TFF_HISTORY_PUBLISHED)
 
 
 def fetch_positions(client: httpx.Client) -> pd.DataFrame:

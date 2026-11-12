@@ -52,6 +52,8 @@ GAP_CHECK_START = pd.Timestamp("2009-01-01")  # début de l'échantillon des mod
 # Jours ouvrés manquants tolérés entre deux observations, et depuis la dernière publication.
 MAX_GAP = {"quotidienne": 5, "hebdomadaire": 10}
 MAX_SERIES_DELAY = {"quotidienne": 5, "hebdomadaire": 10}
+# Séries arrêtées par leur producteur : pas d'alerte de fraîcheur (leurs trous restent contrôlés).
+ENDED_SERIES = {"fred_dtwexb": "ancien indice dollar, arrêté par la Fed fin 2019"}
 
 
 def status_of(alerts: Sequence[str], warnings: Sequence[str] = ()) -> str:
@@ -224,7 +226,7 @@ def _check_series(name: str, part: pd.DataFrame, today: date) -> tuple[dict[str,
     delay = int(business_days_between(last_published, today))
     gaps = _largest_gaps(part.loc[part["date"] >= GAP_CHECK_START, "date"])
     alerts = []
-    if delay > MAX_SERIES_DELAY[publication]:
+    if name not in ENDED_SERIES and delay > MAX_SERIES_DELAY[publication]:
         alerts.append(f"{name} : dernière publication le {last_published:%Y-%m-%d}")
     if gaps and gaps[0]["missing_business_days"] > MAX_GAP[observation]:
         alerts.append(

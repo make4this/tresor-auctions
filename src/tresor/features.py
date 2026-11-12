@@ -16,11 +16,14 @@ import numpy as np
 import pandas as pd
 
 from tresor.clean.market import point_in_time
-from tresor.config import CLEAN_DIR, MODEL_SAMPLE_START, OUTPUT_DIR
+from tresor.config import CLEAN_DIR, MODEL_SAMPLE_START, OUTPUT_DIR, WALK_FORWARD_START
+from tresor.sources.fred import MINIMUM_LAG_DAYS
+from tresor.sources.raw import add_business_days
 
 logger = logging.getLogger(__name__)
 
 MODELED_FAMILIES = ("nominal_coupon", "bill")
+TEST_START = pd.Timestamp(WALK_FORWARD_START)
 TARGETS = ("btc", "dealer_share", "indirect_share", "tail_bp")
 HISTORY_LAGS = (1, 2, 3)
 
@@ -32,9 +35,15 @@ QUARTER_END_DAYS = 10
 # Âge maximal d'une valeur de marché : au-delà, elle est jugée périmée (série interrompue).
 DAILY_MAX_AGE = pd.Timedelta(days=10)
 WEEKLY_MAX_AGE = pd.Timedelta(days=21)  # séries publiées une fois par semaine
-WEEKLY_BASES = ("dealer_", "cftc_", "fred_walcl", "fred_wtregen", "fred_dtwexbgs")
+# « fred_dtwexb » couvre l'ancien indice dollar (DTWEXB) et l'actuel (DTWEXBGS).
+WEEKLY_BASES = ("dealer_", "cftc_", "fred_walcl", "fred_wtregen", "fred_dtwexb")
+ZSCORE_WEEKS = 52  # écart normalisé sur un an pour les positions, qui ont une tendance de fond
 
 EPOCH = pd.Timestamp("1970-01-01")
+# Une valeur publiée plus de 30 jours après sa date (complétée des années plus tard, comme
+# l'ancien indice dollar de 2000-2008 en 2017 ou le reverse repo de 2020 en 2025) manquait en
+# temps réel : elle n'entre pas dans les calculs sur fenêtre (variations, volatilité, écarts).
+LATE_FILL = pd.Timedelta(days=30)
 
 RATE_SERIES = {
     "2Y": "yield_2y",
@@ -64,7 +73,9 @@ DEALER_SERIES = {
     "30Y": "dealer_coupons_gt11y",
     **{bucket: "dealer_bills" for bucket in BILL_BUCKETS},
 }
-# Contrat future le plus proche en maturité ; les bills prennent le 2 ans, faute de mieux.
+# Contrat future le plus proche en maturité. Le T-Bond ne livre que des titres de 15 à 25 ans
+# depuis 2011 : le 30 ans prend l'Ultra Bond. Le 3 ans et les bills prennent le 2 ans, faute de
+# contrat équivalent (choix arbitraire, documenté).
 CFTC_CONTRACTS = {
     "2Y": "2y",
     "3Y": "2y",
@@ -72,24 +83,28 @@ CFTC_CONTRACTS = {
     "7Y": "10y",
     "10Y": "10y",
     "20Y": "bond",
-    "30Y": "bond",
+    "30Y": "ultrabond",
     **{bucket: "2y" for bucket in BILL_BUCKETS},
 }
 
-# Variable -> (groupe, série dérivée commune à toutes les enchères).
+# Variable -> (groupe, séries dérivées communes à toutes les enchères). Si plusieurs séries sont
+# données, la première connue à la date de l'enchère est utilisée. Les niveaux qui ont une
+# tendance de fond (bilan de la Fed, solde du Trésor, reverse repo, positions) sont pris en
+# variation ou en écart normalisé, pour rester comparables d'une période à l'autre.
 FIXED_MARKET_FEATURES = {
     "slope_10y_2y": ("market", "slope_10y_2y"),
     "rate_3m": ("market", "yield_3m"),
     "vix": ("market", "vix_close"),
     "vix_chg_5d": ("market", "vix_close__chg5"),
-    "dollar_chg_20d": ("market", "fred_dtwexbgs__pct20"),
+    # Indice actuel (depuis février 2019), sinon l'ancien, publié en temps réel jusqu'à fin 2019.
+    "dollar_chg_20d": ("market", ("fred_dtwexbgs__pct20", "fred_dtwexb__pct20")),
     "credit_spread_baa": ("market", "fred_baa10y"),
     "breakeven_10y": ("market", "fred_t10yie"),
     "debt_chg_30d": ("liquidity", "debt_total__pct21"),
-    "tga_bn": ("liquidity", "tga_bn"),
-    "rrp_bn": ("liquidity", "fred_rrpontsyd"),
-    "fed_assets_bn": ("liquidity", "fred_walcl_bn"),
-    "dealer_total_bn": ("positioning", "dealer_total_bn"),
+    "tga_chg_4w_bn": ("liquidity", "tga_bn__chg20"),
+    "rrp_chg_4w_bn": ("liquidity", "fred_rrpontsyd__chg20"),
+    "fed_assets_chg_13w": ("liquidity", "fred_walcl__pct13"),
+    "dealer_total_z52": ("positioning", "dealer_total_bn__z52"),
 }
 # Variable -> (groupe, série de base selon la maturité, suffixe de la série dérivée).
 MATURITY_MARKET_FEATURES = {
@@ -97,17 +112,17 @@ MATURITY_MARKET_FEATURES = {
     "rate_chg_5d": ("market", RATE_SERIES, "__chg5"),
     "rate_chg_20d": ("market", RATE_SERIES, "__chg20"),
     "rate_vol_20d": ("market", RATE_SERIES, "__vol20"),
-    "dealer_net_bn": ("positioning", DEALER_SERIES, "_bn"),
+    "dealer_net_z52": ("positioning", DEALER_SERIES, "_bn__z52"),
     "dealer_net_chg_4w_bn": ("positioning", DEALER_SERIES, "_bn__chg4"),
-    "cftc_am_net_ratio": (
+    "cftc_am_net_z52": (
         "positioning",
         {k: f"cftc_{v}" for k, v in CFTC_CONTRACTS.items()},
-        "_am_ratio",
+        "_am_ratio__z52",
     ),
-    "cftc_lev_net_ratio": (
+    "cftc_lev_net_z52": (
         "positioning",
         {k: f"cftc_{v}" for k, v in CFTC_CONTRACTS.items()},
-        "_lev_ratio",
+        "_lev_ratio__z52",
     ),
 }
 
@@ -121,7 +136,6 @@ AUCTION_FEATURES = (
     "refunding_month",
     "days_to_quarter_end",
     "is_quarter_end",
-    "offering_estimated",
 )
 HISTORY_FEATURES = tuple(
     f"{target}_{kind}"
@@ -155,6 +169,7 @@ ID_COLUMNS = (
     "status",
     "reopening",
     "offering_amt",
+    "offering_estimated",  # 1 si le montant n'est pas encore annoncé (prévision en direct)
 )
 
 DerivedSeries = dict[str, tuple[pd.DataFrame, pd.Timedelta]]
@@ -180,19 +195,34 @@ def _windowed(frame: pd.DataFrame, values: pd.Series, size: int) -> pd.DataFrame
     return out.dropna(subset=["value", "available_at"]).reset_index(drop=True)
 
 
+def _timely(frame: pd.DataFrame) -> pd.DataFrame:
+    """Les observations telles qu'elles existaient en temps réel, sans les compléments tardifs."""
+    return frame[frame["available_at"] - frame["date"] <= LATE_FILL].reset_index(drop=True)
+
+
 def change(frame: pd.DataFrame, periods: int) -> pd.DataFrame:
     """Variation sur `periods` observations."""
+    frame = _timely(frame)
     return _windowed(frame, frame["value"] - frame["value"].shift(periods), periods + 1)
 
 
 def pct_change(frame: pd.DataFrame, periods: int) -> pd.DataFrame:
     """Variation relative sur `periods` observations."""
+    frame = _timely(frame)
     return _windowed(frame, frame["value"] / frame["value"].shift(periods) - 1, periods + 1)
 
 
 def volatility(frame: pd.DataFrame, periods: int) -> pd.DataFrame:
     """Écart-type des variations quotidiennes sur `periods` observations."""
+    frame = _timely(frame)
     return _windowed(frame, frame["value"].diff().rolling(periods).std(), periods + 1)
+
+
+def zscore(frame: pd.DataFrame, periods: int) -> pd.DataFrame:
+    """Écart à la moyenne des `periods` dernières observations, en nombre d'écarts-types."""
+    frame = _timely(frame)
+    window = frame["value"].rolling(periods, min_periods=periods)
+    return _windowed(frame, (frame["value"] - window.mean()) / window.std(), periods)
 
 
 def scaled(frame: pd.DataFrame, factor: float) -> pd.DataFrame:
@@ -247,23 +277,24 @@ def derived_series(market: pd.DataFrame) -> DerivedSeries:
     add("vix_close", "vix_close", lambda: base["vix_close"])
     add("vix_close__chg5", "vix_close", lambda: change(base["vix_close"], 5))
     add("fred_dtwexbgs__pct20", "fred_dtwexbgs", lambda: pct_change(base["fred_dtwexbgs"], 20))
+    add("fred_dtwexb__pct20", "fred_dtwexb", lambda: pct_change(base["fred_dtwexb"], 20))
     add("fred_baa10y", "fred_baa10y", lambda: base["fred_baa10y"])
     add("fred_t10yie", "fred_t10yie", lambda: base["fred_t10yie"])
     add("debt_total__pct21", "debt_total", lambda: pct_change(base["debt_total"], 21))
-    add("tga_bn", "tga_close", lambda: scaled(base["tga_close"], 1e-3))
-    add("fred_rrpontsyd", "fred_rrpontsyd", lambda: base["fred_rrpontsyd"])
-    add("fred_walcl_bn", "fred_walcl", lambda: scaled(base["fred_walcl"], 1e-3))
+    add("tga_bn__chg20", "tga_close", lambda: change(scaled(base["tga_close"], 1e-3), 20))
+    add("fred_rrpontsyd__chg20", "fred_rrpontsyd", lambda: change(base["fred_rrpontsyd"], 20))
+    add("fred_walcl__pct13", "fred_walcl", lambda: pct_change(base["fred_walcl"], 13))
     for dealer in {*DEALER_SERIES.values(), "dealer_total"}:
-        add(f"{dealer}_bn", dealer, lambda d=dealer: scaled(base[d], 1e-3))
+        add(f"{dealer}_bn__z52", dealer, lambda d=dealer: zscore(base[d], ZSCORE_WEEKS))
         add(f"{dealer}_bn__chg4", dealer, lambda d=dealer: change(scaled(base[d], 1e-3), 4))
     for contract in set(CFTC_CONTRACTS.values()):
         prefix = f"cftc_{contract}"
         for side in ("am", "lev"):
             add(
-                f"{prefix}_{side}_ratio",
+                f"{prefix}_{side}_ratio__z52",
                 f"{prefix}_{side}_net+{prefix}_oi",
-                lambda p=prefix, s=side: combine(
-                    base[f"{p}_{s}_net"], base[f"{p}_oi"], operator.truediv
+                lambda p=prefix, s=side: zscore(
+                    combine(base[f"{p}_{s}_net"], base[f"{p}_oi"], operator.truediv), ZSCORE_WEEKS
                 ),
             )
     return out
@@ -273,14 +304,23 @@ def derived_series(market: pd.DataFrame) -> DerivedSeries:
 
 
 def _point_in_time(
-    dates: pd.Series, derived: DerivedSeries, name: str
+    dates: pd.Series, derived: DerivedSeries, names: str | tuple[str, ...]
 ) -> tuple[pd.Series, pd.Series]:
-    """Valeur connue avant chaque date, et sa date de publication (vide si série absente)."""
-    if name not in derived:
-        return pd.Series(np.nan, index=dates.index), pd.Series(pd.NaT, index=dates.index)
-    frame, max_age = derived[name]
-    known = point_in_time(dates, frame, max_age=max_age)
-    return known["value"].astype(float), known["available_at"]
+    """Valeur connue avant chaque date, et sa date de publication (vide si série absente).
+
+    Avec plusieurs séries, la première connue à la date est retenue (raccord de deux séries).
+    """
+    value = pd.Series(np.nan, index=dates.index)
+    seen = pd.Series(pd.NaT, index=dates.index, dtype="datetime64[ns]")
+    for name in (names,) if isinstance(names, str) else names:
+        if name not in derived:
+            continue
+        frame, max_age = derived[name]
+        known = point_in_time(dates, frame, max_age=max_age)
+        missing = value.isna() & known["value"].notna()
+        value = value.mask(missing, known["value"].astype(float))
+        seen = seen.mask(missing, known["available_at"])
+    return value, seen
 
 
 def market_features(
@@ -420,7 +460,6 @@ def auction_features(rows: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
             "refunding_month": dates.dt.month.isin(REFUNDING_MONTHS).astype(int),
             "days_to_quarter_end": days_to_quarter_end,
             "is_quarter_end": (days_to_quarter_end <= QUARTER_END_DAYS).astype(int),
-            "offering_estimated": rows["offering_estimated"],
         }
     )
     known = pd.DataFrame({name: rows["offering_known_at"] for name in AUCTION_FEATURES})
@@ -487,6 +526,36 @@ def look_ahead_violations(features: pd.DataFrame, provenance: pd.DataFrame) -> p
     return pd.Series(counts)
 
 
+def minimum_publication_dates(market: pd.DataFrame) -> pd.Series:
+    """Date de publication la plus précoce possible de chaque valeur, d'après le calendrier
+    connu de chaque source. Contrôle indépendant de available_at, qui ne se vérifie pas lui-même.
+    """
+    dates = market["date"]
+    minimum = dates.copy()  # clôtures du jour (taux, bills, VIX) et FRED daté par ALFRED : >= date
+    rules = {
+        "fiscaldata_cash_balance": lambda d: add_business_days(d, 1),
+        "fiscaldata_debt": lambda d: add_business_days(d, 2),
+        "nyfed_dealer_positions": lambda d: d + pd.Timedelta(days=8),
+        "cftc_positions": lambda d: d + pd.to_timedelta(4 - d.dt.day_of_week, unit="D"),
+    }
+    for source, rule in rules.items():
+        rows = market["source"].eq(source)
+        if rows.any():
+            minimum.loc[rows] = rule(dates[rows]).to_numpy()
+    for series, days in MINIMUM_LAG_DAYS.items():
+        rows = market["series"].eq(series)
+        minimum.loc[rows] = (dates[rows] + pd.Timedelta(days=days)).to_numpy()
+    return minimum
+
+
+def publication_lag_violations(market: pd.DataFrame) -> pd.Series:
+    """Nombre de valeurs, par série, dont la date de publication précède le délai minimal."""
+    too_early = market["available_at"].isna() | (
+        market["available_at"] < minimum_publication_dates(market)
+    )
+    return too_early.groupby(market["series"]).sum().astype(int)
+
+
 def model_sample(features: pd.DataFrame) -> pd.DataFrame:
     """Enchères réalisées depuis le début de l'échantillon des modèles (2009)."""
     in_sample = (features["status"] == "completed") & (
@@ -496,10 +565,18 @@ def model_sample(features: pd.DataFrame) -> pd.DataFrame:
 
 
 def missing_rates(features: pd.DataFrame) -> pd.DataFrame:
-    """Part de valeurs manquantes (%) par variable et par famille, sur l'échantillon des modèles."""
+    """Part de valeurs manquantes (%) par variable et par famille : sur tout l'échantillon des
+    modèles (depuis 2009) et sur la période de test du walk-forward (depuis 2014)."""
     sample = model_sample(features)
     columns = [*FEATURE_COLUMNS, *TARGETS]
-    table = sample.groupby("family")[columns].agg(lambda s: s.isna().mean() * 100).T
+    parts = {}
+    for label, part in {
+        "2009+": sample,
+        "2014+": sample[sample["auction_date"] >= TEST_START],
+    }.items():
+        rates = part.groupby("family")[columns].agg(lambda s: s.isna().mean() * 100).T
+        parts.update({f"{family} {label}": rates[family] for family in rates.columns})
+    table = pd.DataFrame(parts)
     table.insert(0, "groupe", [_group_of(name) for name in table.index])
     return table.round(1)
 
@@ -517,6 +594,11 @@ def run_features(clean_dir: Path = CLEAN_DIR, output_dir: Path = OUTPUT_DIR) -> 
     market = pd.read_parquet(clean_dir / "market.parquet")
     features, provenance = build_features(auctions, market)
 
+    # Deux contrôles bloquants : les dates de publication du marché respectent les délais
+    # minimaux de chaque source, et aucune variable n'utilise une information publiée trop tard.
+    lags = publication_lag_violations(market)
+    if lags.sum():
+        raise ValueError(f"dates de publication trop précoces : {lags[lags > 0].to_dict()}")
     violations = look_ahead_violations(features, provenance)
     if violations.sum():
         raise ValueError(f"fuite d'information : {violations[violations > 0].to_dict()}")

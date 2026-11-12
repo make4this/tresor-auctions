@@ -332,3 +332,44 @@ Les groupes `liquidity` et `positioning` sont les « nouvelles sources » de l'e
 - Les CMB, TIPS et FRN ne sont pas modélisés.
 
 **À relire moi-même :** `features.py` (fonctions `_windowed`, `history_features`, `market_features`, `look_ahead_violations`) et `tests/test_features.py` (fonction `truncated_inputs`).
+
+## Vérification de la phase 5 par deux agents indépendants (12 novembre 2026)
+
+**Ma demande :** « Vérifie la phase 5 ».
+
+**Méthode :** deux agents Claude en parallèle, en lecture seule. Le premier a cherché toute fuite d'information. Le second a recalculé chaque variable de façon indépendante et jugé si la table est prête pour les modèles. Le LLM principal a revérifié chaque constat avant de corriger.
+
+**Verdict :**
+
+- **Aucune fuite.** Le premier agent a reconstruit les variables date par date pour les 5 119 enchères depuis 2009 (240 593 comparaisons, 0 écart). Après les corrections, un nouveau contrôle sur 152 enchères (les 14 maturités, débuts de série, pannes, lendemains de fériés) donne 6 992 comparaisons et 0 écart.
+- **Valeurs justes.** Le second agent a recalculé les 47 variables et le *tail* avec des boucles naïves sur 118 enchères : 0 écart.
+
+**Problèmes trouvés et corrigés :**
+
+| Gravité | Problème | Correction |
+|---|---|---|
+| Important | Le test de troncature était trop étroit (8 enchères réelles, sans 10 ans ni 7 ans ; données synthétiques limitées au bill 13 semaines). Deux fuites injectées exprès sur le 10 ans et le 7 ans passaient les 16 tests | Échantillon stratifié (une enchère par maturité et par période, plus le début de chaque série depuis 2009) et coupons synthétiques : ces deux fuites sont maintenant détectées (3 et 2 tests) |
+| Important | Les tests ne pouvaient pas voir une date de publication fausse : ils la lisent dans la table qu'ils contrôlent (contrôle circulaire) | Contrôle **bloquant** des délais minimaux par source (taux et VIX : 0 ; trésorerie : 1 jour ouvré ; dette : 2 ; dealers : 8 jours ; CFTC : vendredi de la semaine ; WALCL, WTREGEN : 1 jour ; indices dollar : 3 jours). Dès son premier lancement, il a trouvé une date ALFRED anormale (DTWEXB du 14/05/2018, datée du jour même) et refusé d'écrire la table : un plancher par série a été ajouté |
+| Important | Indice dollar vide de 2009 à 2018 (série actuelle créée en 2019) : il serait devenu un simple indicateur « avant ou après 2019 » | Raccord avec l'ancien indice DTWEXB, publié en temps réel jusqu'à fin 2019. Archive ALFRED depuis le 18/03/2014 ; avant, règle « mercredi de la semaine suivante », prudente dans 99,86 % des cas mesurés (le mardi ne l'était que dans 98,91 %). Valeurs manquantes : 0 % au lieu de 46 à 53 % |
+| Important | Des niveaux en tendance (bilan de la Fed, positions des dealers, reverse repo, solde du Trésor, ratios CFTC) sortaient de la plage d'entraînement dans 12 à 26 % des cas de la période de test | Variations (solde du Trésor et reverse repo sur 4 semaines, bilan de la Fed sur 13 semaines en %) et écarts normalisés sur 52 semaines (dealers, CFTC) |
+| Important | Correspondances maturité → série, fonctions dérivées, variation du montant et demande récente non testées : une inversion « 10 ans → taux 7 ans » serait passée | 14 tests ajoutés |
+| Mineur | Le 30 ans était rattaché au T-Bond, qui ne livre que des titres de 15 à 25 ans depuis 2011 | Ultra Bond |
+| Mineur | `offering_estimated` vaut toujours 0 dans l'échantillon | Rangé avec les identifiants, plus parmi les variables |
+| Mineur | CFTC, octobre 2013 : la neutralisation jusqu'au 31/12/2013 était inutilement prudente | Calendrier officiel du communiqué 6745-13, en retenant le vendredi de chaque semaine annoncée |
+| Mineur | Tableau des valeurs manquantes limité à 2009+ | Colonnes 2014+ (période de test) ajoutées |
+
+**Problème découvert par le test lui-même après les corrections :** la troncature sur vraies données a échoué pour l'enchère du 08/01/2009. Des valeurs de l'ancien indice dollar, vides à l'époque et complétées en 2017, rendaient « inconnue » toute fenêtre de 20 jours qui les contenait. Le même effet touchait le reverse repo de 2020, complété en 2025. Règle ajoutée : une valeur publiée plus de 30 jours après sa date n'entre pas dans les calculs sur fenêtre, puisqu'elle manquait en temps réel. Ce n'était pas une fuite, car on retirait de l'information, mais le temps réel n'était pas fidèlement reproduit. Une alerte de fraîcheur permanente sur l'ancien indice, arrêté par la Fed, a aussi été levée.
+
+**Erreurs du LLM dans ses propres tests, corrigées :** une assertion tautologique (une valeur comparée à elle-même) et une date mal calculée dans le test du raccord des indices dollar.
+
+**À traiter en phase 6, non modifié :**
+
+- **Le *tail* reflète surtout le mouvement de marché du jour.** Sa corrélation avec la variation de clôture de la veille au jour même est de 0,94 (bills) et 0,89 (coupons). Prévoir le *tail* revient donc largement à prévoir ce mouvement : c'est la limite du proxy prévu par le plan, à dire à l'oral. Écrêter la cible à l'entraînement.
+- **Variables très corrélées :** retards et moyenne des 3 dernières, taux 3 mois et taux de la maturité pour les bills (0,998), asset managers et leveraged funds (-0,92). Cela rend Lasso et SHAP instables.
+- **Cibles manquantes :** 3 *tails* (premiers bills à 8, 17 et 6 semaines), à écarter cible par cible.
+- **Spread Baa et inflation anticipée avant 2014 :** leur règle « +2 jours ouvrés » n'est pas vérifiable avant l'archive ALFRED. Prévoir un test de robustesse sans ces deux variables.
+- **Groupes de l'expérience :** l'indice dollar, le spread Baa et l'inflation anticipée (FRED) restent dans le groupe de base `market`. Les « nouvelles sources » sont les dealers, la CFTC et la liquidité, comme dans la section 8 du plan.
+- **CFTC :** écarts normalisés absents en 2009-2011, car l'historique publié d'un coup en décembre 2010 est exclu des fenêtres.
+- **Unités :** variations de taux en points de pourcentage, *tail* en points de base, dette, dollar et bilan en fractions ; les écarts normalisés n'ont pas d'unité.
+
+**Résultat :** 46 variables (enchère 9, historique 17, marché 11, liquidité 4, positionnement 5). Sur la période de test 2014+, valeurs manquantes nulles sauf spread Baa (2,5 à 3 %) et CFTC (3 à 3,5 %). Qualité des données : vert. `ruff check .` est propre, 170 tests réussis (158 avant la vérification).

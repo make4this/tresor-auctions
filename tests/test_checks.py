@@ -191,3 +191,11 @@ def test_value_published_before_its_date_is_an_error() -> None:
 
     assert result["values_without_valid_publication_date"] == 1
     assert result["status"] == "rouge"
+
+
+def test_series_ended_by_its_producer_is_not_flagged_as_stale() -> None:
+    dates = [str(d.date()) for d in pd.bdate_range("2019-11-01", "2019-12-31")]
+
+    result = checks.check_market(market_series("fred_dtwexb", dates), TODAY)
+
+    assert result["status"] == "vert"

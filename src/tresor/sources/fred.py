@@ -38,6 +38,12 @@ def friday_after(dates: pd.Series) -> pd.Series:
     return dates + pd.Timedelta(days=2)
 
 
+def wednesday_of_next_week(dates: pd.Series) -> pd.Series:
+    """Ancien indice dollar (rapport H.10) : publié le lundi suivant, parfois le mercredi après un
+    lundi férié. Mercredi : prudent dans 99,86 % des cas mesurés (mardi : 98,91 %)."""
+    return dates + pd.to_timedelta(9 - dates.dt.day_of_week, unit="D")
+
+
 @dataclass(frozen=True)
 class FredSeries:
     """Une série FRED et sa règle de publication, utilisée quand ALFRED n'a pas d'archive.
@@ -49,18 +55,35 @@ class FredSeries:
     series_id: str
     description: str
     rule: DateRule | None
+    # Délai minimal entre la date d'une valeur et sa publication : plancher appliqué même aux
+    # dates ALFRED (une seule anomalie trouvée : DTWEXB du 14/05/2018, daté du jour même).
+    minimum_lag_days: int = 0
 
 
 SERIES = (
-    FredSeries("DTWEXBGS", "indice dollar large", None),
-    FredSeries("WALCL", "bilan de la Fed (mercredi)", friday_after),
+    FredSeries("DTWEXBGS", "indice dollar large", None, minimum_lag_days=3),
+    # Ancien indice dollar (biens), publié en temps réel jusqu'à fin 2019 : il couvre 2009-2019,
+    # quand l'indice actuel n'existait pas encore. Archive ALFRED à partir du 18/03/2014.
+    FredSeries(
+        "DTWEXB",
+        "ancien indice dollar (biens), arrêté fin 2019",
+        wednesday_of_next_week,
+        minimum_lag_days=3,
+    ),
+    FredSeries("WALCL", "bilan de la Fed (mercredi)", friday_after, minimum_lag_days=1),
     FredSeries("RRPONTSYD", "reverse repo de la Fed", next_business_day),
-    FredSeries("WTREGEN", "compte du Trésor à la Fed (mercredi)", friday_after),
+    FredSeries("WTREGEN", "compte du Trésor à la Fed (mercredi)", friday_after, minimum_lag_days=1),
     # Remplace BAMLH0A0HYM2 (spread high yield) : FRED n'en garde qu'une fenêtre glissante de
     # 3 ans (début au 13/11/2023 le jour de la vérification).
     FredSeries("BAA10Y", "spread Baa de Moody's contre le 10 ans", two_business_days),
     FredSeries("T10YIE", "inflation anticipée à 10 ans", two_business_days),
 )
+
+# Délai minimal par série du marché nettoyé (« fred_walcl »...), réutilisé par le contrôle
+# bloquant de features.py.
+MINIMUM_LAG_DAYS = {
+    f"fred_{s.series_id.lower()}": s.minimum_lag_days for s in SERIES if s.minimum_lag_days
+}
 
 REQUIRED_COLUMNS = (
     "series_id",
@@ -147,8 +170,9 @@ def fetch_series(client: httpx.Client, series: FredSeries, api_key: str) -> pd.D
         by_rule = dates.clip(lower=pd.Timestamp(archive_start))
     else:
         by_rule = series.rule(dates)
-    # Garde-fou : une valeur n'est jamais connue avant sa propre date.
-    available_at = known.fillna(by_rule).clip(lower=dates)
+    # Garde-fou : une valeur n'est jamais connue avant sa date plus le délai minimal de la série.
+    floor = dates + pd.Timedelta(days=series.minimum_lag_days)
+    available_at = known.fillna(by_rule).clip(lower=floor)
     return frame.assign(
         series_id=series.series_id,
         first_release=first_release.fillna(""),

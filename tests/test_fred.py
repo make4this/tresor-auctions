@@ -29,13 +29,15 @@ LATEST = [
 
 
 def fred_client(
-    requests: list[httpx.Request], latest: list[dict[str, str]] = LATEST
+    requests: list[httpx.Request],
+    latest: list[dict[str, str]] = LATEST,
+    versions: list[dict[str, str]] = ALL_VERSIONS,
 ) -> httpx.Client:
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         if request.url.path.endswith("/vintagedates"):
             return httpx.Response(200, json={"vintage_dates": VINTAGES, "count": len(VINTAGES)})
-        rows = ALL_VERSIONS if "realtime_start" in request.url.params else latest
+        rows = versions if "realtime_start" in request.url.params else latest
         return httpx.Response(200, json={"observations": rows, "count": len(rows)})
 
     return build_client(transport=httpx.MockTransport(handler))
@@ -105,3 +107,19 @@ def test_publication_rules() -> None:
     assert to_iso_text(fred.next_business_day(dates("2026-11-06"))).tolist() == ["2026-11-09"]
     # Vendredi 6/11 + 2 jours ouvrés = mardi 10/11.
     assert to_iso_text(fred.two_business_days(dates("2026-11-06"))).tolist() == ["2026-11-10"]
+    # Ancien indice dollar : mercredi de la semaine suivante.
+    assert to_iso_text(fred.wednesday_of_next_week(dates("2026-11-02", "2026-11-06"))).tolist() == [
+        "2026-11-11",
+        "2026-11-11",
+    ]
+
+
+def test_minimum_lag_is_a_floor_even_for_alfred_dates() -> None:
+    # Anomalie réelle : une valeur hebdomadaire datée par ALFRED du jour même.
+    versions = [{"date": "2019-02-11", "value": "5", "realtime_start": "2019-02-11"}]
+    latest = [{"date": "2019-02-11", "value": "5", "realtime_start": "x", "realtime_end": "x"}]
+    series = fred.FredSeries("X", "test", fred.friday_after, minimum_lag_days=3)
+
+    frame = fred.fetch_series(fred_client([], latest, versions), series, api_key="cle-de-test")
+
+    assert frame["available_at"].tolist() == ["2019-02-14"]

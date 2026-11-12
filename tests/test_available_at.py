@@ -132,7 +132,7 @@ def test_cftc_report_becomes_public_on_the_friday_of_its_week(report_date: str) 
         ("2019-01-08", "2019-02-08"),  # fermeture de l'administration 2018-2019
         ("2023-01-31", "2023-02-24"),  # incident informatique chez ION
         ("2025-09-30", "2025-11-19"),  # fermeture de l'administration 2025
-        ("2013-10-08", "2013-12-31"),  # 2013 : pas de date officielle, choix prudent
+        ("2013-10-08", "2013-11-01"),  # 2013 : semaine annoncée par le communiqué 6745-13
         ("2008-03-04", "2010-12-03"),  # historique TFF publié le 3/12/2010
     ],
 )

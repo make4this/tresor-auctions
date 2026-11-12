@@ -76,6 +76,7 @@ SERIES_UNITS = {
     "debt_public": "dollars",
     "tga_close": "millions de dollars",
     "fred_dtwexbgs": "indice (janvier 2006 = 100)",
+    "fred_dtwexb": "indice (janvier 1997 = 100)",
     "fred_walcl": "millions de dollars",
     "fred_rrpontsyd": "milliards de dollars",
     "fred_wtregen": "millions de dollars",
