@@ -22,6 +22,24 @@ def _run_fetch() -> None:
     collect_all()
 
 
+def _run_backtest() -> None:
+    """Walk-forward de tous les modèles, interprétation du meilleur, figures."""
+    import pandas as pd
+
+    from tresor import models, plots
+    from tresor.config import OUTPUT_DIR
+
+    metrics = models.run_backtest()
+    importance = models.run_interpretation()
+    plots.all_figures(
+        metrics,
+        pd.read_parquet(OUTPUT_DIR / "backtest_predictions.parquet"),
+        pd.read_csv(OUTPUT_DIR / "new_sources_comparison.csv"),
+        pd.read_csv(OUTPUT_DIR / "best_models.csv"),
+        importance,
+    )
+
+
 def _run_clean() -> None:
     """Nettoie les tables brutes, écrit les contrôles, puis construit les variables."""
     run_cleaning()
@@ -41,7 +59,7 @@ def _pending(phase: int) -> StepFunction:
 STEPS: dict[str, tuple[str, StepFunction]] = {
     "fetch": ("télécharger toutes les sources dans data/raw/", _run_fetch),
     "clean": ("nettoyer les données, lancer les contrôles, construire les variables", _run_clean),
-    "backtest": ("validation walk-forward et stratégie", _pending(6)),
+    "backtest": ("validation walk-forward, interprétation et figures", _run_backtest),
     "train": ("entraîner les modèles finaux sur tout l'historique", _pending(8)),
     "predict": ("prévoir les enchères à venir", _pending(8)),
 }
