@@ -4,7 +4,7 @@
 
 Projet individuel du cours *Machine Learning for Finance* (emlyon, G. Coqueret).
 
-> État actuel : phase 3 sur 11. `--fetch` collecte les 11 tables brutes (adjudications, taux, VIX, dette, trésorerie, dealers, CFTC, FRED) dans `data/raw/`. Les séries publiées avec retard (dette, trésorerie, dealers, CFTC, FRED) portent leur date de publication (`available_at`) ; les clôtures quotidiennes reçoivent la leur au nettoyage. Le nettoyage et les modèles ne sont pas encore écrits : `--all` s'arrête donc à l'étape de nettoyage. Le détail du travail prévu est dans [PLAN.md](PLAN.md).
+> État actuel : phase 4 sur 11. `--fetch` collecte les 11 tables brutes dans `data/raw/`. `--clean` produit les adjudications nettoyées et 55 séries de marché datées de leur publication (`data/clean/`), ainsi que `cleaning_report.json` et `data_quality.json` (`data/output/`). Les modèles ne sont pas encore écrits : `--all` s'arrête donc à l'étape `backtest`. Le détail du travail prévu est dans [PLAN.md](PLAN.md).
 
 ## Installation
 

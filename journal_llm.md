@@ -197,3 +197,46 @@ Aucune valeur n'a une date de disponibilité antérieure à sa date. `ruff check
 **Hypothèses non vérifiées :** fermeture d'octobre 2013 côté CFTC (aucune date officielle trouvée ; rapports d'octobre-novembre 2013 neutralisés jusqu'au 31/12/2013 par prudence) ; jour de publication des dealers quand le jeudi est férié ; publication des dealers avant 2013.
 
 **Résultat :** `ruff check .` propre, 78 tests réussis (52 avant la vérification), collecte complète relancée sans erreur.
+
+## Phase 4 — Nettoyage et contrôles (12 novembre 2026)
+
+**Ma demande (résumé) :** « oui commite et phase 4 » : section 6 du plan, c'est-à-dire fusion et nettoyage des adjudications, séries de marché avec leur date de disponibilité, contrôles de qualité.
+
+**Méthode :** le code a été rédigé pendant que les agents vérifiaient les phases 1 à 3, à partir d'une exploration des données brutes (formats de maturité, réouvertures, petites émissions, raccords du solde du Trésor), puis installé après le commit.
+
+**Ce que le LLM a produit :**
+
+- `clean/auctions.py` : fusion Fiscal Data et TreasuryDirect (correspondances vérifiées en phase 2), typage, familles, maturité résiduelle, exclusions, parts des enchérisseurs, taux d'enchère, statut ;
+- `clean/market.py` : 55 séries au format long (taux, bills, VIX, FRED, dette, solde du Trésor, dealers raccordés, CFTC nets), et la jointure sans fuite `point_in_time` ;
+- `clean/checks.py` : effectifs par année, baisse par rapport à l'exécution précédente, fraîcheur, bornes, doublons, trous ;
+- `clean/run.py` et l'option `--clean` ;
+- 44 tests supplémentaires (122 au total).
+
+**Points importants pour l'oral :**
+
+- **Réouvertures :** la maturité vient de `security_term`. Le CUSIP `912828SY7`, un 5 ans émis en 2012 et rouvert lors de l'enchère 2 ans du 26/05/2015, est classé 5Y puis 2Y (test unitaire et vérification sur les vraies données).
+- **Jointure sans fuite :** pour une enchère du jour *t*, seule compte la dernière valeur publiée strictement avant *t*. Une vieille valeur publiée en retard ne remplace jamais une plus récente (cas de la panne du spread Baa en 2016-2017, testé).
+- **Solde du Trésor :** trois présentations successives raccordées au million près (30/9 → 1/10/2021 et 15/4 → 18/4/2022).
+
+**Écarts avec le plan :**
+
+| Ce que disait le plan | Décision | Raison |
+|---|---|---|
+| Quotidien : `available_at` = date + 1 jour ouvré | Clôtures (taux, bills, VIX) : `available_at` = la date elle-même | Elles sont publiques le soir même. Avec la jointure stricte (< *t*), « +1 jour » ferait utiliser la clôture de *t*-2 au lieu de *t*-1, contrairement à la section 7 (« marché à t-1 ») |
+| Bornes de qualité (bid-to-cover dans [1, 6], taux dans [-1, 20]) = alerte | Hors bornes = **à vérifier (orange)**, pas une erreur ; TIPS exclus de la borne des taux | Ce sont de vraies valeurs : bid-to-cover jusqu'à 10,7 sur des bills à 4 semaines en 2009-2015, taux réels des TIPS jusqu'à -1,7 % en 2021 |
+| Statut `missing_result` à signaler | Ligne exclue et listée ; alerte rouge si l'enchère a moins de 30 jours | Une enchère sans résultat ne doit pas compter comme « enchère précédente » dans les variables |
+| `tail_bp` (cible) | Calculé en phase 5 | Il demande la jointure avec la courbe des taux de la veille, qui relève des variables |
+
+**Résultat vérifié :**
+
+- 7 905 + 137 + 5 lignes en entrée ; 108 doublons Fiscal Data / TreasuryDirect résolus, au profit de la ligne avec résultats puis de TreasuryDirect.
+- 13 exclusions : 12 émissions de 25 M$ hors calendrier et le bill à 4 semaines du 11/09/2001, jamais adjugé.
+- 7 926 enchères gardées : 7 921 réalisées et 5 à venir. Par famille : 5 102 bills, 1 647 coupons classiques, 765 CMB, 258 TIPS, 154 FRN.
+- Depuis 2009, aucune cible manquante pour les coupons classiques et les bills.
+- Parts dealers + directs + indirects : 6 291 enchères contrôlées, aucune hors de [0,99 ; 1,01].
+- Marché : 178 473 lignes et 55 séries, sans doublon ni date de disponibilité antérieure à la date.
+- Plus grand trou : 2 jours ouvrés pour les taux, 4 pour le VIX.
+- Qualité globale : orange, avec une seule remarque, les 20 bid-to-cover extrêmes ci-dessus.
+- `ruff check .` est propre, 122 tests réussis. Le tableau par famille et par année est dans `data/output/auctions_by_family_year.csv`.
+
+**À relire moi-même :** `clean/auctions.py` (fonctions `combine_sources`, `maturity_bucket`, `exclusion_reasons`) et `clean/market.py` (fonctions `known_values`, `point_in_time`).
