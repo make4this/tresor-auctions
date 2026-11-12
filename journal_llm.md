@@ -279,3 +279,56 @@ Aucune valeur n'a une date de disponibilité antérieure à sa date. `ruff check
 **À reprendre en phase 5 :** variables calculées à l'intérieur d'une même `series_run` ; `max_age` par série dans la jointure ; parts des enchérisseurs absentes avant avril 2008 (échantillon dès 2009) ; pas de taux de marché la veille pour les premiers bills à 8, 17 et 6 semaines ; pas de *tail* pour les FRN et les TIPS (taux réel).
 
 **Résultat :** statut de qualité global **vert**, sans alerte. Reprises de séries détectées depuis 2009, conformes au calendrier réel : 7 ans (26/02/2009), bill à 8 semaines (16/10/2018), 20 ans (20/05/2020), bill à 17 semaines (19/10/2022), bill à 6 semaines (18/02/2025). `ruff check .` est propre, 142 tests réussis (122 avant la vérification).
+
+## Phase 5 — Variables point-in-time (12 novembre 2026)
+
+**Ma demande (résumé) :** « OK, phase 5 » : section 7 du plan, c'est-à-dire les variables connues avant chaque enchère, la cible *tail*, et le test anti-fuite obligatoire.
+
+**Ce que le LLM a produit :**
+
+- `features.py` : 47 variables réparties en 5 groupes ; la cible `tail_bp` ; la provenance de chaque valeur (date de publication de l'information utilisée) ; le contrôle `look_ahead_violations`, qui refuse d'écrire la table en cas de fuite ;
+- l'étape `--clean`, qui construit désormais aussi `data/clean/features.parquet` et `data/output/features_missing.csv` ;
+- 16 tests, dont le test anti-fuite sur données synthétiques et sur vraies données.
+
+**Les 5 groupes de variables :**
+
+| Groupe | Variables |
+|---|---|
+| Enchère (`auction`) | maturité, réouverture, log du montant, variation du montant, jours depuis la précédente, jour de la semaine, mois de refinancement, distance à la fin de trimestre, montant estimé |
+| Historique (`history`) | les 4 cibles des 3 enchères précédentes de la même série et leur moyenne ; bid-to-cover relatif des 5 dernières enchères de la famille |
+| Marché (`market`) | taux de la maturité à t-1, ses variations sur 5 et 20 jours, sa volatilité sur 20 jours ; pente 10 ans - 2 ans, taux 3 mois, VIX et sa variation, indice dollar sur 20 jours, spread Baa, inflation anticipée |
+| Liquidité (`liquidity`) | variation de la dette sur 30 jours, solde du Trésor, reverse repo, bilan de la Fed |
+| Positionnement (`positioning`) | positions nettes des dealers (tranche de la maturité, total, variation sur 4 semaines), positions nettes des asset managers et des leveraged funds sur le future le plus proche, rapportées à l'open interest |
+
+Les groupes `liquidity` et `positioning` sont les « nouvelles sources » de l'expérience clé du plan (avec contre sans).
+
+**Règles anti-fuite, à savoir défendre :**
+
+- Une information de marché ou d'historique n'est utilisée que si elle était publiée **strictement avant** le jour de l'enchère. Les caractéristiques de l'enchère elle-même sont connues à son annonce, au plus tard le jour même (7 enchères annoncées le jour même).
+- Une variable dérivée (variation, volatilité, rapport) n'est connue que quand **toute sa fenêtre** l'était.
+- Les historiques se calculent à l'intérieur d'une même série (`series_run`) : une enchère du même jour n'est jamais « la précédente ».
+- Une valeur de marché trop vieille est ignorée : plus de 10 jours pour une série quotidienne, 21 pour une série hebdomadaire.
+- Montant pas encore annoncé : celui de la dernière enchère de la même série, marqué `offering_estimated`.
+
+**Le test anti-fuite, sous deux formes :**
+
+1. **Provenance :** chaque valeur de chaque variable porte la date de publication de l'information utilisée. Sur les 6 749 enchères réelles, aucune violation.
+2. **Troncature :** pour un échantillon d'enchères (4 synthétiques, 8 réelles tirées au hasard depuis 2009), les variables sont recalculées après avoir effacé tout ce qui a été publié à partir du jour de l'enchère. Elles sont identiques.
+
+**Vérification que le test sait échouer :** deux fuites ont été introduites exprès, une jointure de marché qui accepte la clôture du jour même et un historique qui compte une enchère du même jour. Elles sont détectées respectivement par 6 et 7 tests, dont les deux tests sur vraies données.
+
+**Résultat vérifié :**
+
+- Échantillon des modèles (réalisées depuis 2009) : 5 119 enchères (3 757 bills, 1 362 coupons) ; aucune valeur infinie.
+- Valeurs manquantes : presque nulles, sauf l'indice dollar (46 à 53 %, série créée en février 2019), les positions CFTC (12 à 13 %, historique publié seulement en décembre 2010 et panne de 2013 neutralisée) et le spread Baa (2 %, panne 2016-2017).
+- *Tail* médian : +0,5 pb (coupons) et +0,9 pb (bills). Les plus grands *tails* sont de vrais événements : bills à 4 semaines pendant les crises du plafond de la dette (+143 pb le 4/5/2023, +37 pb le 5/9/2017) et crise de la Silicon Valley Bank (mars 2023). Seules 19 enchères dépassent 25 pb en valeur absolue.
+- Corrélation de chaque cible avec la moyenne de ses 3 dernières valeurs : 0,79 à 0,91 pour bid-to-cover et parts, 0,12 à 0,42 pour le *tail*. Le benchmark `mean3` sera donc difficile à battre.
+- `ruff check .` propre, 158 tests réussis.
+
+**Choix et limites :**
+
+- Le contrat future « le plus proche » est le 2 ans pour les bills et le 3 ans, le 10 ans pour le 7 ans, le T-Bond pour le 20 ans et le 30 ans.
+- Pas de *tail* pour les premiers bills à 8, 17 et 6 semaines : le taux de marché commence le jour même.
+- Les CMB, TIPS et FRN ne sont pas modélisés.
+
+**À relire moi-même :** `features.py` (fonctions `_windowed`, `history_features`, `market_features`, `look_ahead_violations`) et `tests/test_features.py` (fonction `truncated_inputs`).

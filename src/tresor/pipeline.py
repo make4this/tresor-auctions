@@ -8,6 +8,7 @@ import sys
 from collections.abc import Callable, Sequence
 
 from tresor.clean.run import run_cleaning
+from tresor.features import run_features
 from tresor.http import FetchError
 from tresor.sources.collect import collect_all
 
@@ -22,8 +23,9 @@ def _run_fetch() -> None:
 
 
 def _run_clean() -> None:
-    """Nettoie les tables brutes et écrit les comptes rendus de nettoyage et de qualité."""
+    """Nettoie les tables brutes, écrit les contrôles, puis construit les variables."""
     run_cleaning()
+    run_features()
 
 
 def _pending(phase: int) -> StepFunction:
@@ -38,7 +40,7 @@ def _pending(phase: int) -> StepFunction:
 # L'ordre de ce dictionnaire est l'ordre d'exécution de --all.
 STEPS: dict[str, tuple[str, StepFunction]] = {
     "fetch": ("télécharger toutes les sources dans data/raw/", _run_fetch),
-    "clean": ("nettoyer les données et lancer les contrôles", _run_clean),
+    "clean": ("nettoyer les données, lancer les contrôles, construire les variables", _run_clean),
     "backtest": ("validation walk-forward et stratégie", _pending(6)),
     "train": ("entraîner les modèles finaux sur tout l'historique", _pending(8)),
     "predict": ("prévoir les enchères à venir", _pending(8)),
