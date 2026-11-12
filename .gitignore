@@ -1,0 +1,19 @@
+# Secrets : la clé FRED ne doit jamais être commitée
+.env
+
+# Environnements et caches Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Fichiers temporaires d'une écriture interrompue (écriture atomique)
+*.part
+
+# Fichiers parasites
+.DS_Store
+.ipynb_checkpoints/
