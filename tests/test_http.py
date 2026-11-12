@@ -17,9 +17,7 @@ URL = "https://example.test/data"
 class FakeServer:
     """Rejoue une suite de réponses, répète la dernière et note les requêtes reçues."""
 
-    def __init__(
-        self, *outcomes: int | Exception | httpx.Response, body: str = "contenu"
-    ) -> None:
+    def __init__(self, *outcomes: int | Exception | httpx.Response, body: str = "contenu") -> None:
         self.outcomes = list(outcomes)
         self.body = body
         self.requests: list[httpx.Request] = []
@@ -82,9 +80,7 @@ def test_failures_never_expose_query_parameters(caplog: pytest.LogCaptureFixture
     server = FakeServer(503)
 
     with pytest.raises(FetchError) as caught:
-        get_with_retries(
-            server.client(), URL, params={"api_key": "SECRET"}, sleep=lambda _: None
-        )
+        get_with_retries(server.client(), URL, params={"api_key": "SECRET"}, sleep=lambda _: None)
 
     assert "api_key=SECRET" in str(server.requests[0].url)  # la clé part bien vers le serveur
     assert "SECRET" not in str(caught.value)

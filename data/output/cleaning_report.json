@@ -93,6 +93,20 @@
             "security_type": "Bill",
             "security_term": "7-Day",
             "offering_amt": 25000000
+          },
+          {
+            "cusip": "912797MN4",
+            "auction_date": "2024-12-05",
+            "security_type": "Bill",
+            "security_term": "4-Day",
+            "offering_amt": 25000000
+          },
+          {
+            "cusip": "912797A72",
+            "auction_date": "2025-12-04",
+            "security_type": "Bill",
+            "security_term": "2-Day",
+            "offering_amt": 25000000
           }
         ]
       }
@@ -119,342 +133,453 @@
     "share_sum_outside_0_99_1_01": 0,
     "far_from_standard_maturity_by_family": {
       "cmb": 233
+    },
+    "series_restarts_since_2009": {
+      "nominal_coupon_7Y#2": "2009-02-26",
+      "bill_8W#1": "2018-10-16",
+      "nominal_coupon_20Y#1": "2020-05-20",
+      "bill_17W#1": "2022-10-19",
+      "bill_6W#1": "2025-02-18"
     }
   },
   "market": {
-    "rows": 178473,
+    "rows": 181066,
+    "raw_rows": {
+      "cboe_vix": 9314,
+      "cftc_positions": 5686,
+      "fiscaldata_auctions": 7905,
+      "fiscaldata_cash_balance": 16766,
+      "fiscaldata_debt": 6741,
+      "fred_series": 27518,
+      "nyfed_dealer_positions": 9781,
+      "treasury_bill_rates": 6220,
+      "treasury_yield_curve": 6719,
+      "treasurydirect_recent": 137,
+      "treasurydirect_upcoming": 5
+    },
     "series": {
       "bill_13w": {
         "source": "treasury_bill_rates",
+        "unit": "%",
         "rows": 6219,
         "first_date": "2002-01-02",
         "last_date": "2026-11-10"
       },
       "bill_17w": {
         "source": "treasury_bill_rates",
+        "unit": "%",
         "rows": 1015,
         "first_date": "2022-10-19",
         "last_date": "2026-11-10"
       },
       "bill_26w": {
         "source": "treasury_bill_rates",
+        "unit": "%",
         "rows": 6219,
         "first_date": "2002-01-02",
         "last_date": "2026-11-10"
       },
       "bill_4w": {
         "source": "treasury_bill_rates",
+        "unit": "%",
         "rows": 6218,
         "first_date": "2002-01-02",
         "last_date": "2026-11-10"
       },
       "bill_52w": {
         "source": "treasury_bill_rates",
+        "unit": "%",
         "rows": 4618,
         "first_date": "2002-01-30",
         "last_date": "2026-11-10"
       },
       "bill_6w": {
         "source": "treasury_bill_rates",
+        "unit": "%",
         "rows": 434,
         "first_date": "2025-02-18",
         "last_date": "2026-11-10"
       },
       "bill_8w": {
         "source": "treasury_bill_rates",
+        "unit": "%",
         "rows": 2017,
         "first_date": "2018-10-16",
         "last_date": "2026-11-10"
       },
       "cftc_10y_am_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_10y_lev_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_10y_oi": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_2y_am_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_2y_lev_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_2y_oi": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_5y_am_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_5y_lev_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_5y_oi": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_bond_am_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_bond_lev_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_bond_oi": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 1065,
         "first_date": "2006-06-13",
         "last_date": "2026-11-03"
       },
       "cftc_ultra10y_am_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 555,
         "first_date": "2016-03-08",
         "last_date": "2026-11-03"
       },
       "cftc_ultra10y_lev_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 555,
         "first_date": "2016-03-08",
         "last_date": "2026-11-03"
       },
       "cftc_ultra10y_oi": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 555,
         "first_date": "2016-03-08",
         "last_date": "2026-11-03"
       },
       "cftc_ultrabond_am_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 871,
         "first_date": "2010-03-02",
         "last_date": "2026-11-03"
       },
       "cftc_ultrabond_lev_net": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 871,
         "first_date": "2010-03-02",
         "last_date": "2026-11-03"
       },
       "cftc_ultrabond_oi": {
         "source": "cftc_positions",
+        "unit": "contrats",
         "rows": 871,
         "first_date": "2010-03-02",
         "last_date": "2026-11-03"
       },
       "dealer_bills": {
         "source": "nyfed_dealer_positions",
+        "unit": "millions de dollars",
         "rows": 1501,
         "first_date": "1998-01-28",
         "last_date": "2026-10-28"
       },
       "dealer_coupons_3to6y": {
         "source": "nyfed_dealer_positions",
+        "unit": "millions de dollars",
         "rows": 1322,
         "first_date": "2001-07-04",
         "last_date": "2026-10-28"
       },
       "dealer_coupons_6to11y": {
         "source": "nyfed_dealer_positions",
+        "unit": "millions de dollars",
         "rows": 1322,
         "first_date": "2001-07-04",
         "last_date": "2026-10-28"
       },
       "dealer_coupons_gt11y": {
         "source": "nyfed_dealer_positions",
+        "unit": "millions de dollars",
         "rows": 1322,
         "first_date": "2001-07-04",
         "last_date": "2026-10-28"
       },
       "dealer_coupons_le3y": {
         "source": "nyfed_dealer_positions",
+        "unit": "millions de dollars",
         "rows": 1322,
         "first_date": "2001-07-04",
         "last_date": "2026-10-28"
       },
       "dealer_total": {
         "source": "nyfed_dealer_positions",
+        "unit": "millions de dollars",
         "rows": 1322,
         "first_date": "2001-07-04",
         "last_date": "2026-10-28"
       },
       "debt_public": {
         "source": "fiscaldata_debt",
+        "unit": "dollars",
         "rows": 5470,
         "first_date": "2000-09-29",
         "last_date": "2026-11-09"
       },
       "debt_total": {
         "source": "fiscaldata_debt",
+        "unit": "dollars",
         "rows": 6741,
         "first_date": "2000-01-03",
         "last_date": "2026-11-09"
       },
       "fred_baa10y": {
         "source": "fred_series",
+        "unit": "%",
         "rows": 6711,
         "first_date": "2000-01-03",
         "last_date": "2026-11-09"
       },
       "fred_dtwexbgs": {
         "source": "fred_series",
+        "unit": "indice (janvier 2006 = 100)",
         "rows": 5227,
         "first_date": "2006-01-02",
         "last_date": "2026-11-06"
       },
       "fred_rrpontsyd": {
         "source": "fred_series",
-        "rows": 3366,
+        "unit": "milliards de dollars",
+        "rows": 5959,
         "first_date": "2003-02-07",
         "last_date": "2026-11-12"
       },
       "fred_t10yie": {
         "source": "fred_series",
+        "unit": "%",
         "rows": 5969,
         "first_date": "2003-01-02",
         "last_date": "2026-11-10"
       },
       "fred_walcl": {
         "source": "fred_series",
+        "unit": "millions de dollars",
         "rows": 1247,
         "first_date": "2002-12-18",
         "last_date": "2026-11-04"
       },
       "fred_wtregen": {
         "source": "fred_series",
+        "unit": "millions de dollars",
         "rows": 1247,
         "first_date": "2002-12-18",
         "last_date": "2026-11-04"
       },
       "tga_close": {
         "source": "fiscaldata_cash_balance",
+        "unit": "millions de dollars",
         "rows": 5301,
         "first_date": "2005-10-03",
         "last_date": "2026-11-09"
       },
       "vix_close": {
         "source": "cboe_vix",
+        "unit": "points",
         "rows": 9314,
         "first_date": "1990-01-02",
         "last_date": "2026-11-11"
       },
       "yield_10y": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6718,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_1m": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6322,
         "first_date": "2001-07-31",
         "last_date": "2026-11-10"
       },
       "yield_1y": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6718,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_20y": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6718,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_2m": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 2017,
         "first_date": "2018-10-16",
         "last_date": "2026-11-10"
       },
       "yield_2y": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6718,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_30y": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 5724,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_3m": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6715,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_3y": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6718,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_4m": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 1015,
         "first_date": "2022-10-19",
         "last_date": "2026-11-10"
       },
       "yield_5y": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6718,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_6m": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6718,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       },
       "yield_6w": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 434,
         "first_date": "2025-02-18",
         "last_date": "2026-11-10"
       },
       "yield_7y": {
         "source": "treasury_yield_curve",
+        "unit": "%",
         "rows": 6718,
         "first_date": "2000-01-03",
         "last_date": "2026-11-10"
       }
     },
+    "missing_values_dropped": {
+      "bill_13w": 1,
+      "bill_17w": 5205,
+      "bill_26w": 1,
+      "bill_4w": 2,
+      "bill_52w": 1602,
+      "bill_6w": 5786,
+      "bill_8w": 4203,
+      "dealer_coupons_3to6y": 179,
+      "dealer_coupons_6to11y": 179,
+      "dealer_coupons_gt11y": 179,
+      "dealer_coupons_le3y": 179,
+      "dealer_total": 179,
+      "debt_public": 1271,
+      "fred_baa10y": 295,
+      "fred_dtwexbgs": 213,
+      "fred_rrpontsyd": 241,
+      "fred_t10yie": 255,
+      "fred_wtregen": 154,
+      "yield_10y": 1,
+      "yield_1m": 397,
+      "yield_1y": 1,
+      "yield_20y": 1,
+      "yield_2m": 4702,
+      "yield_2y": 1,
+      "yield_30y": 995,
+      "yield_3m": 4,
+      "yield_3y": 1,
+      "yield_4m": 5704,
+      "yield_5y": 1,
+      "yield_6m": 1,
+      "yield_6w": 6285,
+      "yield_7y": 1
+    },
+    "cash_balance_rows_of_other_accounts": 11465,
+    "reverse_repo_no_operation_set_to_zero": 2593,
     "unknown_columns": {
       "treasury_yield_curve": [],
       "treasury_bill_rates": []

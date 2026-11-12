@@ -9,7 +9,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-MARKET_COLUMNS = ("source", "series", "date", "value", "available_at")
+from tresor.sources.raw import us_holidays
+
+MARKET_COLUMNS = ("source", "series", "unit", "date", "value", "available_at")
 
 # « * » : valeur masquée par la New York Fed ; « . » : valeur absente sur FRED.
 MISSING_MARKERS = ["", ".", "null", "*", "N/A"]
@@ -68,6 +70,35 @@ CFTC_CONTRACTS = {
 }
 CFTC_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"
 
+SERIES_UNITS = {
+    "vix_close": "points",
+    "debt_total": "dollars",
+    "debt_public": "dollars",
+    "tga_close": "millions de dollars",
+    "fred_dtwexbgs": "indice (janvier 2006 = 100)",
+    "fred_walcl": "millions de dollars",
+    "fred_rrpontsyd": "milliards de dollars",
+    "fred_wtregen": "millions de dollars",
+    "fred_baa10y": "%",
+    "fred_t10yie": "%",
+}
+UNIT_BY_PREFIX = {
+    "yield_": "%",
+    "bill_": "%",
+    "dealer_": "millions de dollars",
+    "cftc_": "contrats",
+}
+
+
+def unit_of(series: str) -> str:
+    """Unité d'une série : les sources mélangent dollars, millions et milliards."""
+    if series in SERIES_UNITS:
+        return SERIES_UNITS[series]
+    for prefix, unit in UNIT_BY_PREFIX.items():
+        if series.startswith(prefix):
+            return unit
+    raise KeyError(f"unité inconnue pour la série {series}")
+
 
 def _numbers(values: pd.Series) -> pd.Series:
     return pd.to_numeric(values.where(~values.isin(MISSING_MARKERS)))
@@ -76,8 +107,8 @@ def _numbers(values: pd.Series) -> pd.Series:
 def _series(
     source: str, name: str, dates: pd.Series, values: pd.Series, available_at: pd.Series
 ) -> pd.DataFrame:
-    """Une série au format long, sans ses valeurs manquantes."""
-    frame = pd.DataFrame(
+    """Une série au format long ; les valeurs manquantes sont retirées et comptées plus loin."""
+    return pd.DataFrame(
         {
             "source": source,
             "series": name,
@@ -86,7 +117,6 @@ def _series(
             "available_at": available_at.to_numpy(dtype="datetime64[ns]"),
         }
     )
-    return frame.dropna(subset=["value"])
 
 
 def yield_curve_long(raw: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
@@ -130,41 +160,43 @@ def _with_available_at(raw: pd.DataFrame, date_column: str, date_format: str) ->
     return dates, pd.to_datetime(raw["available_at"], format=ISO_DATE_FORMAT)
 
 
-def fred_long(raw: pd.DataFrame) -> pd.DataFrame:
-    """Séries FRED ; available_at vient de la collecte (vraie date ALFRED ou règle)."""
+def fred_long(raw: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Séries FRED ; available_at vient de la collecte (vraie date ALFRED ou règle).
+
+    Reverse repo : « . » veut dire « aucune opération ce jour-là », donc 0 (vérifié : avant 2014,
+    presque tous les jours valent « . » et aucun ne vaut 0). Les jours fériés restent manquants,
+    pour qu'un marché fermé ne ressemble pas à une chute à zéro.
+    """
     dates, available_at = _with_available_at(raw, "date", ISO_DATE_FORMAT)
-    names = "fred_" + raw["series_id"].str.lower()
+    values = _numbers(raw["value"])
+    is_business_day = np.is_busday(
+        dates.to_numpy(dtype="datetime64[D]"), holidays=us_holidays(dates.min(), dates.max())
+    )
+    no_operation = (
+        raw["series_id"].eq("RRPONTSYD").to_numpy(dtype=bool)
+        & raw["value"].eq(".").to_numpy(dtype=bool)
+        & is_business_day
+    )
     frame = pd.DataFrame(
         {
             "source": "fred_series",
-            "series": names.to_numpy(),
+            "series": ("fred_" + raw["series_id"].str.lower()).to_numpy(),
             "date": dates.to_numpy(dtype="datetime64[ns]"),
-            "value": _numbers(raw["value"]).to_numpy(dtype=float),
+            "value": values.mask(no_operation, 0.0).to_numpy(dtype=float),
             "available_at": available_at.to_numpy(dtype="datetime64[ns]"),
         }
     )
-    return frame.dropna(subset=["value"])
+    return frame, int(no_operation.sum())
 
 
 def debt_long(raw: pd.DataFrame) -> pd.DataFrame:
     """Dette totale et dette détenue par le public, en dollars."""
     dates, available_at = _with_available_at(raw, "record_date", ISO_DATE_FORMAT)
+    columns = {"debt_total": "tot_pub_debt_out_amt", "debt_public": "debt_held_public_amt"}
     return pd.concat(
         [
-            _series(
-                "fiscaldata_debt",
-                "debt_total",
-                dates,
-                _numbers(raw["tot_pub_debt_out_amt"]),
-                available_at,
-            ),
-            _series(
-                "fiscaldata_debt",
-                "debt_public",
-                dates,
-                _numbers(raw["debt_held_public_amt"]),
-                available_at,
-            ),
+            _series("fiscaldata_debt", name, dates, _numbers(raw[column]), available_at)
+            for name, column in columns.items()
         ],
         ignore_index=True,
     )
@@ -176,11 +208,8 @@ def tga_long(raw: pd.DataFrame) -> pd.DataFrame:
     for account, column in TGA_ACCOUNTS:
         rows = raw[raw["account_type"] == account]
         dates, available_at = _with_available_at(rows, "record_date", ISO_DATE_FORMAT)
-        parts.append(
-            _series(
-                "fiscaldata_cash_balance", "tga_close", dates, _numbers(rows[column]), available_at
-            )
-        )
+        values = _numbers(rows[column])
+        parts.append(_series("fiscaldata_cash_balance", "tga_close", dates, values, available_at))
     frame = pd.concat(parts, ignore_index=True)
     if frame["date"].duplicated().any():
         raise ValueError("solde du Trésor : deux présentations se chevauchent sur une même date")
@@ -188,7 +217,11 @@ def tga_long(raw: pd.DataFrame) -> pd.DataFrame:
 
 
 def dealers_long(raw: pd.DataFrame) -> tuple[pd.DataFrame, int]:
-    """Positions nettes par tranche, raccordées entre anciennes et nouvelles clés (millions $)."""
+    """Positions nettes par tranche, raccordées entre anciennes et nouvelles clés (millions $).
+
+    dealer_total est la somme des cinq tranches (bills et coupons nominaux) : il exclut les TIPS
+    et les FRN, et diffère donc du total officiel de la New York Fed.
+    """
     dates = pd.to_datetime(raw["As Of Date"], format=ISO_DATE_FORMAT)
     values = _numbers(raw["Value (millions)"])
     wide = pd.DataFrame({"date": dates, "key": raw["Time Series"], "value": values}).pivot(
@@ -242,14 +275,9 @@ def cftc_long(raw: pd.DataFrame) -> pd.DataFrame:
     for code, label in CFTC_CONTRACTS.items():
         rows = raw["cftc_contract_market_code"].eq(code)
         for measure, values in measures.items():
+            name = f"cftc_{label}_{measure}"
             frames.append(
-                _series(
-                    "cftc_positions",
-                    f"cftc_{label}_{measure}",
-                    dates[rows],
-                    values[rows],
-                    available_at[rows],
-                )
+                _series("cftc_positions", name, dates[rows], values[rows], available_at[rows])
             )
     return pd.concat(frames, ignore_index=True)
 
@@ -259,37 +287,51 @@ def build_market(raw_tables: Mapping[str, pd.DataFrame]) -> tuple[pd.DataFrame, 
     curve, unknown_curve = yield_curve_long(raw_tables["treasury_yield_curve"])
     bills, unknown_bills = bill_rates_long(raw_tables["treasury_bill_rates"])
     dealers, dealer_overlaps = dealers_long(raw_tables["nyfed_dealer_positions"])
-    market = pd.concat(
+    fred, rrp_zeros = fred_long(raw_tables["fred_series"])
+    cash = raw_tables["fiscaldata_cash_balance"]
+    with_missing = pd.concat(
         [
             curve,
             bills,
             vix_long(raw_tables["cboe_vix"]),
-            fred_long(raw_tables["fred_series"]),
+            fred,
             debt_long(raw_tables["fiscaldata_debt"]),
-            tga_long(raw_tables["fiscaldata_cash_balance"]),
+            tga_long(cash),
             dealers,
             cftc_long(raw_tables["cftc_positions"]),
         ],
         ignore_index=True,
-    ).sort_values(["series", "date"], kind="stable", ignore_index=True)
+    )
+    missing = with_missing[with_missing["value"].isna()].groupby("series").size()
+    market = with_missing.dropna(subset=["value"]).sort_values(
+        ["series", "date"], kind="stable", ignore_index=True
+    )
+    market["unit"] = market["series"].map(unit_of)
 
     summary = market.groupby("series").agg(
         source=("source", "first"),
+        unit=("unit", "first"),
         rows=("value", "size"),
         first_date=("date", "min"),
         last_date=("date", "max"),
     )
+    tga_rows = cash["account_type"].isin([account for account, _ in TGA_ACCOUNTS]).sum()
     report = {
         "rows": len(market),
+        "raw_rows": {name: len(raw_tables[name]) for name in sorted(raw_tables)},
         "series": {
             name: {
                 "source": row.source,
+                "unit": row.unit,
                 "rows": int(row.rows),
                 "first_date": row.first_date.strftime(ISO_DATE_FORMAT),
                 "last_date": row.last_date.strftime(ISO_DATE_FORMAT),
             }
             for name, row in summary.iterrows()
         },
+        "missing_values_dropped": {name: int(count) for name, count in missing.items()},
+        "cash_balance_rows_of_other_accounts": int(len(cash) - tga_rows),
+        "reverse_repo_no_operation_set_to_zero": rrp_zeros,
         "unknown_columns": {
             "treasury_yield_curve": unknown_curve,
             "treasury_bill_rates": unknown_bills,
@@ -309,15 +351,36 @@ def known_values(series_frame: pd.DataFrame) -> pd.DataFrame:
     return ordered[ordered["date"].eq(ordered["date"].cummax())]
 
 
-def point_in_time(dates: pd.Series, series_frame: pd.DataFrame) -> pd.DataFrame:
-    """Pour chaque date t, la dernière valeur publiée strictement avant t (jointure sans fuite)."""
+def _auction_days(dates: pd.Series) -> np.ndarray:
+    """Dates d'enchère en jours entiers, ou une erreur.
+
+    Une heure ou un fuseau horaire est refusé : « 2026-11-05 10:00 », ou minuit à New York
+    converti en UTC, rendrait la clôture du 5 novembre « publiée avant » l'enchère du 5.
+    """
+    if isinstance(dates.dtype, pd.DatetimeTZDtype):
+        raise ValueError("dates d'enchère avec fuseau horaire : passer des dates sans fuseau")
+    days = pd.to_datetime(dates)
+    if days.isna().any():
+        raise ValueError("dates d'enchère manquantes")
+    if (days != days.dt.normalize()).any():
+        raise ValueError("dates d'enchère avec une heure : passer des dates sans heure")
+    return days.to_numpy(dtype="datetime64[ns]")
+
+
+def point_in_time(
+    dates: pd.Series, series_frame: pd.DataFrame, max_age: pd.Timedelta | None = None
+) -> pd.DataFrame:
+    """Pour chaque date t, la dernière valeur publiée strictement avant t (jointure sans fuite).
+
+    Avec max_age, une valeur observée plus de max_age avant t est ignorée : une série
+    interrompue ne doit pas servir indéfiniment.
+    """
     known = known_values(series_frame)[["available_at", "date", "value"]].rename(
         columns={"date": "observed_on"}
     )
     known["available_at"] = known["available_at"].astype("datetime64[ns]")
-    left = pd.DataFrame(
-        {"t": dates.to_numpy(dtype="datetime64[ns]"), "position": np.arange(len(dates))}
-    )
+    known["observed_on"] = known["observed_on"].astype("datetime64[ns]")
+    left = pd.DataFrame({"t": _auction_days(dates), "position": np.arange(len(dates))})
     merged = pd.merge_asof(
         left.sort_values("t", kind="stable"),
         known,
@@ -327,4 +390,8 @@ def point_in_time(dates: pd.Series, series_frame: pd.DataFrame) -> pd.DataFrame:
         allow_exact_matches=False,
     )
     merged = merged.sort_values("position").set_index(dates.index)
-    return merged[["observed_on", "value", "available_at"]]
+    result = merged[["observed_on", "value", "available_at"]]
+    if max_age is not None:
+        too_old = (merged["t"] - merged["observed_on"]) > max_age
+        result = result.mask(too_old)
+    return result

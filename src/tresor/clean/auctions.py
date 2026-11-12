@@ -62,6 +62,10 @@ TREASURYDIRECT_TO_FISCALDATA = {
     "investmentRate": "high_investment_rate",
     "bidToCoverRatio": "bid_to_cover_ratio",
     "subtotalCompetitiveParRecognizedInsideOfOfferingAmount": "comp_tendered",
+    # Vérifié : égal à la somme des trois catégories d'enchérisseurs (137 lignes sur 137) et à
+    # comp_accepted de Fiscal Data (103 enchères communes) ; lu tel quel, il permet de contrôler
+    # que les trois parts somment bien à 1.
+    "subtotalCompetitiveParAwardedInsideOfOfferingAmount": "comp_accepted",
     "grandTotalParAwarded": "total_accepted",
     "grandTotalParRecognized": "total_tendered",
     "primaryDealersCompetitiveParAwarded": "primary_dealer_accepted",
@@ -79,8 +83,14 @@ SOURCE_PRIORITY = {"treasurydirect": 2, "treasurydirect_upcoming": 1, "fiscaldat
 TERM_PATTERN = re.compile(r"(?:(\d+)-Year)?\s*(?:(\d+)-Month)?\s*(?:(\d+)-Week)?\s*(?:(\d+)-Day)?")
 DAYS_PER_YEAR = 365.25
 BILL_FAMILIES = ("bill", "cmb")
-FAR_FROM_STANDARD = 0.2  # écart relatif au-delà duquel une maturité est signalée
+# Au-delà de cet écart relatif, une maturité n'est rattachée à aucune maturité standard : c'est
+# le cas de CMB de 1 à 35 jours, qui ne doivent pas passer pour des bills à 4 semaines.
+FAR_FROM_STANDARD = 0.2
 RECENT_DAYS = 30  # une enchère passée depuis moins longtemps sans résultat déclenche une alerte
+# Au-delà de ce délai sans enchère, une série recommence : les réouvertures hors calendrier
+# d'octobre 2008 (anciens 10 ans à 6-7 ans de l'échéance) ne servent pas d'historique au 7 ans
+# relancé en février 2009, ni le 20 ans de 1986 à celui de 2020.
+RUN_GAP_DAYS = 120
 
 OUTPUT_COLUMNS = (
     "cusip",
@@ -96,6 +106,8 @@ OUTPUT_COLUMNS = (
     "term_years",
     "maturity_bucket",
     "bucket_years",
+    "series_key",
+    "series_run",
     "offering_amt",
     "auction_rate",
     "high_yield",
@@ -146,11 +158,7 @@ def harmonize_treasurydirect(raw: pd.DataFrame, source: str) -> pd.DataFrame:
     renamed["auction_date"] = raw["competitiveAuctionCloseDate"]
     for column in DATE_COLUMNS:
         renamed[column] = renamed[column].str[:10]  # "2026-11-16T00:00:00" -> "2026-11-16"
-    columns = [c for c in FISCALDATA_COLUMNS if c != "comp_accepted"]
-    typed = type_columns(renamed[columns])
-    # Vérifié exact sur 99 enchères : comp_accepted = somme des trois catégories d'enchérisseurs.
-    typed["comp_accepted"] = typed[list(BIDDER_COLUMNS)].sum(axis=1, min_count=len(BIDDER_COLUMNS))
-    return typed.assign(source=source)
+    return type_columns(renamed[list(FISCALDATA_COLUMNS)]).assign(source=source)
 
 
 def combine_sources(frames: list[pd.DataFrame]) -> tuple[pd.DataFrame, int]:
@@ -187,6 +195,8 @@ def classify_family(frame: pd.DataFrame) -> pd.Series:
 
 def term_in_years(term: str) -> float:
     """Durée résiduelle d'un libellé comme « 9-Year 10-Month », « 13-Week » ou « 42-Day »."""
+    if not isinstance(term, str):
+        raise ValueError(f"durée illisible : {term!r}")
     match = TERM_PATTERN.fullmatch(term.strip())
     if match is None or not any(match.groups()):
         raise ValueError(f"durée illisible : {term!r}")
@@ -199,14 +209,42 @@ def nearest(value: float, choices: tuple[int, ...]) -> int:
     return min(choices, key=lambda choice: (abs(value - choice), choice))
 
 
-def maturity_bucket(term_years: float, family: str) -> tuple[str, float, float]:
-    """Maturité standard la plus proche : libellé, durée en années et écart relatif."""
+def maturity_bucket(term_years: float, family: str) -> tuple[str | None, float, float]:
+    """Maturité standard la plus proche : libellé, durée en années et écart relatif.
+
+    Si l'écart dépasse FAR_FROM_STANDARD, aucune maturité standard n'est attribuée (None).
+    """
     if family in BILL_FAMILIES:
         weeks = term_years * DAYS_PER_YEAR / 7
         standard = nearest(weeks, BILL_MATURITIES_WEEKS)
-        return f"{standard}W", standard * 7 / DAYS_PER_YEAR, abs(weeks - standard) / standard
-    standard = nearest(term_years, COUPON_MATURITIES_YEARS)
-    return f"{standard}Y", float(standard), abs(term_years - standard) / standard
+        label, years, gap = f"{standard}W", standard * 7 / DAYS_PER_YEAR, abs(weeks - standard)
+    else:
+        standard = nearest(term_years, COUPON_MATURITIES_YEARS)
+        label, years, gap = f"{standard}Y", float(standard), abs(term_years - standard)
+    relative_gap = gap / standard
+    if relative_gap > FAR_FROM_STANDARD:
+        return None, float("nan"), relative_gap
+    return label, years, relative_gap
+
+
+def add_series(frame: pd.DataFrame) -> pd.DataFrame:
+    """Série régulière de chaque enchère : même famille, même maturité standard, sans longue pause.
+
+    series_key : famille et maturité (« nominal_coupon_10Y »). series_run : la même clé, numérotée
+    à chaque reprise après plus de RUN_GAP_DAYS jours sans enchère (« nominal_coupon_7Y#2 »).
+    """
+    key = frame["family"] + "_" + frame["maturity_bucket"]
+    ordered = frame.assign(series_key=key).sort_values(
+        ["series_key", "auction_date"], kind="stable"
+    )
+    has_key = ordered["series_key"].notna()
+    keyed = ordered[has_key]
+    gaps = keyed.groupby("series_key")["auction_date"].diff()
+    new_run = gaps.isna() | (gaps > pd.Timedelta(days=RUN_GAP_DAYS))
+    run_number = new_run.astype(int).groupby(keyed["series_key"]).cumsum()
+    ordered["series_run"] = pd.Series(pd.NA, index=ordered.index, dtype="string")
+    ordered.loc[has_key, "series_run"] = keyed["series_key"] + "#" + run_number.astype(str)
+    return ordered.sort_index()
 
 
 def auction_status(frame: pd.DataFrame, today: date) -> pd.Series:
@@ -248,11 +286,19 @@ def exclusion_reasons(frame: pd.DataFrame) -> pd.Series:
     return reasons
 
 
-def _examples(frame: pd.DataFrame, limit: int = 10) -> list[dict[str, Any]]:
+def _examples(frame: pd.DataFrame, limit: int = 50) -> list[dict[str, Any]]:
     columns = ["cusip", "auction_date", "security_type", "security_term", "offering_amt"]
     sample = frame[columns].head(limit).copy()
     sample["auction_date"] = sample["auction_date"].dt.strftime("%Y-%m-%d")
     return sample.astype(object).where(sample.notna(), None).to_dict("records")
+
+
+def _series_restarts(auctions: pd.DataFrame, since: str) -> dict[str, str]:
+    """Début de chaque série (coupons classiques et bills) qui (re)commence après une date."""
+    modeled = auctions[auctions["family"].isin(["nominal_coupon", "bill"])]
+    starts = modeled.groupby("series_run")["auction_date"].min()
+    recent = starts[starts >= pd.Timestamp(since)].sort_values()
+    return {run: day.strftime("%Y-%m-%d") for run, day in recent.items()}
 
 
 def families_by_year(auctions: pd.DataFrame) -> pd.DataFrame:
@@ -281,14 +327,17 @@ def clean_auctions(
         maturity_bucket(t, f)
         for t, f in zip(combined["term_years"], combined["family"], strict=True)
     ]
-    combined["maturity_bucket"] = [label for label, _, _ in buckets]
+    combined["maturity_bucket"] = pd.Series(
+        [label for label, _, _ in buckets], index=combined.index, dtype="string"
+    )
     combined["bucket_years"] = [years for _, years, _ in buckets]
     combined["bucket_gap"] = [gap for _, _, gap in buckets]
     combined["status"] = auction_status(combined, today)
     combined = add_targets(combined)
 
     reasons = exclusion_reasons(combined)
-    kept = combined[reasons.isna()]
+    # Les séries se calculent sur les enchères gardées : une ligne exclue ne coupe ni ne relie rien.
+    kept = add_series(combined[reasons.isna()])
     excluded = combined[reasons.notna()].assign(reason=reasons)
 
     # Une enchère récente sans résultat dans aucune des deux sources mérite une alerte.
@@ -317,5 +366,6 @@ def clean_auctions(
         "share_sum_checked": int(share_sum.notna().sum()),
         "share_sum_outside_0_99_1_01": int(((share_sum < 0.99) | (share_sum > 1.01)).sum()),
         "far_from_standard_maturity_by_family": far["family"].value_counts().to_dict(),
+        "series_restarts_since_2009": _series_restarts(kept, since="2009-01-01"),
     }
     return kept[list(OUTPUT_COLUMNS)].reset_index(drop=True), report

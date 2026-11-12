@@ -75,6 +75,7 @@ def test_dealer_buckets_join_old_and_new_keys() -> None:
     raw["available_at"] = raw["As Of Date"]
 
     dealers, overlaps = cm.dealers_long(raw)
+    dealers = dealers.dropna(subset=["value"])  # comme build_market
 
     le3y = dealers[dealers["series"] == "dealer_coupons_le3y"]["value"].tolist()
     assert le3y == [57827, 49433 + 7777]
@@ -88,7 +89,7 @@ def test_yield_curve_skips_empty_cells_and_reports_new_columns() -> None:
 
     curve, unknown = cm.yield_curve_long(raw)
 
-    assert curve["series"].tolist() == ["yield_2y"]
+    assert curve.dropna(subset=["value"])["series"].tolist() == ["yield_2y"]
     assert unknown == ["15 Yr"]
     assert (curve["available_at"] == curve["date"]).all()
 
@@ -168,3 +169,68 @@ def test_point_in_time_keeps_the_order_of_the_input() -> None:
 @pytest.mark.parametrize("marker", ["", ".", "null", "*", "N/A"])
 def test_missing_markers_become_missing(marker: str) -> None:
     assert cm._numbers(pd.Series([marker], dtype=str)).isna().all()
+
+
+def test_reverse_repo_without_operation_is_zero_on_business_days_only() -> None:
+    raw = frame(
+        [
+            {
+                "series_id": "RRPONTSYD",
+                "date": "2010-06-01",
+                "value": ".",
+                "available_at": "2010-06-02",
+            },
+            {
+                "series_id": "RRPONTSYD",
+                "date": "2010-07-05",
+                "value": ".",
+                "available_at": "2010-07-06",
+            },
+            {
+                "series_id": "WALCL",
+                "date": "2010-06-02",
+                "value": ".",
+                "available_at": "2010-06-04",
+            },
+        ]
+    )
+
+    fred, zeros = cm.fred_long(raw)
+
+    # Mardi 1/6/2010 : aucune opération, donc 0. Lundi 5/7/2010 : jour férié, reste manquant.
+    assert fred["value"].iloc[0] == 0.0
+    assert pd.isna(fred["value"].iloc[1])
+    assert pd.isna(fred["value"].iloc[2])  # la règle ne concerne que le reverse repo
+    assert zeros == 1
+
+
+def test_every_series_has_a_unit() -> None:
+    assert cm.unit_of("fred_rrpontsyd") == "milliards de dollars"
+    assert cm.unit_of("dealer_bills") == "millions de dollars"
+    assert cm.unit_of("cftc_10y_am_net") == "contrats"
+    with pytest.raises(KeyError):
+        cm.unit_of("serie_inconnue")
+
+
+@pytest.mark.parametrize(
+    "dates",
+    [
+        pd.Series(pd.to_datetime(["2026-11-05 10:00"])),  # une heure
+        pd.Series(pd.to_datetime(["2026-11-05"])).dt.tz_localize("America/New_York"),  # un fuseau
+    ],
+)
+def test_auction_dates_with_time_or_timezone_are_refused(dates: pd.Series) -> None:
+    values = series([("2026-11-05", 1.0, "2026-11-05")])
+
+    with pytest.raises(ValueError, match="dates d'enchère"):
+        cm.point_in_time(dates, values)
+
+
+def test_values_older_than_max_age_are_ignored() -> None:
+    values = series([("2008-12-16", 25.0, "2008-12-17")])
+    auctions = pd.Series(pd.to_datetime(["2008-12-20", "2009-12-07"]))
+
+    known = cm.point_in_time(auctions, values, max_age=pd.Timedelta(days=10))
+
+    assert known["value"].iloc[0] == 25.0
+    assert pd.isna(known["value"].iloc[1])  # 356 jours plus tard : trop vieux

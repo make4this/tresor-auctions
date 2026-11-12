@@ -236,7 +236,46 @@ Aucune valeur n'a une date de disponibilité antérieure à sa date. `ruff check
 - Parts dealers + directs + indirects : 6 291 enchères contrôlées, aucune hors de [0,99 ; 1,01].
 - Marché : 178 473 lignes et 55 séries, sans doublon ni date de disponibilité antérieure à la date.
 - Plus grand trou : 2 jours ouvrés pour les taux, 4 pour le VIX.
-- Qualité globale : orange, avec une seule remarque, les 20 bid-to-cover extrêmes ci-dessus.
+- Qualité globale : orange, avec une seule remarque, les 20 bid-to-cover extrêmes ci-dessus (vert après la vérification ci-dessous, qui ne signale plus que les valeurs extrêmes récentes).
 - `ruff check .` est propre, 122 tests réussis. Le tableau par famille et par année est dans `data/output/auctions_by_family_year.csv`.
 
 **À relire moi-même :** `clean/auctions.py` (fonctions `combine_sources`, `maturity_bucket`, `exclusion_reasons`) et `clean/market.py` (fonctions `known_values`, `point_in_time`).
+
+## Vérification de la phase 4 par deux agents indépendants (12 novembre 2026)
+
+**Ma demande :** « Vérifie la phase 4 ».
+
+**Méthode :** deux agents Claude en parallèle, en lecture seule. Le premier a vérifié les adjudications, en recalculant le nettoyage de son côté et en le comparant au calendrier réel du Trésor. Le second a vérifié les séries de marché et les contrôles. Le LLM principal a revérifié chaque constat sur les données avant de corriger.
+
+**Verdict :** rien de bloquant, et **aucune fuite d'information**. La jointure a été comparée à une boucle naïve sur les 6 085 enchères réalisées depuis 2009 et les 55 séries (292 906 valeurs) : 0 écart, et aucune valeur utilisée n'est publiée le jour de l'enchère ou après. Le nettoyage recalculé par l'agent donne exactement la même table.
+
+**Problèmes trouvés et corrigés :**
+
+| Gravité | Problème | Vérification | Correction |
+|---|---|---|---|
+| Important | Les tests ne vérifiaient pas vraiment la règle « la ligne avec résultats gagne » : l'agent a cassé la règle exprès et les tests passaient toujours | Tests de mutation | 7 tests ajoutés (cette règle, type inconnu, « . », enchère récente sans résultat, CMB très court, reprise de série, durée manquante) |
+| Important | CMB : des titres de 1 à 35 jours étiquetés « 4W » ; ils auraient pu servir d'« enchère précédente » à un vrai bill à 4 semaines | 150 CMB de moins de 15 jours étiquetés 4W | Pas de maturité standard au-delà de 20 % d'écart (233 CMB) ; identifiant de série famille + maturité (`series_key`) |
+| Important | Reverse repo : avant 2014, FRED écrit « . » les jours sans opération (donc 0) ; la jointure réutilisait une vieille valeur, jusqu'à 356 jours | En 2009, 258 « . » sur 261 jours et aucun 0 ; depuis 2014, environ 12 « . » par an (jours fériés) | « . » = 0 les jours ouvrés (2 593 valeurs), manquant les jours fériés ; ancienneté maximale possible dans la jointure (`max_age`) |
+| Important | Une date d'enchère avec une heure ou un fuseau horaire aurait fait passer la clôture du jour même | Reproduit | Ces dates sont refusées avec une erreur claire |
+| Important | Une série morte restait « verte » : fraîcheur mesurée par table, pas par série | Simulations (WALCL coupé, colonne 10 ans vide) | Fraîcheur et trous contrôlés pour chacune des 55 séries, selon son rythme de publication |
+| Important | La règle anti-fuite n'était qu'un chiffre du compte rendu, jamais une alerte | Reproduit | Alerte rouge si une valeur est publiée avant sa date ou sans date |
+| Mineur | Octobre 2008 : trois réouvertures d'anciens 10 ans classées 7Y auraient servi d'historique au 7 ans relancé en février 2009 | 912828DV9, 912828EE6, 912828DM9 | Nouvelle série après plus de 120 jours sans enchère (`series_run`) : 7Y#1 en 2008, 7Y#2 à partir de février 2009 |
+| Mineur | Une enchère absente des deux sources était invisible | — | Alerte si une série régulière n'a pas d'enchère depuis deux fois son intervalle habituel |
+| Mineur | Le contrôle « les parts somment à 1 » était circulaire pour TreasuryDirect | Le champ `subtotalCompetitiveParAwardedInsideOfOfferingAmount` égale la somme des trois catégories (137/137) et Fiscal Data (103/103) | Ce champ est lu tel quel |
+| Mineur | La baisse d'effectifs n'était signalée qu'une fois, jamais pour l'année en cours ni pour la table TreasuryDirect désormais cumulative | Reproduit | Référence = plus grand effectif déjà vu ; toutes les années ; TreasuryDirect inclus |
+| Mineur | Statut orange permanent à cause de 20 valeurs extrêmes connues (2009-2015) | — | Seules les valeurs extrêmes des 365 derniers jours deviennent un avertissement |
+| Mineur | Compte rendu des séries de marché sans les lignes écartées ; unités mélangées | — | Valeurs manquantes écartées (38 219), lignes d'autres comptes de trésorerie (11 465), colonne `unit` |
+
+**Erreurs du LLM dans ses propres tests, corrigées :** un jeu de test contenait sans le vouloir un second trou, plus grand que celui testé ; un autre ne renseignait pas le nouveau champ TreasuryDirect.
+
+**Non modifié, documenté :**
+
+- La déduplication garde une ligne entière et ne complète pas ses trous avec l'autre source (vérifié sans effet : 3 drapeaux vides seulement).
+- `dealer_total` est la somme des 5 tranches (bills et coupons nominaux), hors TIPS et FRN : il diffère du total officiel.
+- Possible saut de niveau des dealers au changement de clés du 3/4/2013, à traiter en phase 5 : variations plutôt que niveaux, ou indicatrice.
+- Les données CFTC, New York Fed et Treasury sont les versions actuelles, peut-être révisées depuis leur publication (comme FRED).
+- Les CMB à 42 et 119 jours, prédécesseurs des bills à 6 et 17 semaines, ne sont pas raccordés à ces séries.
+
+**À reprendre en phase 5 :** variables calculées à l'intérieur d'une même `series_run` ; `max_age` par série dans la jointure ; parts des enchérisseurs absentes avant avril 2008 (échantillon dès 2009) ; pas de taux de marché la veille pour les premiers bills à 8, 17 et 6 semaines ; pas de *tail* pour les FRN et les TIPS (taux réel).
+
+**Résultat :** statut de qualité global **vert**, sans alerte. Reprises de séries détectées depuis 2009, conformes au calendrier réel : 7 ans (26/02/2009), bill à 8 semaines (16/10/2018), 20 ans (20/05/2020), bill à 17 semaines (19/10/2022), bill à 6 semaines (18/02/2025). `ruff check .` est propre, 142 tests réussis (122 avant la vérification).

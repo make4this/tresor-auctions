@@ -60,6 +60,7 @@ def td_row(**overrides: str) -> dict[str, str]:
         primaryDealersCompetitiveParAwarded="10",
         directBiddersCompetitiveParAwarded="20",
         indirectBiddersCompetitiveParAwarded="70",
+        subtotalCompetitiveParAwardedInsideOfOfferingAmount="100",
     )
     row.update(overrides)
     return row
@@ -174,7 +175,7 @@ def test_when_both_have_results_treasurydirect_wins() -> None:
     assert auctions.loc[0, "btc"] == 2.5
 
 
-def test_treasurydirect_competitive_total_is_the_sum_of_the_three_bidders() -> None:
+def test_treasurydirect_competitive_total_is_read_directly() -> None:
     auctions, _ = clean(table(fiscal_row()), recent=table(td_row()))
 
     recent = auctions[auctions["source"] == "treasurydirect"].iloc[0]
@@ -234,3 +235,72 @@ def test_bills_use_the_bond_equivalent_rate() -> None:
 def test_unexpected_flag_value_is_an_error() -> None:
     with pytest.raises(ValueError, match="reopening"):
         clean(table(fiscal_row(reopening="Maybe")))
+
+
+def test_a_row_with_results_beats_a_fresher_row_without_results() -> None:
+    fiscal = table(
+        fiscal_row(cusip="91282CRX1", auction_date="2026-11-10", bid_to_cover_ratio="2.40")
+    )
+
+    auctions, _ = clean(fiscal, recent=table(td_row(bidToCoverRatio="")))
+
+    assert auctions.loc[0, "source"] == "fiscaldata"
+    assert auctions.loc[0, "btc"] == 2.4
+
+
+def test_unknown_security_type_is_excluded() -> None:
+    auctions, report = clean(table(fiscal_row(cusip="ODD", security_type="Strip"), fiscal_row()))
+
+    assert "ODD" not in auctions["cusip"].tolist()
+    assert report["excluded"]["type_inconnu"]["rows"] == 1
+
+
+def test_dot_is_read_as_missing() -> None:
+    auctions, _ = clean(table(fiscal_row(soma_accepted=".")))
+
+    assert pd.isna(auctions.loc[0, "soma_accepted"])
+
+
+def test_recent_auction_without_results_is_reported() -> None:
+    late = fiscal_row(cusip="LATE", auction_date="2026-11-02", bid_to_cover_ratio="null")
+
+    _, report = clean(table(late, fiscal_row()))
+
+    assert [row["cusip"] for row in report["recent_without_results"]] == ["LATE"]
+
+
+def test_very_short_cash_management_bill_gets_no_standard_maturity() -> None:
+    row = fiscal_row(security_type="Bill", security_term="1-Day", cash_management_bill_cmb="Yes")
+
+    auctions, _ = clean(table(row))
+
+    assert pd.isna(auctions.loc[0, "maturity_bucket"])  # pas un « bill à 4 semaines »
+    assert pd.isna(auctions.loc[0, "series_run"])
+
+
+def test_a_long_pause_starts_a_new_series() -> None:
+    # Octobre 2008 : réouverture d'un ancien 10 ans à moins de 7 ans de l'échéance, classée 7Y ;
+    # le vrai 7 ans ne reprend qu'en février 2009 et ne doit pas s'en servir comme historique.
+    rows = [
+        fiscal_row(
+            cusip="OLD",
+            auction_date="2008-10-08",
+            security_term="6-Year 10-Month",
+            original_security_term="10-Year",
+            reopening="Yes",
+        ),
+        fiscal_row(cusip="NEW1", auction_date="2009-02-26", security_term="7-Year"),
+        fiscal_row(cusip="NEW2", auction_date="2009-03-26", security_term="7-Year"),
+    ]
+
+    auctions, report = clean(table(*rows))
+
+    runs = dict(zip(auctions["cusip"], auctions["series_run"], strict=True))
+    assert runs["OLD"] == "nominal_coupon_7Y#1"
+    assert runs["NEW1"] == runs["NEW2"] == "nominal_coupon_7Y#2"
+    assert report["series_restarts_since_2009"] == {"nominal_coupon_7Y#2": "2009-02-26"}
+
+
+def test_missing_term_is_a_clear_error() -> None:
+    with pytest.raises(ValueError, match="durée illisible"):
+        ca.term_in_years(float("nan"))
