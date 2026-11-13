@@ -373,3 +373,73 @@ Les groupes `liquidity` et `positioning` sont les « nouvelles sources » de l'e
 - **Unités :** variations de taux en points de pourcentage, *tail* en points de base, dette, dollar et bilan en fractions ; les écarts normalisés n'ont pas d'unité.
 
 **Résultat :** 46 variables (enchère 9, historique 17, marché 11, liquidité 4, positionnement 5). Sur la période de test 2014+, valeurs manquantes nulles sauf spread Baa (2,5 à 3 %) et CFTC (3 à 3,5 %). Qualité des données : vert. `ruff check .` est propre, 170 tests réussis (158 avant la vérification).
+
+## Phase 6 — Modèles et validation walk-forward (12 et 13 novembre 2026)
+
+**Ma demande (résumé) :** « OK, phase 6 » : section 8 du plan, c'est-à-dire 5 modèles comparés aux benchmarks `naive` et `mean3`, validation walk-forward trimestrielle depuis 2014, expérience « avec ou sans nouvelles sources », interprétation et figures.
+
+**Ce que le LLM a produit :**
+
+- `models.py` : modèles en pipeline scikit-learn (écrêtage 1 %/99 % et imputation par la médiane appris sur la fenêtre d'entraînement, standardisation pour les modèles linéaires), walk-forward, métriques, expérience, interprétation (permutation et SHAP) ;
+- `plots.py` : 7 figures dans `reports/figures/` ;
+- l'étape `--backtest` du pipeline ;
+- 8 tests, dont celui qui vérifie que chaque modèle n'est entraîné que sur des enchères strictement antérieures au trimestre testé.
+
+**Méthode :** chaque trimestre de 2014 à 2026 (52 trimestres), entraînement sur tout le passé, test sur le trimestre. Deux modèles séparés (notes et bonds, bills), 4 cibles, 5 modèles, 2 jeux de variables : 80 séries de 52 entraînements, soit 156 560 prévisions hors échantillon. Hyperparamètres choisis dans la fenêtre d'entraînement par validation croisée temporelle (`TimeSeriesSplit`). `random_state=42` partout.
+
+**Résultats : R² hors échantillon contre `mean3` (%), toutes variables**
+
+| Famille | Cible | Naïf | Ridge | Lasso | ElasticNet | Random Forest | LightGBM |
+|---|---|---|---|---|---|---|---|
+| Notes et bonds | Bid-to-cover | -59,5 | -4,4 | **8,9** | 8,9 | 4,7 | 7,2 |
+| Notes et bonds | Part des dealers | -41,0 | -21,9 | -19,3 | -19,9 | **-11,9** | -11,9 |
+| Notes et bonds | Part des indirects | -40,7 | 0,1 | -1,4 | -1,6 | 1,0 | **2,2** |
+| Notes et bonds | Tail | -40,4 | **21,7** | 20,2 | 20,1 | 20,9 | 19,1 |
+| Bills | Bid-to-cover | 5,1 | 16,7 | 18,8 | **19,4** | 7,7 | 16,8 |
+| Bills | Part des dealers | -43,8 | **8,3** | 6,8 | 6,8 | 7,8 | 5,5 |
+| Bills | Part des indirects | -40,0 | **9,6** | 8,9 | 9,0 | 9,1 | 7,9 |
+| Bills | Tail | -20,0 | 21,9 | **22,3** | 22,1 | 18,8 | 19,4 |
+
+Bonne direction (le modèle dit-il si l'enchère sera au-dessus ou en dessous de `mean3` ?) : 52 à 67 % selon la cible ; 62,3 % pour le bid-to-cover des notes et bonds (LightGBM).
+
+**Comparaison avec les ordres de grandeur du plan (version R) :**
+
+| | Plan | Obtenu |
+|---|---|---|
+| Bid-to-cover des notes et bonds, R² contre `mean3` | environ +8 % | +8,9 % (Lasso) |
+| Bonne direction | 62 % | 62,3 % (LightGBM) |
+| Part des dealers | légèrement négatif | négatif pour tous les modèles (-12 à -22 %) |
+| Benchmark naïf | environ -60 % | -59,5 % |
+
+**Expérience clé : les nouvelles sources n'aident pas.** Avec les dealers, la CFTC et la liquidité, le R² baisse en moyenne de 0,5 à 1,9 point selon la cible. Il ne monte que pour le bid-to-cover des notes et bonds (+0,6 point avec Lasso) et reste stable pour leur *tail*. L'interprétation va dans le même sens : sur les 8 meilleurs modèles, l'historique de la série porte 56 % des contributions SHAP, le marché 26 %, les caractéristiques de l'enchère 12 %, et les nouvelles sources 6 % seulement. Lecture : la demande prévisible se lit surtout dans les enchères précédentes, et l'information de positionnement n'ajoute rien qui soit stable sur 12 ans.
+
+**À dire honnêtement à l'oral :**
+
+- **Tail :** il bat `mean3` de 20 à 22 %, mais la corrélation entre prévision et réalité n'est que de 0,06 à 0,11 pour les notes et bonds. La moyenne de trois *tails* très bruités est un benchmark facile à battre ; et le *tail* reflète surtout le mouvement de marché du jour (phase 5).
+- **Part des dealers :** sur les notes et bonds, aucun modèle ne bat `mean3`.
+- **Bills :** les gains sont nets sur les quatre cibles.
+
+**Choix et écarts avec le plan :**
+
+| Point | Décision | Raison |
+|---|---|---|
+| Hyperparamètres de la Random Forest | fixes (300 arbres, 20 observations par feuille, 33 % des variables) | une recherche par trimestre aurait multiplié le temps de calcul par 10 ; la forêt y est peu sensible |
+| LightGBM | grille de 4 combinaisons choisie à chaque trimestre par `TimeSeriesSplit(3)` | compromis temps/qualité |
+| Cible d'entraînement | écrêtée à 1 % et 99 % (évaluation sur la cible réelle) | les *tails* de crise (+143 pb) ne doivent pas dicter le modèle |
+| Validation croisée interne | prétraitement appris sur toute la fenêtre d'entraînement avant la validation interne | pratique courante ; aucun effet sur la période de test |
+| Figures | Matplotlib ajouté aux dépendances | figures statiques pour l'oral et le rapport (Plotly reste pour l'application) |
+
+**Problèmes rencontrés et corrigés :**
+
+- scikit-learn 1.9 a supprimé le paramètre `n_alphas` de `LassoCV` et `ElasticNetCV` : remplacé par `alphas=30` ;
+- Matplotlib manquait : ajouté ;
+- dans les figures, une légende recouvrait une étiquette et les décimales étaient à l'anglaise : corrigé après relecture des images ;
+- un jeu de données de test du LLM était à l'envers (les prévisions « sans » étaient plus proches du réel que les « avec ») : corrigé.
+
+**Limite pratique :** le backtest complet prend environ 100 minutes sur 8 cœurs (estimation initiale : 5 minutes, à cause de la Random Forest et de la grille LightGBM refaites à chaque trimestre). Il ne tourne donc pas chaque soir : la mise à jour automatique (phase 10) ré-entraîne seulement les modèles finaux.
+
+**Figures** (`reports/figures/`) : R² par modèle (notes et bonds, bills), nouvelles sources, gain cumulé contre `mean3` pour le bid-to-cover (deux familles), contributions SHAP pour le bid-to-cover (deux familles).
+
+**Résultat vérifié :** 178 tests réussis, `ruff check .` propre. Sorties dans `data/output/` : `backtest_metrics.csv`, `backtest_predictions.parquet`, `new_sources_comparison.csv`, `best_models.csv`, `feature_importance.csv`.
+
+**À relire moi-même :** `models.py` (fonctions `make_model`, `walk_forward`, `score`) et la figure `reports/figures/r2_par_modele_nominal_coupon.png`, pour l'oral.

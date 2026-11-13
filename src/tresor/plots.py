@@ -54,6 +54,11 @@ def _percent(value: float) -> str:
     return f"{value * 100:+.1f} %".replace(".", ",")
 
 
+def _french_decimal(value: float, _position: int) -> str:
+    """Graduations à la française : virgule décimale."""
+    return f"{value:g}".replace(".", ",")
+
+
 def _save(figure: plt.Figure, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(path, dpi=200, facecolor=SURFACE, bbox_inches="tight")
@@ -127,7 +132,15 @@ def new_sources(
         min(0, rows[["toutes", "sans_nouvelles_sources"]].min().min()) - 0.02, right + 0.14
     )
     axis.xaxis.set_major_formatter(lambda x, _: f"{x * 100:.0f} %")
-    axis.legend(frameon=False, fontsize=8, loc="lower right", labelcolor=TEXT_SECONDARY)
+    # Légende sous le graphique : à droite, elle masquait l'écart de la dernière ligne.
+    axis.legend(
+        frameon=False,
+        fontsize=8,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.08),
+        ncol=2,
+        labelcolor=TEXT_SECONDARY,
+    )
     axis.set_title(
         "Les nouvelles sources aident-elles ? R² contre mean3 du meilleur modèle",
         fontsize=11,
@@ -170,6 +183,7 @@ def cumulative_gain(
         color=TEXT,
     )
     axis.grid(axis="y", color=GRID, linewidth=1)
+    axis.yaxis.set_major_formatter(_french_decimal)
     axis.set_title(
         f"{FAMILY_LABELS[family]}, {TARGET_LABELS[target].lower()} : gain cumulé de"
         f" {MODEL_LABELS[model]} contre mean3 (au-dessus de 0 : le modèle fait mieux)",
@@ -192,6 +206,7 @@ def shap_importance(
     model = MODEL_LABELS[data["model"].iloc[0]]
     figure, axis = plt.subplots(figsize=(7.5, 4.2), facecolor=SURFACE)
     axis.barh(data["feature"], data["shap_mean_abs"], color=PRIMARY, height=0.6)
+    axis.xaxis.set_major_formatter(_french_decimal)
     axis.set_title(
         f"{FAMILY_LABELS[family]}, {TARGET_LABELS[target].lower()} : contribution moyenne"
         f" (|SHAP|) de chaque variable, {model}, 2022-2026",
