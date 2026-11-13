@@ -692,40 +692,56 @@ J'ai ensuite injecté 26 erreurs dans une copie de `strategy.py`, dont les 13 qu
 
 **Ce que le LLM a produit :**
 
-- `live.py` : entraînement final et sauvegarde (joblib), prévision des enchères à venir, journal figé, suivi en direct ;
-- les étapes `--train` et `--predict` du pipeline (elles renvoyaient « prévu en phase 8 ») ;
-- 13 tests (`tests/test_live.py`), dont le test obligatoire de la ligne figée.
+- `live.py` : entraînement final et sauvegarde (joblib), prévision des enchères à venir, journal figé, suivi en direct, état de la dernière exécution ;
+- les étapes `--train` et `--predict` du pipeline ;
+- 35 tests (`tests/test_live.py`), dont le test obligatoire de la ligne figée.
+
+La première version de cette section exagérait certaines garanties. Elle a été réécrite après la vérification par deux agents (section suivante).
 
 **Méthode :**
 
-- **Modèles finaux** : les 5 modèles, avec la même recette que le walk-forward (prétraitement dans le pipeline, cible écrêtée, hyperparamètres choisis par validation croisée temporelle), entraînés sur toutes les enchères réalisées depuis 2009, toutes variables. Un fichier `metadata.json` garde la date d'entraînement, la dernière enchère utilisée et les versions de scikit-learn et LightGBM (un modèle sauvegardé ne se relit de façon sûre qu'avec les mêmes versions).
+- **Modèles finaux** : les 5 modèles, avec la même recette que le walk-forward (prétraitement dans le pipeline, cible écrêtée, mêmes réglages : alphas des modèles linéaires et grille LightGBM choisis par validation croisée temporelle, Random Forest à réglages fixes). Ils sont entraînés sur toutes les enchères réalisées depuis 2009, avec toutes les variables. Un test vérifie qu'entraîné sur les mêmes enchères, le modèle final prévoit exactement comme le walk-forward.
+- **`metadata.json`** : date d'entraînement, dernière enchère, empreinte des données d'entraînement, liste des variables, versions (Python, numpy, pandas, scikit-learn, LightGBM, joblib). À la relecture, les versions et la liste des variables sont vérifiées ; en cas d'écart, la prévision s'arrête et demande `--train`.
+- **Pas de ré-entraînement inutile** : si les données d'entraînement n'ont pas changé (même empreinte, mêmes versions), `--train` garde les modèles existants. Ré-entraîner donnerait les mêmes prévisions, mais pas toujours des fichiers identiques octet par octet.
 - **Prévision** : pour chaque enchère à venir (notes et bonds, bills), les 4 cibles par les 5 modèles et leur moyenne, le modèle de référence fixé en phase 6.
-- **Journal** `data/output/predictions_log.parquet`, clé `(cusip, auction_date, target, model)`, avec `predicted_at` (UTC), `pred`, `bench_mean3`, le montant et `offering_estimated`.
-- **Règle du gel** : une prévision n'est écrite que pour une enchère dont la date est strictement postérieure à la date du jour à New York.
-  - Une ligne dont l'enchère est aujourd'hui ou passée ne peut donc jamais être réécrite : sa clé contient la date de l'enchère, qui ne peut correspondre à aucune nouvelle prévision.
-  - Un garde-fou vérifie en plus, avant chaque écriture, que toutes les lignes figées sont identiques ; sinon l'écriture est annulée.
-  - Une prévision inchangée garde sa date d'origine, pour que le journal ne change pas inutilement chaque nuit.
-  - Aucune prévision n'est créée le jour même : le workflow tourne le soir (heure de New York), après la publication du résultat.
-  - L'écriture passe par un fichier temporaire, pour qu'une coupure ne laisse jamais un journal abîmé.
-- **Suivi** `data/output/live_tracking.parquet` : le journal joint aux résultats publiés, avec l'erreur du modèle, celle de `mean3` et le statut (`realisee` ou `en_attente`).
+- **Journal** `data/output/predictions_log.parquet`, clé `(cusip, auction_date, target, model)`, avec `predicted_at` (UTC), `pred`, `bench_mean3`, le montant et `offering_estimated`. Les types de colonnes sont fixés à l'écriture comme à la relecture.
+- **Règle du gel** :
+  - une prévision n'est écrite que pour une enchère dont la date est strictement postérieure à la date du jour à New York ; la clé d'une ligne figée, qui contient la date de l'enchère, ne peut donc correspondre à aucune nouvelle prévision ;
+  - l'horloge doit avancer : un instant antérieur à la dernière prévision du journal est refusé, sinon relancer « hier » pourrait rouvrir une ligne figée aujourd'hui ;
+  - avant chaque écriture, un garde-fou vérifie que chaque ligne figée est présente et identique, toutes colonnes comprises ; sinon l'écriture est annulée ;
+  - une prévision inchangée est gardée telle quelle, valeur et date d'origine ;
+  - aucune prévision n'est créée le jour même : le workflow tourne le soir (heure de New York), après la publication du résultat ;
+  - si une autre exécution a modifié le journal pendant le calcul, l'écriture est refusée ;
+  - un journal disparu alors que le suivi existe n'est pas recréé vide : il faut le restaurer depuis git ;
+  - les écritures passent par un fichier temporaire.
+- **Suivi** `data/output/live_tracking.parquet` : le journal joint aux résultats publiés, avec l'erreur du modèle, celle de `mean3` et le statut :
+  - `realisee` : enchère réalisée, même si une cible manque, par exemple un tail non publié ;
+  - `sans_resultat` : date passée sans résultat (enchère déplacée, annulée ou pas encore collectée) ;
+  - `en_attente` sinon.
+- **État** `data/output/live_status.json` : heure de l'exécution, date à New York, nombre d'enchères à venir, et dernière date de chaque série de marché, pour montrer la fraîcheur des données dans l'application.
+- **Pipeline** : si une source échoue au téléchargement, les autres sont enregistrées et la suite (nettoyage, entraînement, prévision) tourne sur les dernières données disponibles ; le code de sortie signale quand même l'échec. Sans cela, une seule panne un soir pouvait priver une enchère de toute prévision : en 2025, 59 enchères sur 406 n'ont eu qu'un seul soir entre l'annonce et la veille.
 
-**Résultat du premier passage réel** (13 novembre 2026, données téléchargées le jour même) :
+**Résultat** (13 novembre 2026, données téléchargées le jour même) :
 
-- `--fetch --clean --train --predict` en 114 secondes, dont 35 secondes d'entraînement ; contrôle qualité vert.
-- 4 enchères à venir, soit 96 lignes dans le journal (4 cibles × 6 modèles), toutes « en attente ».
+- `--fetch --clean --train --predict` en 114 secondes, dont 35 secondes d'entraînement (sur 8 cœurs) ; contrôle qualité vert.
+- 4 enchères à venir, 96 lignes dans le journal (4 cibles × 6 modèles), toutes « en attente ».
+- Après la correction du code, le journal relu puis réécrit est identique au bit près (valeurs et heures d'origine).
 
 | Enchère | Bid-to-cover prévu (moyenne des 5) | Moyenne des 3 dernières | Écart |
 |---|---|---|---|
-| 13 semaines, 16 novembre | 2,79 | 2,87 | -0,08 |
-| 26 semaines, 16 novembre | 2,88 | 2,81 | +0,06 |
-| 6 semaines, 17 novembre | 2,71 | 2,77 | -0,06 |
-| 20 ans, 18 novembre | 2,53 | 2,61 | -0,08 |
+| 13 semaines, 16 novembre | 2,792 | 2,873 | −0,082 |
+| 26 semaines, 16 novembre | 2,877 | 2,813 | +0,063 |
+| 6 semaines, 17 novembre | 2,709 | 2,767 | −0,058 |
+| 20 ans, 18 novembre | 2,532 | 2,610 | −0,078 |
 
-Ces prévisions sont figées à partir du jour de chaque enchère ; elles serviront au suivi en direct de l'application. Rappel de la phase 6 : le bid-to-cover des notes et bonds est le seul résultat solide (+11,6 % de R² contre `mean3`) ; pour les bills, une partie du gain venait des crises du plafond de la dette.
+Le signal de l'application (demande plus faible si l'écart est inférieur ou égal à −0,08) devra se calculer sur les valeurs non arrondies : le 13 semaines le déclenche, le 20 ans non, alors que les deux s'affichent « −0,08 » une fois arrondis.
 
-**Contrôle de reproductibilité :** après le nouveau téléchargement, les variables des 6 745 enchères passées sont strictement identiques à celles du backtest. Les prévisions de la phase 6 restent donc valables.
+**Contrôle de reproductibilité :**
 
-**Vérification des tests :** 12 erreurs injectées une à une dans une copie de `live.py`, par exemple écrire le jour de l'enchère, prendre la date UTC au lieu de celle de New York, désactiver le garde-fou, ou prendre la médiane au lieu de la moyenne des 5. Au premier essai, deux passaient (la médiane, et l'oubli du filtre « à venir »), parce que mes faux modèles de test donnaient tous la même prévision et qu'aucune donnée de test n'avait de statut incohérent. Après correction des tests, les 12 sont détectées, et la copie sans erreur passe tous les tests.
+- Les variables des 6 745 enchères passées sont identiques avant et après le nouveau téléchargement. Le test est faible : ce jour-là, seules 3 nouvelles observations de marché sont arrivées, et aucune enchère.
+- Un agent a refait le nettoyage et les variables à partir des données brutes commitées : fichiers identiques octet par octet.
+- Ré-entraînés, les modèles donnent exactement les mêmes prévisions que les modèles sauvegardés et que le journal (96 sur 96).
+- `backtest_predictions.parquet` reste synchronisé avec les variables actuelles.
 
 **Choix et points ouverts :**
 
@@ -733,9 +749,55 @@ Ces prévisions sont figées à partir du jour de chaque enchère ; elles servir
 |---|---|
 | Modèles en direct | les 5 modèles et leur moyenne sont tous inscrits au journal ; l'application affichera la moyenne des 5 |
 | Variante en écart à `mean3` | pas utilisée en direct : elle n'était qu'un test de robustesse en phase 6 |
-| Stockage des modèles (8,3 Mo, dont les forêts aléatoires des bills : 1,4 Mo chacune) | exclus de git pour l'instant : les ré-entraîner et les commiter chaque nuit ferait grossir le dépôt d'environ 2 Go par an. À décider en phase 10, car le bouton « Mettre à jour maintenant » de l'application en a besoin |
-| `--all` | enchaîne maintenant toutes les étapes, backtest compris (environ 2 heures). Le workflow de nuit (phase 10) lancera seulement `--fetch --clean --train --predict` |
-
-**Résultat vérifié :** 219 tests réussis, `ruff check .` propre.
+| Stockage des modèles (8,6 Mo, dont 7,9 Mo de Random Forest) | exclus de git pour l'instant. Les commiter chaque nuit ferait grossir le dépôt d'environ 1,6 Go par an (mesuré par un agent). À décider en phase 10 ; options mesurées : un « asset » de Release GitHub ou une branche à part, sans historique qui grossit ; ou une Random Forest de 100 arbres (3,3 Mo au total, prévisions déplacées d'au plus 0,001 sur le bid-to-cover), qu'il faudrait alors noter comme écart au plan |
+| Un seul programme écrit le journal | le bouton « Mettre à jour maintenant » de l'application ne devra pas écrire le journal (sur Streamlit Cloud, le fichier serait perdu au redéploiement) : il affichera une prévision provisoire. Seul le workflow de nuit écrit |
+| `--all` | enchaîne toutes les étapes, backtest compris (environ 2 heures). Le workflow de nuit lancera seulement `--fetch --clean --train --predict` : c'est un écart à la section 12 du plan |
+| Montant estimé | le cas « montant pas encore annoncé » n'arrive pas en pratique : TreasuryDirect ne liste que des enchères déjà annoncées, avec leur montant. L'application ne voit donc que 2 à 6 jours à l'avance |
 
 **À relire moi-même :** `live.py` (fonction `update_log`) et le test `test_a_row_is_frozen_from_the_auction_day_and_never_rewritten`.
+
+## Vérification de la phase 8 par deux agents indépendants (13 novembre 2026)
+
+**Ma demande :** « Vérifie la phase 8 ». Deux agents ont relu le travail sans rien modifier dans le projet (entraînements et prévisions dans leur dossier de travail) : l'un le code et la règle du gel, l'autre les sorties, l'exploitation et les affirmations du journal. Les agents ne lisent jamais le fichier `.env` et n'utilisent pas le réseau.
+
+**Ce qui était juste :**
+
+- **Aucune fuite.** Les variables des enchères à venir sont construites avec la même jointure stricte que pour le backtest ; une ligne ne peut pas être écrite le jour de l'enchère ou après, tant que l'horloge avance.
+- La date de New York est correcte aux changements d'heure (mars et novembre 2026 vérifiés) et autour de minuit.
+- Entraîné sur les données d'avant le 1er octobre 2026, le modèle final reproduit au bit près les 980 prévisions du dernier trimestre du walk-forward.
+- Les modèles ré-entraînés, le journal et le suivi se reproduisent exactement ; `mean3` et les montants sont justes pour les 4 enchères ; les prévisions restent dans la plage du backtest pour les mêmes maturités.
+
+**Ce qui était faux ou fragile dans la première version :**
+
+| Problème | Conséquence | Correction |
+|---|---|---|
+| Le gel dépendait seulement de l'heure passée au programme | relancer avec une heure plus ancienne (rejouer une nuit ratée) réécrivait une ligne figée sans erreur ; « ne peut jamais être réécrite » était faux | heure antérieure à la dernière prévision refusée |
+| Aucun type fixé pour le journal | le garde-fou bloquait à tort selon la précision des dates ou le fuseau de l'heure fournie | types fixés à l'écriture et à la relecture ; comparaison de toutes les colonnes |
+| Soir sans enchère à venir | `--predict` plantait : arrivé 11 à 12 soirs par an en 2023-2024 | journal gardé tel quel |
+| Deux exécutions en même temps | la dernière écrasait l'autre | écriture refusée si le journal a changé pendant le calcul ; un seul programme écrit |
+| Journal disparu | recréé vide sans alerte | refus, à restaurer depuis git |
+| Prévision inchangée | sa date était gardée mais sa valeur réécrite (écarts de 10⁻¹⁵), donc le fichier changeait | ligne gardée telle quelle |
+| Suivi | une enchère réalisée sans tail, ou déplacée, restait « en attente » pour toujours | statut fondé sur l'enchère réalisée ; nouvel état `sans_resultat` |
+| Versions des modèles | écrites mais jamais vérifiées ; des variables dans un autre ordre étaient acceptées en silence | vérifiées au chargement |
+| Fichiers LightGBM | changeaient à chaque entraînement (durées de calcul enregistrées) | seul le modèle retenu est sauvegardé ; pas de ré-entraînement si les données n'ont pas changé |
+| Une source en panne | arrêtait tout avant la prévision du soir | la suite tourne sur les dernières données ; l'échec reste signalé |
+| Versions minimales | `scikit-learn>=1.5` alors que le code exige 1.7 ; `numpy>=1.26` alors que les modèles sont sauvegardés sous numpy 2 | corrigées ; versions exactes à fixer en phase 10 |
+| Tests | 25 des 40 erreurs injectées par l'agent passaient (heure d'été, journal relu depuis le disque, soir sans enchère, horloge en arrière, recette d'entraînement…) | 22 tests ajoutés |
+
+**Affirmations corrigées :** « hyperparamètres choisis par validation croisée » (faux pour la Random Forest) ; « environ 2 Go par an » (1,6 mesuré) ; « −0,08 » pour deux enchères dont une seule déclenche le signal ; le test des 6 745 enchères identiques, juste mais faible.
+
+**Tests :** 35 tests pour la phase 8. J'ai injecté 32 erreurs dans une copie de `live.py`, dont les 25 qui échappaient : 31 sont détectées. La dernière (le garde-fou appelé avec la date de la veille) ne peut pas être détectée sans une seconde erreur : la construction empêche déjà de toucher une ligne figée, et le garde-fou n'est qu'une seconde sécurité. La copie sans erreur passe tous les tests.
+
+**Notes pour la phase 9 (application), tirées de la vérification :**
+
+- seuil du signal (0,08) à définir dans la configuration et à appliquer aux valeurs non arrondies ;
+- titre de l'enchère (« 20 ans », « réouverture ») à prendre dans `auctions.parquet`, sans ajouter de colonne au journal figé ; pour les bills, « réouverture » n'apporte rien ;
+- part des dealers : la moyenne des 5 fait moins bien que `mean3` sur 2020-2026 pour les notes et bonds (−28,5 %), à afficher avec cet avertissement ;
+- tail : il reflète surtout le mouvement du marché du jour (corrélation 0,90 à 0,94 avec la variation du taux), à présenter comme « écart au taux de clôture de la veille » ;
+- fréquence et fiabilité passées du signal, d'après le backtest 2014-2026 :
+  - notes et bonds : « plus faible » 11 % du temps, avec ensuite un résultat sous `mean3` dans 77 % des cas ;
+  - bills : « plus faible » 19 % du temps, 74 % des cas sous `mean3` ensuite.
+
+**Limites connues, non corrigées :** les prévisions de la veille au soir utilisent parfois un VIX et des séries FRED de l'avant-veille (publiés plus tard que la courbe du Trésor). C'est prudent (pas de fuite), mais un peu moins frais que ce que suppose le backtest ; `live_status.json` garde les dates des données utilisées.
+
+**Résultat vérifié :** 241 tests réussis, `ruff check .` propre.

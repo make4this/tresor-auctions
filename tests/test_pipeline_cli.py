@@ -56,10 +56,24 @@ def test_all_runs_every_step(executed_steps: list[str]) -> None:
     assert executed_steps == ["fetch", "clean", "backtest", "strategy", "train", "predict"]
 
 
-def test_unwritten_step_fails_instead_of_pretending(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(pipeline, "STEPS", {"fetch": ("", pipeline._pending(2))})
+def test_a_failed_source_does_not_block_the_evening_prediction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executed: list[str] = []
 
-    assert pipeline.main(["--fetch"]) == 1
+    def partial_fetch() -> None:
+        executed.append("fetch")
+        raise FetchError("Sources en échec : fred")
+
+    steps = {
+        "fetch": ("", partial_fetch),
+        "clean": ("", lambda: executed.append("clean")),
+        "predict": ("", lambda: executed.append("predict")),
+    }
+    monkeypatch.setattr(pipeline, "STEPS", steps)
+
+    assert pipeline.main(["--all"]) == 1  # l'échec reste signalé
+    assert executed == ["fetch", "clean", "predict"]
 
 
 def test_all_stops_at_the_first_failing_step(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -67,14 +67,10 @@ def _run_clean() -> None:
     run_features()
 
 
-def _pending(phase: int) -> StepFunction:
-    """Étape pas encore écrite : elle échoue clairement au lieu de faire semblant de réussir."""
-
-    def run() -> None:
-        raise NotImplementedError(f"pas encore disponible (prévue en phase {phase})")
-
-    return run
-
+# Une source en panne au téléchargement n'empêche pas la prévision du soir : les autres
+# sources sont enregistrées, la suite tourne sur les dernières données disponibles (leur
+# fraîcheur est contrôlée par --clean), et le code de sortie signale quand même l'échec.
+CONTINUE_AFTER_FETCH_ERROR = {"fetch"}
 
 # L'ordre de ce dictionnaire est l'ordre d'exécution de --all.
 STEPS: dict[str, tuple[str, StepFunction]] = {
@@ -111,18 +107,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     selected_steps = select_steps(parser.parse_args(argv))
     if not selected_steps:
         parser.error("choisis au moins une étape (--all, --fetch, --clean, ...)")
+    failed = False
     for name in selected_steps:
         logger.info("Étape : %s", name)
         try:
             STEPS[name][1]()
-        except (NotImplementedError, FetchError) as error:
+        except FetchError as error:
             logger.error("Étape « %s » : %s", name, error)
-            return 1
+            if name not in CONTINUE_AFTER_FETCH_ERROR:
+                return 1
+            failed = True  # on continue avec les dernières données enregistrées
         except Exception:
             # Erreur imprévue : on garde le détail pour comprendre, et on s'arrête proprement.
             logger.exception("Étape « %s » : erreur inattendue", name)
             return 1
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

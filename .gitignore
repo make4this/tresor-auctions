@@ -18,5 +18,5 @@ dist/
 .DS_Store
 .ipynb_checkpoints/
 
-# Modèles finaux (8 Mo, ré-entraînés à chaque --train) : où les garder sera décidé en phase 10
+# Modèles finaux (8,6 Mo) : où les garder sera décidé en phase 10
 data/models/
