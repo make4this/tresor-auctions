@@ -27,7 +27,15 @@ def test_help_lists_every_option(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert exit_info.value.code == 0
     output = capsys.readouterr().out
-    for option in ("--all", "--fetch", "--clean", "--backtest", "--train", "--predict"):
+    for option in (
+        "--all",
+        "--fetch",
+        "--clean",
+        "--backtest",
+        "--strategy",
+        "--train",
+        "--predict",
+    ):
         assert option in output
 
 
@@ -45,7 +53,7 @@ def test_steps_follow_pipeline_order_not_option_order(executed_steps: list[str])
 
 def test_all_runs_every_step(executed_steps: list[str]) -> None:
     assert pipeline.main(["--all"]) == 0
-    assert executed_steps == ["fetch", "clean", "backtest", "train", "predict"]
+    assert executed_steps == ["fetch", "clean", "backtest", "strategy", "train", "predict"]
 
 
 def test_unwritten_step_fails_instead_of_pretending(monkeypatch: pytest.MonkeyPatch) -> None:

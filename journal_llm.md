@@ -543,68 +543,145 @@ La moyenne des 5 fait aussi bien ou mieux que le modèle choisi dans 7 cas sur 8
 
 ## Phase 7 — Lien avec le marché et stratégie illustrative (13 novembre 2026)
 
-**Ma demande :** « phase 7 » : section 9 du plan. D'abord, les enchères faibles font-elles monter les taux ? Ensuite, une stratégie : vendre de la duration de la clôture de t-1 à la clôture de t quand le modèle prévoit un bid-to-cover sous `mean3`, en acheter sinon.
+**Ma demande :** « phase 7 » : section 9 du plan. D'abord, les enchères faibles s'accompagnent-elles d'une hausse des taux ? Ensuite, une stratégie : vendre de la duration de la clôture de t-1 à la clôture de t quand le modèle prévoit un bid-to-cover sous `mean3`, en acheter sinon.
 
 **Ce que le LLM a produit :**
 
-- `strategy.py` : variation du taux de clôture à clôture, quintiles de surprise, positions et P&L de chaque règle, synthèse par période ;
+- `strategy.py` : variation du taux de clôture à clôture, quintiles de surprise par période, positions et P&L de chaque règle, synthèse par période, et tables de contrôle (par année, sensibilité au coût, autres signaux, étude d'événement, diagnostics) ;
 - deux figures dans `plots.py` ;
-- l'appel de la stratégie à la fin de l'étape `--backtest` ;
-- 8 tests (`tests/test_strategy.py`).
+- une étape `--strategy` dans le pipeline, qui relance la phase 7 en quelques secondes sans refaire le backtest (environ 2 heures) ;
+- 18 tests (`tests/test_strategy.py`).
+
+La première version de cette section contenait deux explications fausses. Elle a été réécrite après la vérification par deux agents (section suivante).
 
 **Méthode :**
 
 - **Notes et bonds seulement** : la duration d'un bill est trop courte pour un pari sur les taux.
-- **Variation du taux** : taux de la maturité de l'enchère (courbe du Trésor), de la clôture du dernier jour publié avant l'enchère (au plus 10 jours avant) à la clôture du jour de l'enchère, en points de base. Le résultat de l'enchère tombe à 13 h, donc avant la clôture du jour.
+- **Variation du taux** : taux de la maturité de l'enchère (courbe du Trésor), de la dernière clôture publiée strictement avant l'enchère (au plus 10 jours avant) à la clôture du jour de l'enchère, en points de base. Le résultat de l'enchère tombe à 13 h, donc avant la clôture du jour.
 - **Surprise** : valeur réelle moins moyenne des 3 dernières enchères de la même maturité. Quintile 1 = demande la plus forte, quintile 5 = la plus faible, pour les deux mesures.
-- **Signal** : la moyenne des 5 modèles, fixée à l'avance en phase 6, prévisions hors échantillon 2014-2026.
+- **Signal** : la moyenne des 5 modèles, fixée à l'avance en phase 6 (prévisions hors échantillon 2014-2026).
 - **P&L** = position × variation du taux − 0,5 pb, avec position +1 si vendeur (on gagne quand le taux monte) et -1 si acheteur.
 - **Deux références** :
   - « toujours vendeur », demandée par le plan ;
-  - « information parfaite », qui connaît le vrai bid-to-cover à l'avance : impossible en pratique, elle donne le maximum atteignable.
+  - « information parfaite sur le sens du bid-to-cover », qui connaît le vrai résultat à l'avance : impossible en pratique, c'est le plafond d'une règle fondée sur ce signal.
 - **Sharpe** : calculé sur le P&L total de chaque jour d'enchère (deux enchères le même jour forment un seul portefeuille), annualisé par la racine du nombre de jours d'enchère par an.
-- **Intervalle à 90 % du P&L moyen** : bootstrap par années entières, comme en phase 6.
+- **Intervalles à 90 %** : bootstrap par années entières, comme en phase 6, y compris pour les quintiles. Avec 6 ou 7 années par sous-période, ils sont approximatifs.
 
-**Résultat 1 : les enchères faibles font monter le taux le jour même** (notes et bonds 2009-2026, 1 360 enchères, `quintiles_surprise.png`)
+**Résultat 1 : les enchères faibles s'accompagnent d'une hausse du taux le jour même** (notes et bonds 2009-2026, 1 360 enchères, `quintiles_surprise.png`)
 
 | Quintile de surprise | 1 (forte) | 2 | 3 | 4 | 5 (faible) |
 |---|---|---|---|---|---|
-| Part des dealers : variation du taux (pb) | -0,7 | -0,7 | -1,0 | +0,9 | **+1,8** [1,2 ; 2,4] |
-| Bid-to-cover : variation du taux (pb) | -1,4 | -1,0 | -0,3 | +1,1 | **+2,0** [1,4 ; 2,6] |
+| Part des dealers : variation du taux (pb) | -0,7 | -0,7 | -1,0 | +0,9 | **+1,8** [1,2 ; 2,5] |
+| Bid-to-cover : variation du taux (pb) | -1,4 | -1,0 | -0,3 | +1,1 | **+2,0** [1,2 ; 2,8] |
 
-Le plan attendait environ +1,8 pb pour les enchères les plus faibles : c'est ce qu'on obtient. Les bornes des quintiles sont calculées sur tout l'échantillon, ce qui est sans danger pour une analyse descriptive faite après coup, mais interdit pour une stratégie.
+- Le plan attendait environ +1,8 pb pour les enchères les plus faibles : c'est ce qu'on obtient sur 2009-2026.
+- La taille dépend de la période. Pour le quintile 5 de la part des dealers : +3,1 pb sur 2009-2013, +1,4 pb sur 2014-2019, +1,4 pb sur 2020-2026. Le sens est le même partout.
+- La relation n'est pas régulière d'un quintile à l'autre (le quintile 3 est le plus bas pour les dealers).
+- On parle d'association, pas de cause. La fenêtre de clôture à clôture inclut la matinée, avant le résultat de 13 h : une mauvaise nouvelle macroéconomique le matin peut à la fois faire monter les taux et affaiblir l'enchère.
+- Les bornes des quintiles sont calculées sur toute la période : c'est sans danger pour une analyse descriptive faite après coup, mais ce serait interdit pour une stratégie.
 
 **Résultat 2 : la stratégie perd de l'argent** (1 004 trades, 2014-2026, `strategie_pnl_cumule.png`)
 
-| Règle | P&L moyen par trade (pb, après coûts) [IC 90 %] | Avant coûts | Réussite | Total (pb) | Sharpe annualisé |
-|---|---|---|---|---|---|
-| Stratégie (moyenne des 5) | **-1,00** [-1,41 ; -0,59] | -0,50 | 42,8 % | -1 009 | -1,73 |
-| Toujours vendeur | -0,70 [-1,27 ; -0,13] | -0,20 | 44,5 % | -707 | -1,18 |
-| Information parfaite (impossible) | +0,42 [0,15 ; 0,66] | +0,92 | 53,0 % | +423 | +0,72 |
+| Règle | P&L moyen par trade, après coût [IC 90 %] | Avant coût | Écart avec « toujours vendeur » [IC 90 %] | Réussite après coût | Total | Sharpe |
+|---|---|---|---|---|---|---|
+| Stratégie (moyenne des 5) | **-1,00** [-1,41 ; -0,59] | -0,50 | -0,30 [-0,77 ; +0,13] | 42,8 % | -1 009 pb | -1,74 |
+| Toujours vendeur | -0,70 [-1,27 ; -0,13] | -0,20 | | 44,5 % | -707 pb | -1,19 |
+| Information parfaite (impossible) | +0,42 [0,15 ; 0,66] | +0,92 | +1,13 [0,52 ; 1,74] | 53,0 % | +423 pb | +0,73 |
 
-Par période, la stratégie fait -0,48 pb par trade sur 2014-2019 (0,0 avant coûts) et -1,40 pb sur 2020-2026.
+- Chaque règle paie 502 pb de coûts (0,5 pb × 1 004 trades) : la moitié de la perte de la stratégie vient des coûts.
+- Avant coût, la stratégie perd quand même 0,5 pb par trade, et c'est significatif (intervalle [-0,91 ; -0,09]). « Toujours vendeur » ne perd pas significativement avant coût.
+- La stratégie ne fait **pas mieux** que « toujours vendeur » ; elle fait un peu moins bien, mais l'écart n'est pas significatif.
+- Sensibilité au coût, pour la stratégie : -0,51 pb par trade sans coût, -1,51 pb avec 1 pb. L'information parfaite devient nulle avec un coût de 1 pb.
+- Tous les autres signaux disponibles donnent la même conclusion : les 15 (5 modèles, moyenne des 5 et 3 variantes en écart, avec ou sans nouvelles sources) perdent de -0,71 à -1,10 pb par trade après coût, et aucun ne bat « toujours vendeur » de façon significative. Ils n'ont servi qu'à vérifier ; la règle de référence reste la moyenne des 5, choisie avant.
 
 **Lecture, à dire à l'oral :**
 
-- **Même en connaissant le résultat de l'enchère à l'avance, on gagne peu** : +0,9 pb avant coûts, Sharpe 0,7. Le résultat de l'enchère explique une petite partie du mouvement de taux du jour (corrélation -0,22 entre la surprise de bid-to-cover et la variation du taux).
-- **Ce qui fait bouger le taux, c'est la partie non prévue.** La surprise non prévue par le modèle est corrélée à -0,29 avec la variation du taux ; la partie prévue, à +0,10, donc dans le mauvais sens. Conclusion du plan confirmée : la partie prévisible de la demande est déjà dans les prix.
-- **Pourquoi la stratégie fait pire que « toujours vendeur » :**
-  - Sur 2014-2019, elle ne gagne ni ne perd avant coûts.
-  - De 2022 à 2024, le modèle prévoit des bid-to-cover sous `mean3` dans 68 à 81 % des cas, donc il est surtout vendeur. Or, les jours d'enchère, le taux a en moyenne baissé (de -1,0 à -2,0 pb selon l'année, même en 2022, année de forte hausse des taux).
-  - Ce n'est pas un signal « à l'envers » qu'on pourrait exploiter : la stratégie inverse rapporte 0,0 pb par trade après coûts.
-- La hausse des taux juste avant l'enchère n'explique pas ce résultat : la variation du taux sur les 5 jours précédents est la même, que le modèle prévoie une enchère faible ou forte.
+- **Même en connaissant le résultat de l'enchère à l'avance, on gagne peu** : +0,9 pb par trade avant coût, +0,4 pb après. La surprise de l'enchère n'explique qu'une petite partie du mouvement de taux du jour (corrélation -0,22).
+- **La partie prévue de la demande n'a pas d'effet mesurable sur le taux le jour de l'enchère**, contrairement à la partie non prévue (corrélation -0,29 avec la variation du taux).
+  - Deux lectures sont possibles : elle est déjà dans les prix (la conclusion attendue par le plan), ou elle n'a simplement pas d'effet. Nos données ne permettent pas de trancher.
+  - Si elle était déjà dans les prix, le taux monterait davantage avant les enchères prévues faibles ; ce n'est pas le cas (de t-6 à t-1 : +1,7 pb quand le modèle est vendeur, +1,2 pb quand il est acheteur, écart non significatif).
+  - Surtout, même si la partie prévue faisait bouger le taux autant que la surprise réelle, la stratégie ne gagnerait qu'environ +0,4 pb avant coût : moins que le coût de 0,5 pb. Perdre après coûts était donc attendu dans les deux cas.
+- **Pourquoi la stratégie fait un peu moins bien que « toujours vendeur »** (écart total -302 pb) :
+  - 2014-2019 : -228 pb. Les taux montaient en moyenne les jours d'enchère, et la stratégie était acheteuse une fois sur deux.
+  - 2020-2021 : -220 pb, dont -188 pb en 2021, année où la stratégie était acheteuse 75 % du temps alors que les taux montaient de 1,7 pb en moyenne les jours d'enchère.
+  - 2022-2026 : +146 pb. La stratégie était surtout vendeuse, mais moins que « toujours vendeur », dans des années où les taux baissaient les jours d'enchère.
+- **Le penchant vendeur de 2022-2025 est un biais du modèle, pas une information.** Le modèle prévoit un bid-to-cover sous `mean3` dans 67 à 81 % des cas ces années-là, alors que le vrai bid-to-cover n'est sous `mean3` que dans 42 à 54 % des cas. Ses prévisions restent tirées vers les niveaux du passé, quand les taux sont hauts et les montants émis en hausse.
+- **Le comportement des taux autour des enchères a changé vers 2022** (`event_study.csv`) :
+
+  | Période | De t-6 à t-1 | Jour de l'enchère | De t à t+3 |
+  |---|---|---|---|
+  | 2014-2021 | +0,5 pb | +0,7 pb | -1,4 pb |
+  | 2022-2026 | +2,7 pb | -1,6 pb | +1,4 pb |
+
+  Le taux monte avant l'enchère (le marché « fait de la place » au nouveau papier), puis redescend. Ce retour se faisait après l'enchère avant 2022, et le jour même depuis 2022 : c'est ce qui fait chuter « toujours vendeur » à partir de 2022. Ce schéma est décrit dans la littérature (concession avant l'enchère, puis retour) ; la cause du changement de 2022 n'est pas établie ici.
+- **Le signal « à l'envers » n'est pas exploitable non plus.** Avant coût, il rapporte +0,5 pb par trade (significatif) ; après coût, 0,0 pb. Ce gain vient du biais vendeur dans un régime de baisse des taux les jours d'enchère, pas d'une information sur la demande.
 
 **Choix et limites :**
 
 | Point | Décision ou limite |
 |---|---|
-| P&L en points de base de taux | comme le demande le plan : 1 pb sur le 2 ans vaut moins en dollars que 1 pb sur le 30 ans ; pas de pondération par la duration |
-| Taux arrondis à 0,01 % | 9,8 % des jours ont une variation nulle ; avec le coût, ils comptent comme des pertes (réussite avant coûts hors jours nuls : 47,5 %) |
-| Moment de l'entrée | le signal utilise la courbe de clôture de t-1, publiée par le Trésor en fin de journée : entrer exactement à cette clôture est légèrement optimiste. Cela avantage la stratégie, qui perd quand même |
-| Une seule règle de signal | la moyenne des 5, fixée en phase 6 ; aucune autre règle n'a été essayée pour ne pas chercher un résultat positif après coup |
+| P&L en points de base de taux | comme le demande le plan, à sensibilité constante (même DV01 pour chaque trade). Pondérer par la duration ne change pas la conclusion (agent : stratégie -0,88 pb, « toujours vendeur » -0,49, information parfaite +0,47) |
+| Taux arrondis à 0,01 % | 9,8 % des trades ont une variation nulle ; avec le coût, ils comptent comme des pertes (réussite avant coût hors variations nulles : 47,5 %) |
+| Moment de l'entrée | le signal utilise la clôture de t-1 (courbe du Trésor, VIX), publiée en fin de journée : entrer à cette clôture exacte est un peu optimiste. L'agent a refait le walk-forward avec un jour de retard : -1,06 pb par trade au lieu de -1,00 (47 positions sur 1 004 changent). Effet négligeable |
+| Égalités | aucune prévision n'est égale à `mean3` ; 6 bid-to-cover réels le sont, et la règle « information parfaite » est alors acheteuse |
+| Une seule règle de signal | la moyenne des 5, fixée en phase 6 ; les autres signaux ne servent qu'à vérifier |
 
-**Vérification des tests :** 7 erreurs injectées une à une dans une copie de `strategy.py` (par exemple prendre la clôture du jour même comme veille, inverser le signe de la position, regarder le résultat de l'enchère, oublier le coût, calculer le Sharpe par trade). Les 7 sont détectées.
-
-**Résultat vérifié :** 196 tests réussis, `ruff check .` propre. Sorties dans `data/output/` : `quintiles.csv`, `strategy_trades.parquet`, `strategy_summary.csv`.
+**Résultat vérifié :** voir la section suivante.
 
 **À relire moi-même :** `strategy.py` (fonctions `rate_changes` et `strategy_trades`) et les deux figures, pour l'oral.
+
+## Vérification de la phase 7 par deux agents indépendants (13 novembre 2026)
+
+**Ma demande :** « Vérifie la phase 7 ». Deux agents ont relu le travail sans rien modifier : l'un le code (moment des taux, jointures, fuites, tests), l'autre les résultats, leur robustesse, leur interprétation et les figures. Les agents ne lisent jamais le fichier `.env`.
+
+**Ce qui était juste :**
+
+- **Aucune fuite.** La variation du taux va bien de la dernière clôture strictement avant l'enchère à la clôture du jour ; la stratégie n'utilise que la prévision et `mean3`.
+- Les deux agents ont recalculé indépendamment toutes les variations de taux (1 004 trades, 1 362 enchères pour les quintiles), les positions, les quintiles et la synthèse : écart nul partout.
+- Les dates des taux sont alignées sur des événements connus (par exemple le 10 ans le 9 novembre 2016, +19 pb).
+- Tous les chiffres de la première version du journal étaient exacts.
+
+**Ce qui était faux ou exagéré dans la première version :**
+
+| Affirmation de la première version | Ce que la vérification a montré | Correction |
+|---|---|---|
+| La stratégie fait pire que « toujours vendeur » parce qu'elle était surtout vendeuse en 2022-2024 | être surtout vendeur rapproche de « toujours vendeur », sans pouvoir faire pire. Le retard vient de 2014-2021 (-448 pb) ; depuis 2022, la stratégie fait mieux (+146 pb). Et l'écart n'est pas significatif | explication réécrite ; écart et intervalle ajoutés à la synthèse |
+| « Conclusion du plan confirmée : la partie prévisible de la demande est déjà dans les prix » | la corrélation +0,10 vient d'un effet de période (+0,05 à l'intérieur de chaque année) ; aucune hausse plus forte avant les enchères prévues faibles ; le test n'a pas la puissance de trancher (gain maximal ≈ 0,4 pb < coût) | formulation prudente : « pas d'effet mesurable » |
+| « La stratégie inverse rapporte 0,0 pb » | vrai après coût, par coïncidence : avant coût elle gagne +0,5 pb, à cause du biais vendeur | chiffre avant coût et explication ajoutés |
+| « +1,8 pb » présenté comme une constante | +3,1 pb sur 2009-2013, +1,4 pb ensuite | quintiles par période |
+| « Les enchères faibles font monter le taux » | la fenêtre inclut la matinée : cause non démontrée | « s'accompagnent d'une hausse » |
+| « +0,9 pb avant coûts, Sharpe 0,7 » | mélange d'un chiffre avant coût et d'un Sharpe après coût | corrigé |
+| Entrée à la clôture de t-1 : « cela avantage la stratégie » | sens non démontré au départ ; mesuré par l'agent : 0,05 pb par trade | chiffre dans le tableau des limites |
+| « 7 erreurs injectées, toutes détectées » | l'agent en a injecté 55 : 13 qui changeraient les vrais résultats passaient (par exemple compter chaque enchère deux fois, ou évaluer le 20 ans avec le taux du 30 ans) | 10 tests ajoutés (voir plus bas) |
+
+**Corrections du code :**
+
+- les dates avec une heure sont refusées (même contrôle que pour les variables) ;
+- une période sans trade ne fait plus planter la synthèse ;
+- le Sharpe utilise la durée réelle couverte (2026 n'est pas une année complète) ;
+- l'univers de la stratégie ne dépend plus du résultat de l'enchère (seule l'information parfaite l'utilise) ;
+- les intervalles des quintiles sont calculés par bootstrap par année, comme le reste du projet ;
+- un contrôle vérifie que les prévisions enregistrées correspondent aux variables actuelles ;
+- nouvelle étape `--strategy` ;
+- chaque chiffre du journal est maintenant recalculable depuis `data/output/` : `strategy_by_year.csv`, `strategy_costs.csv`, `strategy_signals.csv`, `event_study.csv`, `strategy_diagnostics.csv`, et la colonne `period` de `quintiles.csv` ;
+- figures : titres plus courts, espaces des milliers, vrai signe moins dans toutes les figures du projet, ligne « information parfaite » plus visible, coûts indiqués, repère en 2022.
+
+**Tests :** 10 tests ajoutés, 18 en tout. Ils couvrent :
+- le bootstrap par année et son poids par nombre d'enchères ;
+- le filtre du jeu de variables ;
+- une part de vendeurs asymétrique et le total ;
+- le 20 ans et le 30 ans ;
+- les numéros, intervalles et parts de hausse des quintiles ;
+- la limite des 10 jours ;
+- le refus des heures et les périodes vides ;
+- l'étude d'événement et la sensibilité au coût ;
+- un test de bout en bout et le contrôle de désynchronisation.
+
+J'ai ensuite injecté 26 erreurs dans une copie de `strategy.py`, dont les 13 qui échappaient aux tests : les 26 sont détectées, et la copie sans erreur passe tous les tests.
+
+**Limites connues, non corrigées :**
+
+- L'heure exacte de la courbe du Trésor et un éventuel changement de titre de référence le jour de l'enchère ne sont pas vérifiables sans données intrajournalières.
+- Le coût de 0,5 pb est une hypothèse ; la sensibilité au coût est donnée.
+
+**Résultat vérifié :** 206 tests réussis, `ruff check .` propre.

@@ -113,17 +113,23 @@ def _style(axis: plt.Axes, grid_axis: str = "x") -> None:
     axis.set_axisbelow(True)
 
 
+def _fr(value: float, decimals: int = 1, sign: bool = False) -> str:
+    """Nombre à la française : virgule décimale, espace des milliers, vrai signe moins."""
+    text = f"{value:{'+' if sign else ''},.{decimals}f}"
+    return text.replace(",", "\u00a0").replace(".", ",").replace("-", "\u2212")
+
+
 def _percent(value: float) -> str:
-    return f"{value * 100:+.1f} %".replace(".", ",")
+    return _fr(value * 100, 1, sign=True) + "\u00a0%"
 
 
 def _whole_percent(value: float, _position: int) -> str:
-    return f"{value * 100:.0f} %"
+    return _fr(value * 100, 0) + "\u00a0%"
 
 
 def _french_decimal(value: float, _position: int) -> str:
-    """Graduations à la française : virgule décimale."""
-    return f"{value:g}".replace(".", ",")
+    """Graduations à la française : virgule décimale, vrai signe moins."""
+    return f"{value:g}".replace(".", ",").replace("-", "\u2212")
 
 
 def _save(figure: plt.Figure, path: Path) -> Path:
@@ -351,13 +357,15 @@ def all_figures(
 # --- Phase 7 : lien avec le marché et stratégie ---------------------------------------------
 
 SURPRISE_LABELS = {
-    "part_des_dealers": "Surprise de la part des dealers (réelle - moyenne des 3)",
-    "bid_to_cover": "Surprise du bid-to-cover (réel - moyenne des 3)",
+    "part_des_dealers": "Surprise de la part des dealers (réelle − moyenne des 3)",
+    "bid_to_cover": "Surprise du bid-to-cover (réel − moyenne des 3)",
 }
+REGIME_CHANGE = pd.Timestamp("2022-01-01")
 
 
 def quintiles(table: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path:
-    """Variation moyenne du taux le jour de l'enchère, par quintile de surprise."""
+    """Variation moyenne du taux le jour de l'enchère, par quintile de surprise (une période)."""
+    period = table["period"].iloc[0]
     figure, axes = plt.subplots(1, 2, figsize=(12, 4.6), sharey=True, facecolor=SURFACE)
     for axis, (name, label) in zip(axes, SURPRISE_LABELS.items(), strict=True):
         part = table[table["surprise"] == name].sort_values("quintile")
@@ -370,8 +378,8 @@ def quintiles(table: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path:
             positions, means, part["ci_high"], part["ci_low"], strict=True
         ):
             anchor, align = (high + 0.1, "bottom") if mean >= 0 else (low - 0.1, "top")
-            axis.text(position, anchor, f"{mean:+.1f}".replace(".", ","), ha="center",
-                      va=align, fontsize=10, color=TEXT)  # fmt: skip
+            axis.text(position, anchor, _fr(mean, 1, sign=True), ha="center", va=align,
+                      fontsize=10, color=TEXT)  # fmt: skip
         axis.axhline(0, color=TEXT_SECONDARY, linewidth=1)
         axis.set_xticks(positions, ["1\ndemande\nforte", "2", "3", "4", "5\ndemande\nfaible"])
         axis.yaxis.set_major_formatter(_french_decimal)
@@ -381,9 +389,9 @@ def quintiles(table: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path:
     axes[0].set_ylim(table["ci_low"].min() - 0.6, table["ci_high"].max() + 0.6)  # place des valeurs
     n = int(table.loc[table["surprise"] == "part_des_dealers", "n"].sum())
     figure.suptitle(
-        "Notes et bonds, 2009-2026 : variation du taux de la maturité le jour de l'enchère"
-        f" (clôture t-1 à clôture t), par quintile de surprise ({n} enchères).\n"
-        "Trait : intervalle à 90 %. Les enchères les plus faibles font monter le taux.",
+        f"Notes et bonds, {period} ({_fr(n, 0)} enchères) : variation du taux le jour de"
+        " l'enchère, par quintile de surprise\nLes enchères les plus faibles s'accompagnent"
+        " d'une hausse du taux. Trait : intervalle à 90 % (bootstrap par année).",
         x=0.01,
         ha="left",
         fontsize=11,
@@ -393,31 +401,42 @@ def quintiles(table: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path:
     return _save(figure, directory / "quintiles_surprise.png")
 
 
-def strategy_pnl(trades: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path:
-    """P&L cumulé (pb de taux, après coûts) de la stratégie et des deux références."""
+def strategy_pnl(trades: pd.DataFrame, cost_bp: float = 0.5, directory: Path = FIGURES_DIR) -> Path:
+    """P&L cumulé (pb de taux, après coût) de la stratégie et des deux références."""
     styles = {
         "strategie": ("Stratégie (moyenne des 5)", PRIMARY, "-"),
         "toujours_vendeur": ("Toujours vendeur", SECOND, "-"),
-        "information_parfaite": ("Information parfaite (impossible en pratique)", MUTED, "--"),
+        "information_parfaite": (
+            "Information parfaite sur le sens du bid-to-cover (impossible)",
+            TEXT_SECONDARY,
+            "--",
+        ),
     }
     data = trades.sort_values("auction_date", kind="stable")
-    figure, axis = plt.subplots(figsize=(10.5, 4.4), facecolor=SURFACE)
+    count, first, last = len(data), data["auction_date"].min(), data["auction_date"].max()
+    figure, axis = plt.subplots(figsize=(10.5, 4.6), facecolor=SURFACE)
     for rule, (label, color, line) in styles.items():
         cumulative = data[rule].cumsum()
         axis.plot(data["auction_date"], cumulative, color=color, linestyle=line, linewidth=2,
                   label=label)  # fmt: skip
-        axis.annotate(f"{cumulative.iloc[-1]:+.0f} pb".replace("-", "−"),
-                      (data["auction_date"].iloc[-1], cumulative.iloc[-1]), xytext=(4, 0),
-                      textcoords="offset points", va="center", fontsize=10,
-                      color=TEXT)  # fmt: skip
+        axis.annotate(_fr(cumulative.iloc[-1], 0, sign=True) + " pb",
+                      (last, cumulative.iloc[-1]), xytext=(4, 0), textcoords="offset points",
+                      va="center", fontsize=10, color=TEXT)  # fmt: skip
     axis.axhline(0, color=TEXT_SECONDARY, linewidth=1)
-    axis.yaxis.set_major_formatter(lambda y, _: f"{y:.0f}".replace("-", "−"))
+    if first < REGIME_CHANGE < last:
+        axis.axvline(REGIME_CHANGE, color=MUTED, linewidth=1, linestyle="--")
+        axis.annotate("2022 : les taux baissent en moyenne\nles jours d'enchère",
+                      (REGIME_CHANGE, 1), xycoords=("data", "axes fraction"), xytext=(4, -4),
+                      textcoords="offset points", va="top", fontsize=8,
+                      color=TEXT_SECONDARY)  # fmt: skip
+    axis.yaxis.set_major_formatter(lambda y, _: _fr(y, 0))
     axis.set_ylabel("P&L cumulé (pb)", color=TEXT_SECONDARY)
     axis.legend(frameon=False, fontsize=10, loc="lower left", labelcolor=TEXT_SECONDARY)
     axis.set_title(
-        f"Notes et bonds, 2014-2026 : P&L cumulé de {len(data)} trades, de la clôture t-1 à la"
-        " clôture t,\nen points de base de taux, après 0,5 pb de coût par trade."
-        " Vendeur si le modèle prévoit un bid-to-cover sous mean3.",
+        f"Notes et bonds, {first.year}-{last.year} : P&L cumulé de {_fr(count, 0)} trades, en pb"
+        " de taux, après coûts\nVendeur si le modèle prévoit un bid-to-cover sous la moyenne des"
+        f" 3 dernières. Coûts : {_fr(cost_bp * count, 0)} pb par règle"
+        f" ({_fr(cost_bp, 1)} pb par trade).",
         fontsize=11,
         color=TEXT,
         loc="left",

@@ -1,0 +1,16 @@
+name,value,description
+corr_surprise_move,-0.22388569371860853,surprise réelle et variation du taux
+corr_predicted_move,0.10196420888760556,partie prévue et variation du taux
+corr_predicted_move_within_year,0.04477862478823992,"même chose, en écart à la moyenne de chaque année"
+corr_unexpected_move,-0.285177819876686,partie non prévue et taux
+slope_bp_per_btc,-8.183704030674457,variation du taux par unité de surprise de bid-to-cover
+gain_if_priced_like_surprise_bp,0.3896096567501711,gain avant coût si la partie prévue agissait comme la surprise réelle
+strategy_gross_bp,-0.504980079681274,"stratégie, avant coût"
+inverse_gross_bp,0.504980079681274,"stratégie inverse, avant coût"
+inverse_gross_ci_low,0.09162847094772303,"intervalle à 90 %, bootstrap par année"
+inverse_gross_ci_high,0.9080279787968685,"intervalle à 90 %, bootstrap par année"
+inverse_net_bp,0.004980079681274008,"stratégie inverse, après coût"
+share_zero_move_trades,0.09760956175298804,trades dont le taux ne bouge pas
+hit_rate_gross_nonzero,0.4746136865342163,"réussite avant coût, hors trades à variation nulle"
+pre_move_short_bp,1.6532846715328455,variation du taux de t-6 à t-1 quand le modèle est vendeur
+pre_move_long_bp,1.1600877192982462,variation du taux de t-6 à t-1 quand le modèle est acheteur

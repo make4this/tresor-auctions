@@ -23,10 +23,10 @@ def _run_fetch() -> None:
 
 
 def _run_backtest() -> None:
-    """Walk-forward de tous les modèles, interprétation, figures, puis stratégie (phase 7)."""
+    """Walk-forward de tous les modèles, interprétation et figures (environ 2 heures)."""
     import pandas as pd
 
-    from tresor import models, plots, strategy
+    from tresor import models, plots
     from tresor.config import OUTPUT_DIR
 
     metrics = models.run_backtest()
@@ -38,6 +38,12 @@ def _run_backtest() -> None:
         pd.read_csv(OUTPUT_DIR / "best_models.csv"),
         importance,
     )
+
+
+def _run_strategy() -> None:
+    """Quintiles de surprise et stratégie, à partir des prévisions du backtest (phase 7)."""
+    from tresor import strategy
+
     strategy.run_strategy()
 
 
@@ -60,7 +66,8 @@ def _pending(phase: int) -> StepFunction:
 STEPS: dict[str, tuple[str, StepFunction]] = {
     "fetch": ("télécharger toutes les sources dans data/raw/", _run_fetch),
     "clean": ("nettoyer les données, lancer les contrôles, construire les variables", _run_clean),
-    "backtest": ("validation walk-forward, interprétation, stratégie et figures", _run_backtest),
+    "backtest": ("validation walk-forward, interprétation et figures", _run_backtest),
+    "strategy": ("lien avec le marché et stratégie illustrative", _run_strategy),
     "train": ("entraîner les modèles finaux sur tout l'historique", _pending(8)),
     "predict": ("prévoir les enchères à venir", _pending(8)),
 }
