@@ -4,10 +4,10 @@
     "rows_in": {
       "fiscaldata": 7905,
       "treasurydirect": 137,
-      "treasurydirect_upcoming": 5
+      "treasurydirect_upcoming": 16
     },
     "duplicates_removed": 108,
-    "rows_after_merge": 7939,
+    "rows_after_merge": 7950,
     "excluded": {
       "passee_sans_resultat": {
         "rows": 1,
@@ -17,7 +17,7 @@
             "auction_date": "2001-09-11",
             "security_type": "Bill",
             "security_term": "4-Week",
-            "offering_amt": 10000000000
+            "offering_amt": 10000000000.0
           }
         ]
       },
@@ -29,105 +29,105 @@
             "auction_date": "2016-08-17",
             "security_type": "Bill",
             "security_term": "7-Day",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "912796KZ1",
             "auction_date": "2017-04-07",
             "security_type": "Bill",
             "security_term": "37-Day",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "912796NP0",
             "auction_date": "2018-01-19",
             "security_type": "Bill",
             "security_term": "6-Day",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "9128286T2",
             "auction_date": "2019-06-21",
             "security_type": "Note",
             "security_term": "9-Year 11-Month",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "912828YN4",
             "auction_date": "2019-12-06",
             "security_type": "Note",
             "security_term": "1-Year 11-Month",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "912828ZJ2",
             "auction_date": "2020-07-10",
             "security_type": "Note",
             "security_term": "4-Year 10-Month",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "9127965F2",
             "auction_date": "2020-12-17",
             "security_type": "Bill",
             "security_term": "8-Day",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "912810TC2",
             "auction_date": "2021-12-02",
             "security_type": "Bond",
             "security_term": "19-Year 11-Month",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "91282CEL1",
             "auction_date": "2022-07-14",
             "security_type": "Note",
             "security_term": "1-Year 10-Month",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "912797GJ0",
             "auction_date": "2023-08-17",
             "security_type": "Bill",
             "security_term": "7-Day",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "912797MN4",
             "auction_date": "2024-12-05",
             "security_type": "Bill",
             "security_term": "4-Day",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           },
           {
             "cusip": "912797A72",
             "auction_date": "2025-12-04",
             "security_type": "Bill",
             "security_term": "2-Day",
-            "offering_amt": 25000000
+            "offering_amt": 25000000.0
           }
         ]
       }
     },
     "recent_without_results": [],
-    "rows_out": 7926,
+    "rows_out": 7937,
     "rows_out_by_source": {
       "fiscaldata": 7784,
       "treasurydirect": 137,
-      "treasurydirect_upcoming": 5
+      "treasurydirect_upcoming": 16
     },
     "rows_out_by_status": {
       "completed": 7921,
-      "upcoming": 5
+      "upcoming": 16
     },
     "rows_out_by_family": {
-      "bill": 5102,
-      "nominal_coupon": 1647,
+      "bill": 5109,
+      "nominal_coupon": 1650,
       "cmb": 765,
       "tips": 258,
-      "frn": 154
+      "frn": 155
     },
     "share_sum_checked": 6291,
     "share_sum_outside_0_99_1_01": 0,
@@ -155,7 +155,7 @@
       "treasury_bill_rates": 6221,
       "treasury_yield_curve": 6720,
       "treasurydirect_recent": 137,
-      "treasurydirect_upcoming": 5
+      "treasurydirect_upcoming": 16
     },
     "series": {
       "bill_13w": {

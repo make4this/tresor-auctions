@@ -24,6 +24,10 @@ FIGURES_DIR: Final[Path] = PROJECT_ROOT / "reports" / "figures"
 # Les heures d'enchère et le statut « à venir » se raisonnent à l'heure de New York.
 NEW_YORK_TZ: Final[ZoneInfo] = ZoneInfo("America/New_York")
 
+# Signal de l'application (section 11 du plan) : bid-to-cover prévu moins la moyenne des 3
+# dernières enchères. Demande plus faible si l'écart est <= -0,08, plus forte s'il est >= +0,08.
+SIGNAL_THRESHOLD: Final[float] = 0.08
+
 HISTORY_START: Final[date] = date(2000, 1, 1)  # début de la collecte
 MODEL_SAMPLE_START: Final[date] = date(2009, 1, 1)  # le 7 ans reprend en 2009
 WALK_FORWARD_START: Final[date] = date(2014, 1, 1)  # premier trimestre testé

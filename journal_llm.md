@@ -752,7 +752,7 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 | Stockage des modèles (8,6 Mo, dont 7,9 Mo de Random Forest) | exclus de git pour l'instant. Les commiter chaque nuit ferait grossir le dépôt d'environ 1,6 Go par an (mesuré par un agent). À décider en phase 10 ; options mesurées : un « asset » de Release GitHub ou une branche à part, sans historique qui grossit ; ou une Random Forest de 100 arbres (3,3 Mo au total, prévisions déplacées d'au plus 0,001 sur le bid-to-cover), qu'il faudrait alors noter comme écart au plan |
 | Un seul programme écrit le journal | le bouton « Mettre à jour maintenant » de l'application ne devra pas écrire le journal (sur Streamlit Cloud, le fichier serait perdu au redéploiement) : il affichera une prévision provisoire. Seul le workflow de nuit écrit |
 | `--all` | enchaîne toutes les étapes, backtest compris (environ 2 heures). Le workflow de nuit lancera seulement `--fetch --clean --train --predict` : c'est un écart à la section 12 du plan |
-| Montant estimé | le cas « montant pas encore annoncé » n'arrive pas en pratique : TreasuryDirect ne liste que des enchères déjà annoncées, avec leur montant. L'application ne voit donc que 2 à 6 jours à l'avance |
+| Montant estimé | d'abord jugé inutile (le 13 novembre à midi, TreasuryDirect ne listait que des enchères annoncées, avec leur montant). Faux : le soir même, le calendrier listait 10 nouvelles enchères sans montant, jusqu'à 12 jours à l'avance ; le montant « estimé » sert donc bien (voir la phase 9) |
 
 **À relire moi-même :** `live.py` (fonction `update_log`) et le test `test_a_row_is_frozen_from_the_auction_day_and_never_rewritten`.
 
@@ -801,3 +801,69 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 **Limites connues, non corrigées :** les prévisions de la veille au soir utilisent parfois un VIX et des séries FRED de l'avant-veille (publiés plus tard que la courbe du Trésor). C'est prudent (pas de fuite), mais un peu moins frais que ce que suppose le backtest ; `live_status.json` garde les dates des données utilisées.
 
 **Résultat vérifié :** 241 tests réussis, `ruff check .` propre.
+
+## Phase 9 — Application Streamlit (13 novembre 2026)
+
+**Ma demande :** « OK, phase 9 » : section 11 du plan, une application en 6 pages qui lit les fichiers de `data/output/`, avec un bouton « Mettre à jour maintenant ».
+
+**Ce que le LLM a produit :**
+
+- `app/streamlit_app.py` : la navigation entre les 6 pages (`app/vues/`) et la barre latérale ;
+- `src/tresor/app_data.py` : la préparation des tableaux, sans Streamlit, donc testable ;
+- `src/tresor/app_ui.py` : lecture des fichiers avec cache, mise en forme des graphiques, barre latérale ;
+- `src/tresor/refresh.py` : la mise à jour légère du bouton ;
+- `.streamlit/config.toml` : le thème (couleur principale #1F4E79) ;
+- 25 tests (`tests/test_app_data.py`, `tests/test_app.py`).
+
+**Les 6 pages :**
+
+| Page | Contenu |
+|---|---|
+| Prochaines enchères | date, enchère (« 20 ans », « 10 ans, réouverture »), montant (« estimé » si pas encore annoncé), bid-to-cover prévu, moyenne des 3 dernières, écart, signal, part des dealers et tail prévus ; fiabilité passée du signal ; R² de chaque cible ; avertissements sur la part des dealers et le tail |
+| Suivi en direct | nombre d'enchères suivies par statut ; prévu contre réalisé (nuage de points et tableau) ; gain cumulé contre `mean3` ; prévisions en attente |
+| Backtest | métriques par période et famille avec intervalles ; gain cumulé de chaque modèle ; importance des variables (permutation et SHAP) ; quintiles et stratégie |
+| Explorer | historique d'une maturité et d'une cible, avec `mean3` et les prévisions du backtest |
+| Qualité des données | état de chaque source (fraîcheur, lignes, alertes), contrôles, rapport de nettoyage |
+| Méthodologie | question, sources, variables, validation, résultats, limites, usage des LLM |
+
+**Choix :**
+
+| Point | Décision | Raison |
+|---|---|---|
+| Signal | seuil de 0,08 défini dans `config.py`, appliqué aux valeurs non arrondies | le 13 semaines (−0,082) déclenche « plus faible », le 20 ans (−0,078) non, alors que les deux s'affichent « −0,08 » |
+| Couleurs | #1F4E79 pour l'interface et #C8553D pour l'alerte, comme le plan ; les graphiques à plusieurs séries gardent la palette des figures (#2a78d6, #eb6834) | #1F4E79 ne passe pas le contrôle de lisibilité pour distinguer des séries (phase 6) |
+| Nombres | virgule décimale, espace des milliers, vrai signe moins | cohérent avec les figures du rapport |
+| Cache | `st.cache_data(ttl=3600)` comme le plan, avec la date de modification du fichier dans la clé | sinon, un fichier réécrit restait invisible jusqu'à une heure |
+| Bouton « Mettre à jour maintenant » | télécharge les 4 sources légères, refait la préparation et prévoit avec les modèles sauvegardés, sans ré-entraîner ; la prévision est affichée comme **provisoire** et n'est **pas** écrite dans le journal figé | écart au plan : un seul programme écrit le journal (décision de la phase 8) ; sur Streamlit Cloud, le fichier serait de toute façon perdu au redéploiement |
+| Modèles absents | le bouton explique que la mise à jour se fait la nuit | c'est le cas sur Streamlit Cloud tant que le stockage des modèles n'est pas décidé (phase 10) |
+| Titre des bills | « réouverture » non affiché | pour un bill, cela n'apporte rien au lecteur |
+
+**Vérification :**
+
+- **Tests sans navigateur** (outil de test de Streamlit) :
+  - les 6 pages et le programme principal tournent sans erreur sur les données du dépôt ;
+  - les changements de sélection fonctionnent sur les pages Explorer et Backtest ;
+  - des résultats réalisés simulés s'affichent dans le suivi en direct ;
+  - le bouton affiche une prévision provisoire, ou explique l'absence de modèles.
+- **Vérification visuelle dans le navigateur, page par page** (écran de 1 440 × 900). Défauts trouvés et corrigés :
+  - légendes qui chevauchaient les titres des graphiques ;
+  - tableaux coupés (métriques, sources, prochaines enchères) ;
+  - modèle affiché par défaut dans le gain cumulé : Ridge au lieu de la moyenne des 5 ;
+  - deux graphiques de quintiles côte à côte avec des échelles différentes ;
+  - « 1004 » au lieu de « 1 004 » ;
+  - dates au format ISO ;
+  - noms techniques des sources et motifs d'exclusion sans accents ;
+  - texte de l'explorateur qui annonçait un historique « depuis 2009 » au lieu de 2000 ;
+  - bouton « Deploy » de Streamlit visible.
+- **Le vrai bouton** a été essayé :
+  - Il a téléchargé les 4 sources légères et a fait apparaître 10 enchères annoncées le jour même, dont le montant n'était pas encore connu (affiché « estimé »).
+  - Le journal figé n'a pas été modifié.
+  - J'ai ensuite lancé `--train --predict`, comme le fera le passage de nuit. L'entraînement a été sauté (données d'entraînement inchangées). Le journal compte maintenant 14 enchères (336 lignes), et les 96 lignes d'origine sont restées identiques.
+
+**Correction de la phase 8 :** la phrase « le cas montant pas encore annoncé n'arrive pas en pratique » était fausse. Elle venait d'une observation faite à midi ; le soir même, le calendrier listait 10 enchères sans montant, jusqu'au 25 novembre.
+
+**Non vérifié :** l'affichage sur téléphone, et le fonctionnement sur Streamlit Cloud (phase 10).
+
+**Résultat vérifié :** 266 tests réussis, `ruff check .` propre. Lancement : `streamlit run app/streamlit_app.py` depuis la racine du dépôt.
+
+**À relire moi-même :** les 6 pages dans l'application, et `src/tresor/app_data.py` (fonctions `signal` et `upcoming_table`).
