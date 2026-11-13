@@ -1,5 +1,5 @@
 {
-  "today_new_york": "2026-11-12",
+  "today_new_york": "2026-11-13",
   "auctions": {
     "rows_in": {
       "fiscaldata": 7905,
@@ -143,14 +143,14 @@
     }
   },
   "market": {
-    "rows": 186170,
+    "rows": 186173,
     "raw_rows": {
-      "cboe_vix": 9314,
+      "cboe_vix": 9315,
       "cftc_positions": 5686,
       "fiscaldata_auctions": 7905,
       "fiscaldata_cash_balance": 16770,
       "fiscaldata_debt": 6742,
-      "fred_series": 32737,
+      "fred_series": 32740,
       "nyfed_dealer_positions": 9790,
       "treasury_bill_rates": 6221,
       "treasury_yield_curve": 6720,
@@ -392,9 +392,9 @@
       "fred_baa10y": {
         "source": "fred_series",
         "unit": "%",
-        "rows": 6711,
+        "rows": 6712,
         "first_date": "2000-01-03",
-        "last_date": "2026-11-09"
+        "last_date": "2026-11-10"
       },
       "fred_dtwexb": {
         "source": "fred_series",
@@ -420,9 +420,9 @@
       "fred_t10yie": {
         "source": "fred_series",
         "unit": "%",
-        "rows": 5969,
+        "rows": 5970,
         "first_date": "2003-01-02",
-        "last_date": "2026-11-10"
+        "last_date": "2026-11-12"
       },
       "fred_walcl": {
         "source": "fred_series",
@@ -448,9 +448,9 @@
       "vix_close": {
         "source": "cboe_vix",
         "unit": "points",
-        "rows": 9314,
+        "rows": 9315,
         "first_date": "1990-01-02",
-        "last_date": "2026-11-11"
+        "last_date": "2026-11-12"
       },
       "yield_10y": {
         "source": "treasury_yield_curve",
@@ -569,7 +569,7 @@
       "fred_dtwexb": 145,
       "fred_dtwexbgs": 213,
       "fred_rrpontsyd": 241,
-      "fred_t10yie": 255,
+      "fred_t10yie": 256,
       "fred_wtregen": 154,
       "yield_10y": 1,
       "yield_1m": 397,

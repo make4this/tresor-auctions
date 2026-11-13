@@ -18,6 +18,7 @@ RAW_DIR: Final[Path] = DATA_DIR / "raw"  # réponses brutes des API, jamais modi
 CLEAN_DIR: Final[Path] = DATA_DIR / "clean"  # tables nettoyées
 OUTPUT_DIR: Final[Path] = DATA_DIR / "output"  # prédictions, métriques, contrôles
 CACHE_DIR: Final[Path] = DATA_DIR / "cache"  # téléchargements qui ne changent plus
+MODELS_DIR: Final[Path] = DATA_DIR / "models"  # modèles finaux entraînés (joblib)
 FIGURES_DIR: Final[Path] = PROJECT_ROOT / "reports" / "figures"
 
 # Les heures d'enchère et le statut « à venir » se raisonnent à l'heure de New York.

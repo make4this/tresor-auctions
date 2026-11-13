@@ -47,6 +47,20 @@ def _run_strategy() -> None:
     strategy.run_strategy()
 
 
+def _run_train() -> None:
+    """Modèles finaux sur toutes les enchères réalisées, sauvegardés dans data/models/."""
+    from tresor import live
+
+    live.run_train()
+
+
+def _run_predict() -> None:
+    """Prévisions des enchères à venir, journal figé et suivi en direct."""
+    from tresor import live
+
+    live.run_predict()
+
+
 def _run_clean() -> None:
     """Nettoie les tables brutes, écrit les contrôles, puis construit les variables."""
     run_cleaning()
@@ -68,8 +82,8 @@ STEPS: dict[str, tuple[str, StepFunction]] = {
     "clean": ("nettoyer les données, lancer les contrôles, construire les variables", _run_clean),
     "backtest": ("validation walk-forward, interprétation et figures", _run_backtest),
     "strategy": ("lien avec le marché et stratégie illustrative", _run_strategy),
-    "train": ("entraîner les modèles finaux sur tout l'historique", _pending(8)),
-    "predict": ("prévoir les enchères à venir", _pending(8)),
+    "train": ("entraîner les modèles finaux sur tout l'historique", _run_train),
+    "predict": ("prévoir les enchères à venir et mettre à jour le journal figé", _run_predict),
 }
 
 

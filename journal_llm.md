@@ -685,3 +685,57 @@ J'ai ensuite injecté 26 erreurs dans une copie de `strategy.py`, dont les 13 qu
 - Le coût de 0,5 pb est une hypothèse ; la sensibilité au coût est donnée.
 
 **Résultat vérifié :** 206 tests réussis, `ruff check .` propre.
+
+## Phase 8 — Prévisions en direct et journal figé (13 novembre 2026)
+
+**Ma demande :** « ok phase 8 » : section 10 du plan. Entraîner les modèles sur tout l'historique, prévoir les enchères à venir, tenir un journal des prévisions où une ligne est figée à partir du jour de l'enchère, et suivre les résultats dès leur publication.
+
+**Ce que le LLM a produit :**
+
+- `live.py` : entraînement final et sauvegarde (joblib), prévision des enchères à venir, journal figé, suivi en direct ;
+- les étapes `--train` et `--predict` du pipeline (elles renvoyaient « prévu en phase 8 ») ;
+- 13 tests (`tests/test_live.py`), dont le test obligatoire de la ligne figée.
+
+**Méthode :**
+
+- **Modèles finaux** : les 5 modèles, avec la même recette que le walk-forward (prétraitement dans le pipeline, cible écrêtée, hyperparamètres choisis par validation croisée temporelle), entraînés sur toutes les enchères réalisées depuis 2009, toutes variables. Un fichier `metadata.json` garde la date d'entraînement, la dernière enchère utilisée et les versions de scikit-learn et LightGBM (un modèle sauvegardé ne se relit de façon sûre qu'avec les mêmes versions).
+- **Prévision** : pour chaque enchère à venir (notes et bonds, bills), les 4 cibles par les 5 modèles et leur moyenne, le modèle de référence fixé en phase 6.
+- **Journal** `data/output/predictions_log.parquet`, clé `(cusip, auction_date, target, model)`, avec `predicted_at` (UTC), `pred`, `bench_mean3`, le montant et `offering_estimated`.
+- **Règle du gel** : une prévision n'est écrite que pour une enchère dont la date est strictement postérieure à la date du jour à New York.
+  - Une ligne dont l'enchère est aujourd'hui ou passée ne peut donc jamais être réécrite : sa clé contient la date de l'enchère, qui ne peut correspondre à aucune nouvelle prévision.
+  - Un garde-fou vérifie en plus, avant chaque écriture, que toutes les lignes figées sont identiques ; sinon l'écriture est annulée.
+  - Une prévision inchangée garde sa date d'origine, pour que le journal ne change pas inutilement chaque nuit.
+  - Aucune prévision n'est créée le jour même : le workflow tourne le soir (heure de New York), après la publication du résultat.
+  - L'écriture passe par un fichier temporaire, pour qu'une coupure ne laisse jamais un journal abîmé.
+- **Suivi** `data/output/live_tracking.parquet` : le journal joint aux résultats publiés, avec l'erreur du modèle, celle de `mean3` et le statut (`realisee` ou `en_attente`).
+
+**Résultat du premier passage réel** (13 novembre 2026, données téléchargées le jour même) :
+
+- `--fetch --clean --train --predict` en 114 secondes, dont 35 secondes d'entraînement ; contrôle qualité vert.
+- 4 enchères à venir, soit 96 lignes dans le journal (4 cibles × 6 modèles), toutes « en attente ».
+
+| Enchère | Bid-to-cover prévu (moyenne des 5) | Moyenne des 3 dernières | Écart |
+|---|---|---|---|
+| 13 semaines, 16 novembre | 2,79 | 2,87 | -0,08 |
+| 26 semaines, 16 novembre | 2,88 | 2,81 | +0,06 |
+| 6 semaines, 17 novembre | 2,71 | 2,77 | -0,06 |
+| 20 ans, 18 novembre | 2,53 | 2,61 | -0,08 |
+
+Ces prévisions sont figées à partir du jour de chaque enchère ; elles serviront au suivi en direct de l'application. Rappel de la phase 6 : le bid-to-cover des notes et bonds est le seul résultat solide (+11,6 % de R² contre `mean3`) ; pour les bills, une partie du gain venait des crises du plafond de la dette.
+
+**Contrôle de reproductibilité :** après le nouveau téléchargement, les variables des 6 745 enchères passées sont strictement identiques à celles du backtest. Les prévisions de la phase 6 restent donc valables.
+
+**Vérification des tests :** 12 erreurs injectées une à une dans une copie de `live.py`, par exemple écrire le jour de l'enchère, prendre la date UTC au lieu de celle de New York, désactiver le garde-fou, ou prendre la médiane au lieu de la moyenne des 5. Au premier essai, deux passaient (la médiane, et l'oubli du filtre « à venir »), parce que mes faux modèles de test donnaient tous la même prévision et qu'aucune donnée de test n'avait de statut incohérent. Après correction des tests, les 12 sont détectées, et la copie sans erreur passe tous les tests.
+
+**Choix et points ouverts :**
+
+| Point | Décision |
+|---|---|
+| Modèles en direct | les 5 modèles et leur moyenne sont tous inscrits au journal ; l'application affichera la moyenne des 5 |
+| Variante en écart à `mean3` | pas utilisée en direct : elle n'était qu'un test de robustesse en phase 6 |
+| Stockage des modèles (8,3 Mo, dont les forêts aléatoires des bills : 1,4 Mo chacune) | exclus de git pour l'instant : les ré-entraîner et les commiter chaque nuit ferait grossir le dépôt d'environ 2 Go par an. À décider en phase 10, car le bouton « Mettre à jour maintenant » de l'application en a besoin |
+| `--all` | enchaîne maintenant toutes les étapes, backtest compris (environ 2 heures). Le workflow de nuit (phase 10) lancera seulement `--fetch --clean --train --predict` |
+
+**Résultat vérifié :** 219 tests réussis, `ruff check .` propre.
+
+**À relire moi-même :** `live.py` (fonction `update_log`) et le test `test_a_row_is_frozen_from_the_auction_day_and_never_rewritten`.
