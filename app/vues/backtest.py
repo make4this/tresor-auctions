@@ -15,7 +15,8 @@ st.title("Backtest")
 st.caption(
     "Validation walk-forward : chaque trimestre depuis 2014, les modèles sont entraînés sur tout"
     " le passé puis testés sur le trimestre suivant. R² hors échantillon contre la moyenne des 3"
-    " dernières enchères (`mean3`) : au-dessus de 0, le modèle fait mieux que ce benchmark."
+    " dernières enchères (1 − erreur quadratique du modèle / erreur quadratique de cette"
+    " moyenne) : au-dessus de 0, le modèle fait mieux que ce benchmark."
 )
 
 metrics = ui.csv("backtest_metrics.csv")
@@ -23,14 +24,19 @@ backtest = ui.parquet("backtest_predictions.parquet")
 family = st.segmented_control(
     "Famille", list(ad.FAMILY_LABELS), default="nominal_coupon",
     format_func=ad.FAMILY_LABELS.get, required=True,
-)  # fmt: skip
+) or "nominal_coupon"  # fmt: skip
 tabs = st.tabs(["Métriques", "Gain cumulé", "Variables", "Stratégie"])
+
+
+def interval(value: float, low: float, high: float) -> str:
+    return f"{ad.fr(value * 100, 1, sign=True)} %  [{ad.fr(low * 100, 0)} ; {ad.fr(high * 100, 0)}]"
+
 
 with tabs[0]:
     period = st.segmented_control(
         "Période", ["2014-2026", "2014-2019", "2020-2026"], default="2020-2026", required=True,
         help="Le modèle « choisi » l'est sur 2014-2019 et jugé sur 2020-2026.",
-    )  # fmt: skip
+    ) or "2020-2026"  # fmt: skip
     data = metrics[
         (metrics["family"] == family)
         & (metrics["period"] == period)
@@ -41,7 +47,7 @@ with tabs[0]:
     for target, label in ad.TARGET_LABELS.items():
         part = data[data["target"] == target].set_index("model").reindex(order)
         table[label.split(" (")[0]] = [
-            f"{ad.fr(r * 100, 1, sign=True)} %  [{ad.fr(lo * 100, 0)} ; {ad.fr(hi * 100, 0)}]"
+            interval(r, lo, hi)
             for r, lo, hi in zip(
                 part["r2_vs_mean3"], part["r2_ci_low"], part["r2_ci_high"], strict=True
             )  # fmt: skip
@@ -50,37 +56,78 @@ with tabs[0]:
     best = ui.csv("best_models.csv")
     chosen = best[best["family"] == family].set_index("target")["model"]
     st.caption(
-        "R² contre `mean3`, avec son intervalle à 90 % (bootstrap par année). Modèle choisi sur"
-        " 2014-2019 : "
-        + ", ".join(
-            f"{ad.TARGET_LABELS[t].split(' (')[0].lower()} : {plots.MODEL_LABELS[m]}"
-            for t, m in chosen.items()
-        )
-        + ". La « Constante » est la moyenne de toute la famille, toutes maturités confondues :"
+        "Entre crochets : intervalle de confiance à 90 % (bootstrap par année). Modèles"
+        " choisis sur 2014-2019 : "
+        + ", ".join(f"{plots.MODEL_LABELS[m]} ({ad.SHORT_TARGETS[t]})" for t, m in chosen.items())
+        + ". « En écart » : le modèle prévoit la surprise (réel − moyenne des 3) au lieu du"
+        " niveau ; c'est un test de robustesse, non utilisé pour les prévisions en direct."
+        " La « Constante » est la moyenne de toute la famille, toutes maturités confondues :"
         " un benchmark très faible, sauf pour le tail."
     )
+    with st.expander("Les nouvelles sources (dealers, CFTC, liquidité) aident-elles ?"):
+        comparison = ui.csv("new_sources_comparison.csv")
+        rows = comparison[
+            (comparison["family"] == family) & (comparison["model"] == "moyenne_5")
+        ].set_index("target")
+        st.dataframe(
+            pd.DataFrame(
+                {
+                    "Cible": [ad.TARGET_LABELS[t].split(" (")[0] for t in rows.index],
+                    "Avec": rows["toutes"].map(lambda v: ad.fr(v * 100, 1, sign=True, suffix=" %")),
+                    "Sans": rows["sans_nouvelles_sources"].map(
+                        lambda v: ad.fr(v * 100, 1, sign=True, suffix=" %")
+                    ),
+                    "Écart (points)": [
+                        f"{ad.fr(g * 100, 1, sign=True)}  [{ad.fr(lo * 100, 1)} ;"
+                        f" {ad.fr(hi * 100, 1)}]"
+                        for g, lo, hi in zip(
+                            rows["gain"], rows["gain_ci_low"], rows["gain_ci_high"], strict=True
+                        )  # fmt: skip
+                    ],
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Moyenne des 5 modèles, R² contre la moyenne des 3 dernières, 2014-2026. Aucun écart"
+            " n'est significativement positif : ces données n'apportent rien de mesurable."
+        )
 
 with tabs[1]:
     target = st.selectbox("Cible", list(ad.TARGET_LABELS), format_func=ad.TARGET_LABELS.get)
     models = [m for m in plots.MODEL_LABELS if m in set(backtest["model"])]
-    model = st.selectbox("Modèle", models, index=models.index("moyenne_5"),
-                         format_func=plots.MODEL_LABELS.get)  # fmt: skip
+    model = st.selectbox(
+        "Modèle", models, format_func=plots.MODEL_LABELS.get,
+        index=models.index("moyenne_5") if "moyenne_5" in models else 0,
+    )  # fmt: skip
     gain = ad.cumulative_gain(backtest, family, target, model)
     figure = go.Figure()
     figure.add_scatter(x=gain["auction_date"], y=gain["gain"] * 100, mode="lines",
                        name=plots.MODEL_LABELS[model],
                        line={"color": ui.SERIES[0], "width": 2})  # fmt: skip
+    if family == "bill":
+        for label, day in plots.DEBT_CEILING.items():
+            figure.add_vline(x=pd.Timestamp(day), line={"color": ui.MUTED, "dash": "dash"})
+            figure.add_annotation(x=pd.Timestamp(day), y=1, yref="paper", text=f"plafond {label}",
+                                  showarrow=False, xanchor="left", font={"size": 11})  # fmt: skip
     figure.update_layout(
-        title="Gain cumulé contre mean3, en % de l'erreur totale de mean3 (finit au R²)",
+        title="Gain cumulé, en % de l'erreur totale de la moyenne des 3 (finit au R² de 2014-2026)",
         showlegend=False,
     )
     figure.update_yaxes(ticksuffix=" %")
-    st.plotly_chart(ui.style(figure), width="stretch")
-    st.caption(
-        "Somme cumulée de (réel − mean3)² − (réel − prévu)², divisée par la somme des"
-        " (réel − mean3)². Pour les bills, les sauts d'octobre 2015 et d'octobre 2021 viennent des"
-        " crises du plafond de la dette."
+    ui.chart(figure)
+    note = (
+        "Somme cumulée de (réel − moyenne des 3)² − (réel − prévu)², divisée par la somme des"
+        " (réel − moyenne des 3)². Au-dessus de 0, le modèle fait mieux."
     )
+    if family == "bill":
+        note += (
+            " Pour les bills, une part du gain vient des crises du plafond de la dette"
+            " (pointillés : octobre 2015, fin 2021, mai 2023) ; selon la cible, le saut principal"
+            " n'est pas le même."
+        )
+    st.caption(note)
 
 with tabs[2]:
     importance = ui.csv("feature_importance.csv")
@@ -93,7 +140,9 @@ with tabs[2]:
     else:
         st.caption(
             f"Modèle choisi sur 2014-2019 : {plots.MODEL_LABELS[part['model'].iloc[0]]},"
-            " entraîné avant 2022 et expliqué sur 2022-2026."
+            " entraîné avant 2022 et expliqué sur 2022-2026. La permutation mesure ce qu'une"
+            " variable apporte vraiment hors échantillon ; SHAP mesure combien elle pèse dans la"
+            " formule du modèle. Les deux peuvent diverger."
         )
         left, right = st.columns(2)
         top = part.nlargest(12, "permutation_mean").iloc[::-1]
@@ -106,8 +155,9 @@ with tabs[2]:
                 error_x={"type": "data", "array": top["permutation_std"], "color": ui.MUTED},
             )
         )
-        figure.update_layout(title="Permutation : ce qui aide vraiment (hors échantillon)")
-        left.plotly_chart(ui.style(figure, height=460), width="stretch")
+        figure.update_layout(title="Permutation : ce qui aide vraiment")
+        figure.update_xaxes(title="Hausse de l'erreur quadratique si la variable est brouillée")
+        ui.chart(figure, height=480, container=left)
         top = part.nlargest(12, "shap_share").iloc[::-1]
         figure = go.Figure(
             go.Bar(
@@ -117,25 +167,26 @@ with tabs[2]:
                 marker_color=ui.MUTED,
             )
         )
-        figure.update_layout(title="SHAP : ce qui pèse dans la formule (part du total)")
-        figure.update_xaxes(ticksuffix=" %")
-        right.plotly_chart(ui.style(figure, height=460), width="stretch")
+        figure.update_layout(title="SHAP : ce qui pèse dans la formule")
+        figure.update_xaxes(title="Part du total des contributions", ticksuffix=" %")
+        ui.chart(figure, height=480, container=right)
 
 with tabs[3]:
     st.caption(
-        "Notes et bonds. Vendeur de duration de la clôture de la veille à celle du jour si le"
-        " modèle prévoit un bid-to-cover sous `mean3`, acheteur sinon ; 0,5 pb de coût par trade."
+        "Notes et bonds seulement (quelle que soit la famille choisie plus haut). Vendeur de"
+        " duration (on gagne si le taux monte) de la clôture de la veille à celle du jour si le"
+        " bid-to-cover prévu est sous la moyenne des 3 dernières, acheteur sinon ; 0,5 pb de coût"
+        " par trade. P&L en points de base (pb) de taux."
     )
     quintiles = ui.csv("quintiles.csv")
     full = quintiles[quintiles["period"] == "2009-2026"]
-    columns = st.columns(2)
-    # Même échelle pour les deux graphiques, qu'on compare côte à côte.
     y_range = [full["ci_low"].min() - 0.4, full["ci_high"].max() + 0.4]
+    columns = st.columns(2)
     for column, (name, label) in zip(columns, plots.SURPRISE_LABELS.items(), strict=True):
         rows = full[full["surprise"] == name].sort_values("quintile")
         figure = go.Figure(
             go.Bar(
-                x=["1 (forte)", "2", "3", "4", "5 (faible)"],
+                x=["1", "2", "3", "4", "5"],
                 y=rows["rate_change_mean_bp"],
                 marker_color=ui.SERIES[0],
                 error_y={
@@ -147,10 +198,17 @@ with tabs[3]:
                 },
             )
         )
-        figure.update_layout(title=label)
+        figure.update_layout(title=label.replace(" (", "<br>("))
+        figure.update_xaxes(title="Quintile de surprise (1 = demande la plus forte)")
         figure.update_yaxes(title="Variation du taux (pb)", range=y_range)
-        column.plotly_chart(ui.style(figure, height=330), width="stretch")
-    st.caption("Les enchères les plus faibles s'accompagnent d'une hausse du taux le jour même.")
+        ui.chart(figure, height=360, container=column)
+    count = int(full.loc[full["surprise"] == "part_des_dealers", "n"].sum())
+    st.caption(
+        f"Notes et bonds, 2009-2026 ({ad.fr(count, 0)} enchères) : variation moyenne du taux de"
+        " la maturité de la clôture de la veille à celle du jour de l'enchère ; trait : intervalle"
+        " à 90 % (bootstrap par année). Les enchères les plus faibles s'accompagnent d'une hausse"
+        " du taux le jour même."
+    )
     summary = ui.csv("strategy_summary.csv")
     rows = summary[summary["period"] == "2014-2026"].set_index("rule")
     st.dataframe(
@@ -158,13 +216,24 @@ with tabs[3]:
             {
                 "Règle": [RULES[rule] for rule in rows.index],
                 "Trades": rows["trades"].map(lambda v: ad.fr(v, 0)),
-                "P&L moyen (pb)": [
+                "P&L moyen par trade (pb)": [
                     f"{ad.fr(m, 2, sign=True)}  [{ad.fr(lo, 2)} ; {ad.fr(hi, 2)}]"
                     for m, lo, hi in zip(
                         rows["mean_bp"], rows["mean_ci_low"], rows["mean_ci_high"], strict=True
                     )  # fmt: skip
                 ],
                 "Avant coût (pb)": rows["mean_gross_bp"].map(lambda v: ad.fr(v, 2, sign=True)),
+                "Écart avec « toujours vendeur » (pb)": [
+                    "–"
+                    if pd.isna(g)
+                    else f"{ad.fr(g, 2, sign=True)}  [{ad.fr(lo, 2)} ; {ad.fr(hi, 2)}]"
+                    for g, lo, hi in zip(
+                        rows["vs_vendeur_bp"],
+                        rows["vs_vendeur_ci_low"],
+                        rows["vs_vendeur_ci_high"],
+                        strict=True,
+                    )  # fmt: skip
+                ],
                 "Réussite": rows["hit_rate"].map(lambda v: ad.fr(v * 100, 1, suffix=" %")),
                 "Total (pb)": rows["total_bp"].map(lambda v: ad.fr(v, 0, sign=True)),
                 "Sharpe": rows["sharpe"].map(lambda v: ad.fr(v, 2, sign=True)),
@@ -172,6 +241,10 @@ with tabs[3]:
         ),
         hide_index=True,
         width="stretch",
+    )
+    st.caption(
+        "2014-2026. Entre crochets : intervalle à 90 % (bootstrap par année). Réussite : part des"
+        " trades gagnants après coût (un taux inchangé compte comme une perte). Sharpe annualisé."
     )
     trades = ui.parquet("strategy_trades.parquet").sort_values("auction_date")
     figure = go.Figure()
@@ -182,9 +255,14 @@ with tabs[3]:
         figure.add_scatter(x=trades["auction_date"], y=trades[rule].cumsum(), mode="lines",
                            name=RULES[rule], line=line)  # fmt: skip
     figure.update_layout(title="P&L cumulé après coûts (pb de taux)")
-    st.plotly_chart(ui.style(figure, height=420), width="stretch")
+    ui.chart(figure, height=440)
+    loss = -rows.loc["strategie", "mean_bp"]
+    perfect = rows.loc["information_parfaite", "mean_bp"]
     st.caption(
-        "La stratégie perd de l'argent et ne fait pas mieux que « toujours vendeur » (écart non"
-        " significatif). Même en connaissant le résultat de l'enchère à l'avance, le gain reste"
-        " faible : la partie prévisible de la demande n'a pas d'effet mesurable sur le taux."
+        f"La stratégie perd {ad.fr(loss, 1)} pb par trade après coûts et ne fait pas mieux que"
+        " « toujours vendeur » (écart non significatif). Même en connaissant le résultat de"
+        f" l'enchère à l'avance, on ne gagnerait que {ad.fr(perfect, 1, sign=True)} pb par trade"
+        " après coût : la surprise de l'enchère n'explique qu'une petite partie du mouvement du"
+        " taux du jour. Par ailleurs, la partie prévisible de la demande n'a pas d'effet"
+        " mesurable sur le taux."
     )

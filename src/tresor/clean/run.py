@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _write_json(path: Path, content: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_name(f"{path.name}.part")
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
     temporary_path.write_text(
         json.dumps(content, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
     )
@@ -30,7 +31,7 @@ def _write_json(path: Path, content: dict[str, Any]) -> None:
 
 def _write_parquet(frame: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_name(f"{path.name}.part")
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
     frame.to_parquet(temporary_path, index=False)
     temporary_path.replace(path)
 

@@ -15,6 +15,7 @@ import json
 import logging
 import platform
 import shutil
+import uuid
 from pathlib import Path
 
 import joblib
@@ -64,14 +65,14 @@ CHECKED_VERSIONS = ("numpy", "scikit-learn", "lightgbm")
 def _write_parquet(frame: pd.DataFrame, path: Path) -> None:
     """Écriture atomique : une coupure ne laisse jamais un fichier à moitié écrit."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_name(f"{path.name}.part")
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
     frame.to_parquet(temporary_path, index=False)
     temporary_path.replace(path)
 
 
 def _write_json(content: dict[str, object], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_name(f"{path.name}.part")
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
     temporary_path.write_text(json.dumps(content, indent=2, default=str), encoding="utf-8")
     temporary_path.replace(path)
 

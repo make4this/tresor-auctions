@@ -8,8 +8,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Le code du projet est dans src/ : on le rend importable même sans installation du paquet.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+# Le code du projet est dans src/ : on le rend importable même sans installation du paquet
+# (une seule fois : ce script est relancé à chaque interaction).
+SOURCE = str(Path(__file__).resolve().parents[1] / "src")
+if SOURCE not in sys.path:
+    sys.path.insert(0, SOURCE)
 
 import streamlit as st  # noqa: E402
 

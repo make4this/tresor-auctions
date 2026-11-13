@@ -20,30 +20,33 @@ SERIES = ("#2a78d6", "#eb6834")
 MUTED = "#8a897f"
 GRID = "#e4e3df"
 CACHE_SECONDS = 3600
+DISCLAIMER = (
+    "Projet étudiant (cours « Machine Learning for Finance », emlyon business school, 2026)."
+    " Ces prévisions ne sont pas un conseil en investissement."
+)
 
-
-# Lecture mise en cache une heure au plus (section 11 du plan). La date de modification du
-# fichier fait partie de la clé : un fichier réécrit (passage de nuit, mise à jour) est relu
-# tout de suite.
+# Lecture mise en cache une heure au plus (section 11 du plan). La date de modification et la
+# taille du fichier font partie de la clé : un fichier réécrit est relu tout de suite.
 
 
 @st.cache_data(ttl=CACHE_SECONDS, show_spinner=False)
-def _read_parquet(path: str, version: int) -> pd.DataFrame:
+def _read_parquet(path: str, version: tuple[int, int]) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
 @st.cache_data(ttl=CACHE_SECONDS, show_spinner=False)
-def _read_csv(path: str, version: int) -> pd.DataFrame:
+def _read_csv(path: str, version: tuple[int, int]) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
 @st.cache_data(ttl=CACHE_SECONDS, show_spinner=False)
-def _read_json(path: str, version: int) -> dict[str, object]:
+def _read_json(path: str, version: tuple[int, int]) -> dict[str, object]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def _version(path: Path) -> int:
-    return path.stat().st_mtime_ns
+def _version(path: Path) -> tuple[int, int]:
+    stat = path.stat()
+    return stat.st_mtime_ns, stat.st_size
 
 
 def parquet(name: str, folder: str = "output") -> pd.DataFrame:
@@ -58,8 +61,14 @@ def csv(name: str) -> pd.DataFrame:
 
 
 def json_file(name: str) -> dict[str, object]:
+    """Fichier JSON de data/output, ou un dictionnaire vide s'il manque ou est illisible."""
     path = OUTPUT_DIR / name
-    return _read_json(str(path), _version(path)) if path.exists() else {}
+    if not path.exists():
+        return {}
+    try:
+        return _read_json(str(path), _version(path))
+    except (OSError, ValueError):
+        return {}
 
 
 def today_new_york() -> pd.Timestamp:
@@ -84,9 +93,26 @@ def style(figure: go.Figure, height: int = 380) -> go.Figure:
     return figure
 
 
-def date_fr(value: pd.Timestamp) -> str:
+def chart(figure: go.Figure, height: int = 380, container: object = st) -> None:
+    """Affiche un graphique, sans la barre d'outils de Plotly (elle cache le titre sur
+    téléphone ; le zoom à la souris et le survol restent disponibles)."""
+    container.plotly_chart(  # type: ignore[attr-defined]
+        style(figure, height), width="stretch", config={"displayModeBar": False}
+    )
+
+
+def date_fr(value: pd.Timestamp, year: bool = True) -> str:
     days = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
-    return f"{days[value.day_of_week]} {value.day:02d}/{value.month:02d}/{value.year}"
+    text = f"{days[value.day_of_week]} {value.day:02d}/{value.month:02d}"
+    return f"{text}/{value.year}" if year else text
+
+
+def day_fr(text: object) -> str:
+    """Date ISO (2026-11-12) en date française (12/11/2026) ; « – » si absente."""
+    try:
+        return f"{pd.Timestamp(str(text)):%d/%m/%Y}"
+    except (ValueError, TypeError):
+        return "–"
 
 
 def sidebar() -> None:
@@ -95,39 +121,45 @@ def sidebar() -> None:
     quality = json_file("data_quality.json")
     with st.sidebar:
         st.markdown("**Données**")
-        if status:
+        try:
             run_at = pd.Timestamp(str(status["run_at"])).tz_convert("America/New_York")
             st.caption(f"Dernière prévision : {date_fr(run_at)} à {run_at:%H:%M} (New York)")
-            market = status.get("market_last_dates", {})
-            if isinstance(market, dict) and market.get("yield_10y"):
-                last = pd.Timestamp(str(market["yield_10y"]))
-                st.caption(f"Derniers taux de marché : {last:%d/%m/%Y}")
+        except (KeyError, TypeError, ValueError):
+            st.caption("Dernière prévision : inconnue")
+        market = status.get("market_last_dates", {})
+        if isinstance(market, dict) and market.get("yield_10y"):
+            st.caption(f"Derniers taux de marché : {day_fr(market['yield_10y'])}")
         if quality:
             label = {"vert": "bon", "orange": "à surveiller", "rouge": "problème"}
             st.caption(f"Contrôle qualité : {label.get(str(quality.get('status')), '?')}")
         if st.button("Mettre à jour maintenant", width="stretch"):
             _refresh()
         st.caption(
-            "Recharge les sources légères et prévoit sans ré-entraîner. La prévision obtenue"
-            " est provisoire : seul le passage de nuit l'inscrit au journal figé."
+            "Recharge les sources légères et prévoit sans réentraîner, sur une copie des"
+            " données. La prévision obtenue est provisoire : seul le passage du soir l'inscrit"
+            " au journal figé."
         )
+        st.caption(DISCLAIMER)
 
 
 def _refresh() -> None:
-    from tresor.refresh import light_refresh
+    from tresor import refresh
 
     with st.spinner("Téléchargement et calcul…"):
         try:
-            predictions, failure = light_refresh()
-        except FileNotFoundError:
-            st.sidebar.warning("Modèles absents ici : la mise à jour se fait la nuit.")
+            predictions, failure = refresh.light_refresh()
+        except refresh.RefreshBusy:
+            st.sidebar.info("Une mise à jour est déjà en cours : réessayer dans une minute.")
+            return
+        except refresh.ModelsUnavailable:
+            st.sidebar.warning("Modèles absents ici : la mise à jour se fait le soir.")
             return
         except Exception as error:  # l'application reste utilisable
             st.sidebar.error(f"Mise à jour impossible : {error}")
             return
     st.session_state["provisional"] = predictions
-    st.cache_data.clear()
+    message = "Prévision provisoire calculée : voir la page « Prochaines enchères »."
     if failure:
-        st.sidebar.warning(f"Mise à jour partielle. {failure}")
+        st.sidebar.warning(f"Mise à jour partielle ({failure}). {message}")
     else:
-        st.sidebar.success("Données mises à jour.")
+        st.sidebar.success(message)

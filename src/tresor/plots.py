@@ -46,8 +46,8 @@ MODEL_LABELS = {
 }
 SHORT_TARGETS = {
     "btc": "Bid-to-cover",
-    "dealer_share": "Part dealers",
-    "indirect_share": "Part indirects",
+    "dealer_share": "Part des dealers",
+    "indirect_share": "Part des indirects",
     "tail_bp": "Tail",
 }
 FEATURE_LABELS = {
@@ -61,7 +61,7 @@ FEATURE_LABELS = {
     "days_to_quarter_end": "Jours avant fin de trimestre",
     "is_quarter_end": "Fin de trimestre",
     "recent_relative_btc": "Demande récente (famille)",
-    "slope_10y_2y": "Pente 10 ans - 2 ans",
+    "slope_10y_2y": "Pente 10 ans − 2 ans",
     "rate_3m": "Taux 3 mois",
     "vix": "VIX",
     "vix_chg_5d": "VIX, variation 5 j",
@@ -83,10 +83,10 @@ FEATURE_LABELS = {
     "cftc_lev_net_z52": "Leveraged funds (CFTC)",
 }
 LAG_LABELS = {
-    "lag1": "enchère -1",
-    "lag2": "enchère -2",
-    "lag3": "enchère -3",
-    "mean3": "moyenne des 3",
+    "lag1": "dernière enchère",
+    "lag2": "avant-dernière enchère",
+    "lag3": "3e enchère précédente",
+    "mean3": "moyenne des 3 dernières",
 }
 # Crises du plafond de la dette, visibles sur les bills courts.
 DEBT_CEILING = {"oct. 2015": "2015-10-15", "oct. 2021": "2021-10-01", "mai 2023": "2023-05-15"}

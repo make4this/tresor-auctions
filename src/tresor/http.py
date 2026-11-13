@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+import uuid
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -56,12 +57,14 @@ class FetchError(RuntimeError):
     """
 
 
-def build_client(transport: httpx.BaseTransport | None = None) -> httpx.Client:
+def build_client(
+    transport: httpx.BaseTransport | None = None, timeout: float = HTTP_TIMEOUT_SECONDS
+) -> httpx.Client:
     """Crée le client commun. `transport` sert à simuler un serveur dans les tests."""
     return httpx.Client(
         http1=True,
         http2=False,  # certains serveurs du Trésor coupent les flux HTTP/2
-        timeout=HTTP_TIMEOUT_SECONDS,
+        timeout=timeout,
         headers={"User-Agent": HTTP_USER_AGENT},
         follow_redirects=True,
         transport=transport,
@@ -132,7 +135,7 @@ def _download(url: str, params: QueryParams | None, client: httpx.Client | None)
 def _write_atomically(path: Path, text: str) -> None:
     """Écrit d'abord un fichier temporaire : un cache à moitié écrit ne sera jamais relu."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_name(f"{path.name}.part")
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
     temporary_path.write_text(text, encoding="utf-8")
     temporary_path.replace(path)
 

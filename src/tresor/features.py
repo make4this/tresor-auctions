@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import operator
+import uuid
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
@@ -605,9 +606,16 @@ def run_features(clean_dir: Path = CLEAN_DIR, output_dir: Path = OUTPUT_DIR) -> 
 
     clean_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
-    features.to_parquet(clean_dir / "features.parquet", index=False)
+    # Écriture atomique : l'application ne lit jamais un fichier à moitié écrit.
+    path = clean_dir / "features.parquet"
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
+    features.to_parquet(temporary_path, index=False)
+    temporary_path.replace(path)
     rates = missing_rates(features)
-    rates.to_csv(output_dir / "features_missing.csv", index_label="variable")
+    path = output_dir / "features_missing.csv"
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
+    rates.to_csv(temporary_path, index_label="variable")
+    temporary_path.replace(path)
     logger.info(
         "Variables : %d enchères, %d variables, aucune fuite d'information détectée",
         len(features),

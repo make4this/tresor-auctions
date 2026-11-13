@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -197,7 +198,7 @@ def save_raw(frame: pd.DataFrame, name: str, raw_dir: Path) -> Path:
     """Écrit le Parquet en passant par un fichier temporaire, pour ne jamais le laisser à moitié."""
     raw_dir.mkdir(parents=True, exist_ok=True)
     path = raw_dir / f"{name}.parquet"
-    temporary_path = path.with_name(f"{path.name}.part")
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
     frame.to_parquet(temporary_path, index=False)
     temporary_path.replace(path)
     return path

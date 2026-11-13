@@ -834,7 +834,7 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 | Couleurs | #1F4E79 pour l'interface et #C8553D pour l'alerte, comme le plan ; les graphiques à plusieurs séries gardent la palette des figures (#2a78d6, #eb6834) | #1F4E79 ne passe pas le contrôle de lisibilité pour distinguer des séries (phase 6) |
 | Nombres | virgule décimale, espace des milliers, vrai signe moins | cohérent avec les figures du rapport |
 | Cache | `st.cache_data(ttl=3600)` comme le plan, avec la date de modification du fichier dans la clé | sinon, un fichier réécrit restait invisible jusqu'à une heure |
-| Bouton « Mettre à jour maintenant » | télécharge les 4 sources légères, refait la préparation et prévoit avec les modèles sauvegardés, sans ré-entraîner ; la prévision est affichée comme **provisoire** et n'est **pas** écrite dans le journal figé | écart au plan : un seul programme écrit le journal (décision de la phase 8) ; sur Streamlit Cloud, le fichier serait de toute façon perdu au redéploiement |
+| Bouton « Mettre à jour maintenant » | télécharge les 4 sources légères, refait la préparation et prévoit avec les modèles sauvegardés, sans réentraîner, **sur une copie des données dans un dossier temporaire** (corrigé après la vérification) ; la prévision est affichée comme **provisoire** et rien n'est écrit dans le dépôt, ni le journal figé | écart au plan, qui prévoyait de mettre à jour les données et de vider le cache : un seul programme écrit les données et le journal (le passage du soir) ; sur Streamlit Cloud, les fichiers seraient de toute façon perdus au redéploiement |
 | Modèles absents | le bouton explique que la mise à jour se fait la nuit | c'est le cas sur Streamlit Cloud tant que le stockage des modèles n'est pas décidé (phase 10) |
 | Titre des bills | « réouverture » non affiché | pour un bill, cela n'apporte rien au lecteur |
 
@@ -867,3 +867,47 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 **Résultat vérifié :** 266 tests réussis, `ruff check .` propre. Lancement : `streamlit run app/streamlit_app.py` depuis la racine du dépôt.
 
 **À relire moi-même :** les 6 pages dans l'application, et `src/tresor/app_data.py` (fonctions `signal` et `upcoming_table`).
+
+## Vérification de la phase 9 par deux agents indépendants (13 novembre 2026)
+
+**Ma demande :** « Vérifie la phase 9 ». Deux agents ont relu le travail sans rien modifier (copies dans leur dossier de travail, sans réseau, sans cliquer sur le vrai bouton) : l'un le code, le bouton et les tests, l'autre tout ce qui est affiché (chiffres, phrases, français). J'ai moi-même vérifié l'affichage sur téléphone.
+
+**Ce qui était juste :**
+
+- Toutes les valeurs affichées, recalculées par l'agent à partir des fichiers, sont exactes : les 14 lignes de la page 1, les métriques des 3 périodes, les choix de modèles, les quintiles, la stratégie, les sources.
+- Le seuil du signal s'applique bien aux valeurs non arrondies.
+- Le bouton n'a jamais écrit le journal figé ni le suivi, dans aucun des 5 scénarios de l'agent ; il vérifie les modèles avant tout téléchargement et n'utilise pas FRED.
+
+**Ce qui était faux ou fragile :**
+
+| Problème | Correction |
+|---|---|
+| Page Backtest et Méthodologie : « même en connaissant le résultat, le gain reste faible : la partie prévisible de la demande n'a pas d'effet » ; le « : » présentait comme une cause deux constats distincts (phase 7) | deux phrases séparées ; la stratégie est décrite avec ses deux côtés (vendeur et acheteur) et l'écart non significatif avec « toujours vendeur » |
+| Gain cumulé : « les sauts d'octobre 2015 et 2021 » écrit pour toutes les cibles ; pour le tail et les parts des bills, le saut principal est mai 2023 | phrase seulement pour les bills, avec les trois crises marquées sur le graphique |
+| Page 1 : le tail présenté comme la cible la mieux prévue (+22 %) ; les bills sans réserve | le tail est retiré de la liste et commenté à part (+2,8 % contre une constante pour les notes et bonds) ; intervalles affichés ; réserve sur le plafond de la dette |
+| Aucune mention « projet étudiant, pas un conseil en investissement », alors que le signal ressemble à une recommandation | mention dans la barre latérale, en page 1 et en méthodologie, avec : « le signal décrit la demande attendue, pas l'évolution des taux » |
+| Prévisions à 5-12 jours présentées comme comparables au backtest | phrase ajoutée : seule la dernière prévision, figée le jour de l'enchère, est comparable |
+| Fiabilité du signal ambiguë, signal « plus forte » jamais documenté | formulation exacte (« dans 77 % de ces cas, le bid-to-cover réel a bien été inférieur… ») et ligne pour « plus forte » |
+| « Modèle de référence fixé à l'avance » : à l'avance de quoi ? | « retenue pour ne pas choisir un modèle d'après ses résultats » |
+| Méthodologie : « relues par des relectures indépendantes » | « relue par d'autres agents LLM lancés séparément » |
+| Page Qualité : plantage dès qu'un taux hors bornes serait détecté (un nombre traité comme une liste) | corrigé et testé |
+| Page Qualité : règle des « 5 jours ouvrés » fausse pour Fiscal Data (30 jours) ; colonne de retard calculée depuis une autre date que celle affichée | seuils lus dans le code de contrôle ; colonnes « dernière observation » et « dernière publication » |
+| Page 1 : plantage si la seule enchère à venir n'a pas encore de moyenne des 3 | corrigé et testé |
+| Deux clics simultanés : fichiers temporaires partagés, fausses erreurs | le bouton travaille sur une copie dans un dossier temporaire ; verrou (« une mise à jour est déjà en cours ») ; noms de fichiers temporaires uniques partout ; `features.parquet` écrit de façon atomique |
+| Le bouton modifiait 11 fichiers suivis par git | plus aucun fichier du dépôt modifié (testé : empreinte de chaque fichier de `data/` avant et après) |
+| Tout `FileNotFoundError` affiché comme « modèles absents » | messages distincts : modèles absents, mise à jour déjà en cours, erreur |
+| Fichier d'état abîmé : toutes les pages plantaient | lecture protégée |
+| Page Suivi : parts en 0,333 au lieu de 33,3 %, gain cumulé en unités brutes | unités de la page 1, gain en % de l'erreur de la moyenne des 3 |
+| Tri des enchères alphabétique (« 52 semaines » avant « 6 semaines ») | tri par maturité |
+| Seuil du signal sensible aux arrondis des nombres à virgule (2,49 − 2,57 = −0,0799999…) | écart arrondi à 10⁻⁹ avant la comparaison |
+| « −0 » dans des intervalles ; « enchère −1 », « Part dealers », traits d'union pour le signe moins ; « mean3 » dans le texte français ; jargon non défini | corrigés ; petit glossaire en méthodologie ; figures du rapport redessinées avec les nouveaux noms |
+| Explorer : « depuis 2000 » faux pour les parts (2008) et vieilles réouvertures mal classées en 2008 | historique depuis 2009, l'échantillon des modèles |
+| Version minimale de Streamlit (1.37) trop basse pour le code | `streamlit>=1.67`, la version testée |
+
+**Sur téléphone** (vérifié par moi) : les colonnes essentielles (demande attendue, écart, prévision) sont maintenant en premier, et la barre d'outils des graphiques, qui cachait les titres, est masquée.
+
+**Tests :** 44 tests pour l'application (25 avant), dont 4 qui font tourner le vrai bouton sans réseau sur une copie des données. J'ai injecté 43 erreurs dans une copie complète du dépôt, reprenant la plupart des 40 qui échappaient aux tests de l'agent. 41 sont détectées. Les 2 autres sont équivalentes en pratique : le tableau est de toute façon complété ensuite, et le fichier de synthèse commence par la bonne période. Au premier essai, mon outil d'injection restaurait le code mais pas les données de la copie : une erreur qui écrivait le journal faussait les essais suivants. Je l'ai corrigé, puis j'ai tout relancé ; la copie sans erreur passe tous les tests.
+
+**Limites connues :** si les serveurs du Trésor ne répondent pas, le bouton peut attendre plusieurs minutes (délai réduit à 20 secondes par requête, mais avec des nouvelles tentatives). Le fonctionnement sur Streamlit Cloud reste à vérifier en phase 10.
+
+**Résultat vérifié :** 285 tests réussis, `ruff check .` propre.

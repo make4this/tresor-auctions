@@ -20,7 +20,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "scikit-learn>=1.7",  # LassoCV(alphas=30) : nombre d'alphas
     "shap>=0.45",
-    "streamlit>=1.37",
+    "streamlit>=1.67",  # segmented_control, width="stretch" : version testée
 ]
 
 [project.optional-dependencies]
