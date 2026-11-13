@@ -4,7 +4,7 @@
 
 Projet individuel du cours *Machine Learning for Finance* (emlyon, G. Coqueret).
 
-> État actuel : phase 6 sur 11. `--fetch` collecte les 11 tables brutes ; `--clean` nettoie, contrôle la qualité et construit 46 variables point-in-time ; `--backtest` lance la validation walk-forward de 5 modèles (environ 100 minutes sur 8 cœurs), l'interprétation SHAP et les figures de `reports/figures/`. Les prévisions en direct ne sont pas encore écrites : `--all` s'arrête donc à l'étape `train`. Le détail du travail prévu est dans [PLAN.md](PLAN.md).
+> État actuel : phase 6 sur 11. `--fetch` collecte les 11 tables brutes ; `--clean` nettoie, contrôle la qualité et construit 46 variables point-in-time ; `--backtest` lance la validation walk-forward de 5 modèles, de leur moyenne et d'une variante en écart à `mean3` (moins de 2 heures sur 8 cœurs), compare aux benchmarks `naive`, `mean3` et constante avec des intervalles de confiance, choisit le modèle sur 2014-2019 et le juge sur 2020-2026, puis produit l'interprétation (permutation et SHAP) et les figures de `reports/figures/`. Les prévisions en direct ne sont pas encore écrites : `--all` s'arrête donc à l'étape `train`. Le détail du travail prévu est dans [PLAN.md](PLAN.md).
 
 ## Installation
 
