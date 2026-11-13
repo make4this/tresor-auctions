@@ -346,3 +346,82 @@ def all_figures(
         paths.append(cumulative_gain(predictions, family, "btc", directory=directory))
         paths.append(importance(importance_table, family, "btc", directory))
     return paths
+
+
+# --- Phase 7 : lien avec le marché et stratégie ---------------------------------------------
+
+SURPRISE_LABELS = {
+    "part_des_dealers": "Surprise de la part des dealers (réelle - moyenne des 3)",
+    "bid_to_cover": "Surprise du bid-to-cover (réel - moyenne des 3)",
+}
+
+
+def quintiles(table: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path:
+    """Variation moyenne du taux le jour de l'enchère, par quintile de surprise."""
+    figure, axes = plt.subplots(1, 2, figsize=(12, 4.6), sharey=True, facecolor=SURFACE)
+    for axis, (name, label) in zip(axes, SURPRISE_LABELS.items(), strict=True):
+        part = table[table["surprise"] == name].sort_values("quintile")
+        positions = part["quintile"].to_numpy()
+        means = part["rate_change_mean_bp"].to_numpy()
+        errors = [means - part["ci_low"].to_numpy(), part["ci_high"].to_numpy() - means]
+        axis.bar(positions, means, color=PRIMARY, width=0.6, yerr=errors,
+                 error_kw={"ecolor": TEXT_SECONDARY, "elinewidth": 1})  # fmt: skip
+        for position, mean, high, low in zip(
+            positions, means, part["ci_high"], part["ci_low"], strict=True
+        ):
+            anchor, align = (high + 0.1, "bottom") if mean >= 0 else (low - 0.1, "top")
+            axis.text(position, anchor, f"{mean:+.1f}".replace(".", ","), ha="center",
+                      va=align, fontsize=10, color=TEXT)  # fmt: skip
+        axis.axhline(0, color=TEXT_SECONDARY, linewidth=1)
+        axis.set_xticks(positions, ["1\ndemande\nforte", "2", "3", "4", "5\ndemande\nfaible"])
+        axis.yaxis.set_major_formatter(_french_decimal)
+        axis.set_title(label, fontsize=10, color=TEXT, loc="left")
+        _style(axis, grid_axis="y")
+    axes[0].set_ylabel("Variation du taux (pb)", color=TEXT_SECONDARY)
+    axes[0].set_ylim(table["ci_low"].min() - 0.6, table["ci_high"].max() + 0.6)  # place des valeurs
+    n = int(table.loc[table["surprise"] == "part_des_dealers", "n"].sum())
+    figure.suptitle(
+        "Notes et bonds, 2009-2026 : variation du taux de la maturité le jour de l'enchère"
+        f" (clôture t-1 à clôture t), par quintile de surprise ({n} enchères).\n"
+        "Trait : intervalle à 90 %. Les enchères les plus faibles font monter le taux.",
+        x=0.01,
+        ha="left",
+        fontsize=11,
+        color=TEXT,
+    )
+    figure.tight_layout()
+    return _save(figure, directory / "quintiles_surprise.png")
+
+
+def strategy_pnl(trades: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path:
+    """P&L cumulé (pb de taux, après coûts) de la stratégie et des deux références."""
+    styles = {
+        "strategie": ("Stratégie (moyenne des 5)", PRIMARY, "-"),
+        "toujours_vendeur": ("Toujours vendeur", SECOND, "-"),
+        "information_parfaite": ("Information parfaite (impossible en pratique)", MUTED, "--"),
+    }
+    data = trades.sort_values("auction_date", kind="stable")
+    figure, axis = plt.subplots(figsize=(10.5, 4.4), facecolor=SURFACE)
+    for rule, (label, color, line) in styles.items():
+        cumulative = data[rule].cumsum()
+        axis.plot(data["auction_date"], cumulative, color=color, linestyle=line, linewidth=2,
+                  label=label)  # fmt: skip
+        axis.annotate(f"{cumulative.iloc[-1]:+.0f} pb".replace("-", "−"),
+                      (data["auction_date"].iloc[-1], cumulative.iloc[-1]), xytext=(4, 0),
+                      textcoords="offset points", va="center", fontsize=10,
+                      color=TEXT)  # fmt: skip
+    axis.axhline(0, color=TEXT_SECONDARY, linewidth=1)
+    axis.yaxis.set_major_formatter(lambda y, _: f"{y:.0f}".replace("-", "−"))
+    axis.set_ylabel("P&L cumulé (pb)", color=TEXT_SECONDARY)
+    axis.legend(frameon=False, fontsize=10, loc="lower left", labelcolor=TEXT_SECONDARY)
+    axis.set_title(
+        f"Notes et bonds, 2014-2026 : P&L cumulé de {len(data)} trades, de la clôture t-1 à la"
+        " clôture t,\nen points de base de taux, après 0,5 pb de coût par trade."
+        " Vendeur si le modèle prévoit un bid-to-cover sous mean3.",
+        fontsize=11,
+        color=TEXT,
+        loc="left",
+    )
+    _style(axis, grid_axis="y")
+    figure.tight_layout()
+    return _save(figure, directory / "strategie_pnl_cumule.png")

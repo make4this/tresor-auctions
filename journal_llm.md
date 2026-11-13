@@ -540,3 +540,71 @@ La moyenne des 5 fait aussi bien ou mieux que le modèle choisi dans 7 cas sur 8
 - Rien ne prouve ni n'exclut que les réglages de la Random Forest ou la grille LightGBM aient été choisis après avoir vu les résultats.
 
 **Résultat vérifié :** 188 tests réussis (dont 18 pour les modèles), `ruff check .` propre.
+
+## Phase 7 — Lien avec le marché et stratégie illustrative (13 novembre 2026)
+
+**Ma demande :** « phase 7 » : section 9 du plan. D'abord, les enchères faibles font-elles monter les taux ? Ensuite, une stratégie : vendre de la duration de la clôture de t-1 à la clôture de t quand le modèle prévoit un bid-to-cover sous `mean3`, en acheter sinon.
+
+**Ce que le LLM a produit :**
+
+- `strategy.py` : variation du taux de clôture à clôture, quintiles de surprise, positions et P&L de chaque règle, synthèse par période ;
+- deux figures dans `plots.py` ;
+- l'appel de la stratégie à la fin de l'étape `--backtest` ;
+- 8 tests (`tests/test_strategy.py`).
+
+**Méthode :**
+
+- **Notes et bonds seulement** : la duration d'un bill est trop courte pour un pari sur les taux.
+- **Variation du taux** : taux de la maturité de l'enchère (courbe du Trésor), de la clôture du dernier jour publié avant l'enchère (au plus 10 jours avant) à la clôture du jour de l'enchère, en points de base. Le résultat de l'enchère tombe à 13 h, donc avant la clôture du jour.
+- **Surprise** : valeur réelle moins moyenne des 3 dernières enchères de la même maturité. Quintile 1 = demande la plus forte, quintile 5 = la plus faible, pour les deux mesures.
+- **Signal** : la moyenne des 5 modèles, fixée à l'avance en phase 6, prévisions hors échantillon 2014-2026.
+- **P&L** = position × variation du taux − 0,5 pb, avec position +1 si vendeur (on gagne quand le taux monte) et -1 si acheteur.
+- **Deux références** :
+  - « toujours vendeur », demandée par le plan ;
+  - « information parfaite », qui connaît le vrai bid-to-cover à l'avance : impossible en pratique, elle donne le maximum atteignable.
+- **Sharpe** : calculé sur le P&L total de chaque jour d'enchère (deux enchères le même jour forment un seul portefeuille), annualisé par la racine du nombre de jours d'enchère par an.
+- **Intervalle à 90 % du P&L moyen** : bootstrap par années entières, comme en phase 6.
+
+**Résultat 1 : les enchères faibles font monter le taux le jour même** (notes et bonds 2009-2026, 1 360 enchères, `quintiles_surprise.png`)
+
+| Quintile de surprise | 1 (forte) | 2 | 3 | 4 | 5 (faible) |
+|---|---|---|---|---|---|
+| Part des dealers : variation du taux (pb) | -0,7 | -0,7 | -1,0 | +0,9 | **+1,8** [1,2 ; 2,4] |
+| Bid-to-cover : variation du taux (pb) | -1,4 | -1,0 | -0,3 | +1,1 | **+2,0** [1,4 ; 2,6] |
+
+Le plan attendait environ +1,8 pb pour les enchères les plus faibles : c'est ce qu'on obtient. Les bornes des quintiles sont calculées sur tout l'échantillon, ce qui est sans danger pour une analyse descriptive faite après coup, mais interdit pour une stratégie.
+
+**Résultat 2 : la stratégie perd de l'argent** (1 004 trades, 2014-2026, `strategie_pnl_cumule.png`)
+
+| Règle | P&L moyen par trade (pb, après coûts) [IC 90 %] | Avant coûts | Réussite | Total (pb) | Sharpe annualisé |
+|---|---|---|---|---|---|
+| Stratégie (moyenne des 5) | **-1,00** [-1,41 ; -0,59] | -0,50 | 42,8 % | -1 009 | -1,73 |
+| Toujours vendeur | -0,70 [-1,27 ; -0,13] | -0,20 | 44,5 % | -707 | -1,18 |
+| Information parfaite (impossible) | +0,42 [0,15 ; 0,66] | +0,92 | 53,0 % | +423 | +0,72 |
+
+Par période, la stratégie fait -0,48 pb par trade sur 2014-2019 (0,0 avant coûts) et -1,40 pb sur 2020-2026.
+
+**Lecture, à dire à l'oral :**
+
+- **Même en connaissant le résultat de l'enchère à l'avance, on gagne peu** : +0,9 pb avant coûts, Sharpe 0,7. Le résultat de l'enchère explique une petite partie du mouvement de taux du jour (corrélation -0,22 entre la surprise de bid-to-cover et la variation du taux).
+- **Ce qui fait bouger le taux, c'est la partie non prévue.** La surprise non prévue par le modèle est corrélée à -0,29 avec la variation du taux ; la partie prévue, à +0,10, donc dans le mauvais sens. Conclusion du plan confirmée : la partie prévisible de la demande est déjà dans les prix.
+- **Pourquoi la stratégie fait pire que « toujours vendeur » :**
+  - Sur 2014-2019, elle ne gagne ni ne perd avant coûts.
+  - De 2022 à 2024, le modèle prévoit des bid-to-cover sous `mean3` dans 68 à 81 % des cas, donc il est surtout vendeur. Or, les jours d'enchère, le taux a en moyenne baissé (de -1,0 à -2,0 pb selon l'année, même en 2022, année de forte hausse des taux).
+  - Ce n'est pas un signal « à l'envers » qu'on pourrait exploiter : la stratégie inverse rapporte 0,0 pb par trade après coûts.
+- La hausse des taux juste avant l'enchère n'explique pas ce résultat : la variation du taux sur les 5 jours précédents est la même, que le modèle prévoie une enchère faible ou forte.
+
+**Choix et limites :**
+
+| Point | Décision ou limite |
+|---|---|
+| P&L en points de base de taux | comme le demande le plan : 1 pb sur le 2 ans vaut moins en dollars que 1 pb sur le 30 ans ; pas de pondération par la duration |
+| Taux arrondis à 0,01 % | 9,8 % des jours ont une variation nulle ; avec le coût, ils comptent comme des pertes (réussite avant coûts hors jours nuls : 47,5 %) |
+| Moment de l'entrée | le signal utilise la courbe de clôture de t-1, publiée par le Trésor en fin de journée : entrer exactement à cette clôture est légèrement optimiste. Cela avantage la stratégie, qui perd quand même |
+| Une seule règle de signal | la moyenne des 5, fixée en phase 6 ; aucune autre règle n'a été essayée pour ne pas chercher un résultat positif après coup |
+
+**Vérification des tests :** 7 erreurs injectées une à une dans une copie de `strategy.py` (par exemple prendre la clôture du jour même comme veille, inverser le signe de la position, regarder le résultat de l'enchère, oublier le coût, calculer le Sharpe par trade). Les 7 sont détectées.
+
+**Résultat vérifié :** 196 tests réussis, `ruff check .` propre. Sorties dans `data/output/` : `quintiles.csv`, `strategy_trades.parquet`, `strategy_summary.csv`.
+
+**À relire moi-même :** `strategy.py` (fonctions `rate_changes` et `strategy_trades`) et les deux figures, pour l'oral.
