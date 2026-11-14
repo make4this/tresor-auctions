@@ -911,3 +911,63 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 **Limites connues :** si les serveurs du Trésor ne répondent pas, le bouton peut attendre plusieurs minutes (délai réduit à 20 secondes par requête, mais avec des nouvelles tentatives). Le fonctionnement sur Streamlit Cloud reste à vérifier en phase 10.
 
 **Résultat vérifié :** 285 tests réussis, `ruff check .` propre.
+
+## Phase 10 — Automatisation et mise en ligne (13 et 14 novembre 2026)
+
+**Ma demande :** « OK, phase 10 » : section 12 du plan. Un workflow GitHub Actions qui met à jour les données chaque soir, et l'application en ligne sur Streamlit Community Cloud.
+
+**Ce que le LLM a produit :**
+
+- `requirements.txt` et `requirements-dev.txt` : versions exactes, celles testées ici (Python 3.11). Le LLM a vérifié qu'elles s'installent sur Linux. Au premier essai, LightGBM 4.7 semblait introuvable : la vérification ne regardait que l'ancienne étiquette des paquets Linux (`manylinux2014`), alors que LightGBM 4.x n'est publié que pour les Linux récents (`manylinux_2_28`), ceux de GitHub et de Streamlit.
+- `.github/workflows/update.yml` : le passage du soir.
+- `.github/workflows/tests.yml` : `ruff` et les tests à chaque envoi de code.
+- `tresor/check_log.py` : refuse d'enregistrer les données si une ligne figée du journal a changé ou disparu.
+- `tresor/models_store.py` : archive des modèles déposée dans une « release » GitHub et téléchargée par l'application en ligne (extraction protégée contre les chemins piégés).
+- 10 tests (295 en tout).
+
+**Le passage du soir**, du lundi au vendredi à 23 h 17 UTC (18 h 17 ou 19 h 17 à New York) :
+
+1. installe les versions figées ;
+2. garde une copie du journal ;
+3. lance `--fetch --clean --train --predict` ; une source en panne n'arrête pas la suite ;
+4. vérifie qu'aucune ligne figée n'a changé ;
+5. commite les données s'il y a du nouveau ;
+6. dépose les modèles dans la release `modeles-du-soir` (l'archive est remplacée chaque soir : l'historique ne grossit pas) ;
+7. signale l'échec du pipeline s'il y en a eu un.
+
+Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API_KEY` du dépôt, saisi par moi dans GitHub ; elle n'est jamais dans le code (vérifié sur tout l'historique avant la publication).
+
+**Choix :**
+
+| Point | Décision | Raison |
+|---|---|---|
+| Ce que lance le soir | `--fetch --clean --train --predict`, pas `--all` | écart à la section 12 du plan : `--all` comprend le backtest (environ 2 heures) |
+| Une source en panne | la suite tourne sur les dernières données, les données sont enregistrées, et le workflow finit en échec pour que je sois prévenu | une panne d'un soir ne doit pas priver une enchère de sa prévision |
+| Modèles | dans une release GitHub, pas dans git | commités chaque soir, ils feraient grossir le dépôt d'environ 1,6 Go par an |
+| Dépôt | public, `make4this/tresor-auctions`, branche `main` | choix fait par moi : le professeur peut lire le code et ce journal |
+| Adresse des commits | réécrite avant la publication : l'adresse privée de mon compte GitHub remplace `pablogreco@…`, qui aurait pu attribuer mes commits à un autre compte | contenu des 14 commits vérifié identique ; une sauvegarde locale de l'ancien historique est gardée |
+| Outil `gh` | téléchargé depuis la page officielle de GitHub dans `~/outils/gh`, empreinte vérifiée avec la liste publiée, sans installation dans le système | Homebrew et `gh` étaient absents ; connexion par le navigateur avec un code à usage unique |
+
+**Problèmes rencontrés :**
+
+- la première commande de connexion attendait une réponse dans un terminal que je n'ai pas trouvé ; le LLM l'a relancée en affichant directement le code à saisir dans le navigateur ;
+- le premier envoi du code a échoué (erreur HTTP 400 sur un envoi de 28 Mo) ; il est passé en HTTP/1.1 avec un tampon plus grand.
+
+**Mise en ligne et vérification :**
+
+- **Tests sur GitHub** (Linux, versions figées) : style et 295 tests réussis.
+- **Passage du soir lancé à la main** le 14 novembre :
+  - toutes les étapes ont tourné : données enregistrées par le robot (commit « Données du 2026-11-14 »), journal figé vérifié, modèles publiés (8,5 Mo) ;
+  - le workflow a fini en échec, comme prévu, parce que l'API Fiscal Data du Trésor répondait « 503, service indisponible » pour deux sources (adjudications, trésorerie). Le même essai depuis mon ordinateur donnait aussi 503 : c'était une panne du Trésor, pas un blocage de GitHub ;
+  - le critère de la phase (« le workflow lancé à la main réussit ») sera rempli au premier passage sans panne de source.
+- **Application en ligne** (https://tresor-auctions.streamlit.app), déployée par moi sur Streamlit Community Cloud avec Python 3.11 :
+  - les 6 pages s'affichent avec les données du passage du soir ;
+  - le bouton « Mettre à jour maintenant » fonctionne en ligne : il télécharge les modèles depuis la release et les sources légères, puis affiche une prévision provisoire.
+
+**Limites connues :**
+
+- Une application Streamlit gratuite se met en veille sans visite ; le premier visiteur doit la réveiller.
+- GitHub peut suspendre les workflows programmés d'un dépôt sans activité pendant 60 jours.
+- Le passage du soir réentraîne les modèles à chaque fois (environ 1 minute), car les modèles ne sont pas gardés d'un passage à l'autre sur GitHub.
+
+**À relire moi-même :** `.github/workflows/update.yml` et l'onglet Actions du dépôt après le passage de lundi soir.
