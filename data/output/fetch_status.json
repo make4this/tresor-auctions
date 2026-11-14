@@ -1,0 +1,73 @@
+{
+  "run_at": "2026-11-14T20:31:56.765646+00:00",
+  "failed": [
+    "fiscaldata_auctions",
+    "fiscaldata_cash_balance",
+    "fiscaldata_debt"
+  ],
+  "sources": {
+    "treasurydirect_recent": {
+      "ok": true,
+      "rows": 137,
+      "last_date": "2026-11-12",
+      "last_success_at": "2026-11-14T20:31:56.765646+00:00"
+    },
+    "treasurydirect_upcoming": {
+      "ok": true,
+      "rows": 16,
+      "last_date": "2026-11-25",
+      "last_success_at": "2026-11-14T20:31:56.765646+00:00"
+    },
+    "treasury_yield_curve": {
+      "ok": true,
+      "rows": 6721,
+      "last_date": "2026-11-13",
+      "last_success_at": "2026-11-14T20:31:56.765646+00:00"
+    },
+    "treasury_bill_rates": {
+      "ok": true,
+      "rows": 6222,
+      "last_date": "2026-11-13",
+      "last_success_at": "2026-11-14T20:31:56.765646+00:00"
+    },
+    "cboe_vix": {
+      "ok": true,
+      "rows": 9316,
+      "last_date": "2026-11-13",
+      "last_success_at": "2026-11-14T20:31:56.765646+00:00"
+    },
+    "nyfed_dealer_positions": {
+      "ok": true,
+      "rows": 9790,
+      "last_date": "2026-11-04",
+      "last_success_at": "2026-11-14T20:31:56.765646+00:00"
+    },
+    "cftc_positions": {
+      "ok": true,
+      "rows": 5686,
+      "last_date": "2026-11-03",
+      "last_success_at": "2026-11-14T20:31:56.765646+00:00"
+    },
+    "fred_series": {
+      "ok": true,
+      "rows": 32744,
+      "last_date": "2026-11-13",
+      "last_success_at": "2026-11-14T20:31:56.765646+00:00"
+    },
+    "fiscaldata_auctions": {
+      "ok": false,
+      "error": "FetchError : Échec du téléchargement de https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query après 5 essai(s) : ReadTimeout",
+      "last_success_at": null
+    },
+    "fiscaldata_debt": {
+      "ok": false,
+      "error": "FetchError : Échec du téléchargement de https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/debt_to_penny après 5 essai(s) : HTTP 503",
+      "last_success_at": null
+    },
+    "fiscaldata_cash_balance": {
+      "ok": false,
+      "error": "FetchError : Échec du téléchargement de https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/dts/operating_cash_balance après 5 essai(s) : HTTP 503",
+      "last_success_at": null
+    }
+  }
+}
