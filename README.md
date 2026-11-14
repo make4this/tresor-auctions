@@ -44,6 +44,12 @@ ruff check .
 pytest
 ```
 
+## En ligne
+
+- **Passage du soir** (`.github/workflows/update.yml`) : du lundi au vendredi à 23 h 17 UTC, GitHub Actions lance `python -m tresor.pipeline --fetch --clean --train --predict`, vérifie qu'aucune prévision figée n'a changé (`python -m tresor.check_log`), enregistre les données dans le dépôt et dépose les modèles entraînés dans la release `modeles-du-soir`. Il peut aussi être lancé à la main (onglet Actions, « Run workflow »). La clé FRED est le secret `FRED_API_KEY` du dépôt.
+- **Tests** (`.github/workflows/tests.yml`) : `ruff` et `pytest` à chaque envoi de code.
+- **Application** : Streamlit Community Cloud, fichier principal `app/streamlit_app.py`, Python 3.11, dépendances de `requirements.txt` (versions exactes, les mêmes que le passage du soir). Le backtest (environ 2 heures) ne tourne pas chaque soir : il se lance à la main avec `--backtest --strategy`.
+
 ## Usage des LLM
 
 Ce projet est réalisé avec l'aide de Claude Code. Chaque étape est consignée dans [journal_llm.md](journal_llm.md) : demande, production, erreurs trouvées et corrigées.

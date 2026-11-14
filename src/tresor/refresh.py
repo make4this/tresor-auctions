@@ -12,15 +12,17 @@ de nuit écrit. La prévision obtenue est provisoire et affichée comme telle.
 from __future__ import annotations
 
 import shutil
+import tarfile
 import tempfile
 import threading
 from pathlib import Path
 
+import httpx
 import pandas as pd
 
-from tresor import live
+from tresor import live, models_store
 from tresor.clean.run import run_cleaning
-from tresor.config import MODELS_DIR, RAW_DIR
+from tresor.config import RAW_DIR
 from tresor.features import run_features
 from tresor.http import FetchError, build_client
 from tresor.sources.collect import RAW_SOURCES, collect_all
@@ -45,20 +47,23 @@ class RefreshBusy(RuntimeError):
 
 def light_refresh(
     now: pd.Timestamp | None = None,
-    models_dir: Path = MODELS_DIR,
+    models_dir: Path | None = None,
     raw_dir: Path = RAW_DIR,
 ) -> tuple[pd.DataFrame, str | None]:
     """Prévisions provisoires des enchères à venir, et le message d'échec éventuel d'une source.
 
-    Les modèles sont vérifiés avant tout téléchargement : sans eux, rien n'est fait.
+    Les modèles sont vérifiés avant tout téléchargement de données : sans eux, rien n'est
+    fait. Sans `models_dir`, on prend ceux du dossier local, ou ceux de la release GitHub
+    (application en ligne).
     """
     if not _RUNNING.acquire(blocking=False):
         raise RefreshBusy("une mise à jour est déjà en cours")
     try:
         now = pd.Timestamp.now(tz="UTC") if now is None else now
         try:
-            models = live.load_models(models_dir)
-        except (FileNotFoundError, RuntimeError) as error:
+            folder = models_dir if models_dir is not None else models_store.models_dir_for_app()
+            models = live.load_models(folder)
+        except (OSError, RuntimeError, ValueError, httpx.HTTPError, tarfile.TarError) as error:
             raise ModelsUnavailable(str(error)) from error
         with tempfile.TemporaryDirectory(prefix="tresor-maj-") as folder:
             work = Path(folder)

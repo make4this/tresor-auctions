@@ -24,6 +24,14 @@ FIGURES_DIR: Final[Path] = PROJECT_ROOT / "reports" / "figures"
 # Les heures d'enchère et le statut « à venir » se raisonnent à l'heure de New York.
 NEW_YORK_TZ: Final[ZoneInfo] = ZoneInfo("America/New_York")
 
+# Dépôt GitHub du projet : le passage du soir y dépose les modèles entraînés dans une
+# « release », que l'application en ligne télécharge (l'historique git ne grossit pas).
+GITHUB_REPOSITORY: Final[str] = os.environ.get(
+    "TRESOR_GITHUB_REPOSITORY", "make4this/tresor-auctions"
+)
+MODELS_RELEASE_TAG: Final[str] = "modeles-du-soir"
+MODELS_ARCHIVE: Final[str] = "modeles.tar.gz"
+
 # Signal de l'application (section 11 du plan) : bid-to-cover prévu moins la moyenne des 3
 # dernières enchères. Demande plus faible si l'écart est <= -0,08, plus forte s'il est >= +0,08.
 SIGNAL_THRESHOLD: Final[float] = 0.08
