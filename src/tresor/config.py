@@ -30,7 +30,6 @@ GITHUB_REPOSITORY: Final[str] = os.environ.get(
     "TRESOR_GITHUB_REPOSITORY", "make4this/tresor-auctions"
 )
 MODELS_RELEASE_TAG: Final[str] = "modeles-du-soir"
-MODELS_ARCHIVE: Final[str] = "modeles.tar.gz"
 
 # Signal de l'application (section 11 du plan) : bid-to-cover prévu moins la moyenne des 3
 # dernières enchères. Demande plus faible si l'écart est <= -0,08, plus forte s'il est >= +0,08.

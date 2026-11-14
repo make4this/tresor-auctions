@@ -308,6 +308,30 @@ def quality_table(quality: dict[str, object]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def fetch_table(status: dict[str, object]) -> pd.DataFrame:
+    """Résultat de chaque source au dernier téléchargement, les échecs en premier."""
+    sources = status.get("sources", {})
+    rows = [
+        {
+            "source": name,
+            "ok": bool(info.get("ok")),
+            "last_success_at": info.get("last_success_at"),
+            "error": info.get("error") or "",
+        }
+        for name, info in (sources.items() if isinstance(sources, dict) else [])
+        if isinstance(info, dict)
+    ]
+    columns = ["source", "ok", "last_success_at", "error"]
+    table = pd.DataFrame(rows, columns=columns)
+    return table.sort_values(["ok", "source"], kind="stable").reset_index(drop=True)
+
+
+def failed_sources(status: dict[str, object]) -> list[str]:
+    """Noms lisibles des sources en échec au dernier téléchargement."""
+    table = fetch_table(status)
+    return [SOURCE_LABELS.get(name, name) for name in table.loc[~table["ok"], "source"]]
+
+
 def backtest_r2(metrics: pd.DataFrame, period: str = "2020-2026") -> pd.DataFrame:
     """R² de la moyenne des 5 contre mean3 (avec intervalle) et contre la constante."""
     data = metrics[

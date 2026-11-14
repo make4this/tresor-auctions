@@ -88,7 +88,7 @@ def _model_path(models_dir: Path, family: str, target: str, model: str) -> Path:
     return models_dir / f"{family}__{target}__{model}.joblib"
 
 
-def _installed_versions() -> dict[str, str]:
+def installed_versions() -> dict[str, str]:
     import lightgbm
     import sklearn
 
@@ -158,7 +158,7 @@ def train_models(
         "features": list(md.FEATURE_SETS[FEATURE_SET]),
         "models": list(md.MODEL_NAMES),
         # Un modèle sauvegardé ne se relit de façon sûre qu'avec les mêmes versions.
-        "versions": _installed_versions(),
+        "versions": installed_versions(),
     }
     _write_json(metadata, staging / METADATA_FILE)
     old = models_dir.with_name(f"{models_dir.name}.old")
@@ -176,7 +176,7 @@ def load_models(models_dir: Path = MODELS_DIR) -> dict[tuple[str, str, str], Pip
     if not metadata_path.exists():
         raise FileNotFoundError(f"modèles absents dans {models_dir} (lancer --train)")
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    installed = _installed_versions()
+    installed = installed_versions()
     for package in CHECKED_VERSIONS:
         saved = metadata["versions"].get(package)
         if saved != installed[package]:
@@ -311,10 +311,26 @@ def _same(old: pd.DataFrame, new: pd.DataFrame) -> np.ndarray:
 
 
 def check_frozen_unchanged(old: pd.DataFrame, new: pd.DataFrame, today: pd.Timestamp) -> None:
-    """Garde-fou : chaque ligne figée de l'ancien journal (enchère aujourd'hui ou passée) doit
-    se retrouver à l'identique, toutes colonnes comprises, dans le nouveau."""
+    """Garde-fou du journal figé, entre l'ancien et le nouveau journal.
+
+    - Chaque prévision est datée d'avant le jour de son enchère (date de New York).
+    - Aucune ligne figée (enchère aujourd'hui ou passée) n'apparaît après coup.
+    - Chaque ligne figée de l'ancien journal se retrouve à l'identique, toutes colonnes
+      comprises, dans le nouveau.
+    """
     old, new = normalize_log(old), normalize_log(new)
+    predicted_on = new["predicted_at"].dt.tz_convert(NEW_YORK_TZ).dt.normalize()
+    predicted_on = predicted_on.dt.tz_localize(None).astype("datetime64[us]")
+    if (~(predicted_on < new["auction_date"])).any():  # une date manquante compte aussi
+        raise RuntimeError(
+            "une prévision est datée du jour de son enchère ou après : écriture annulée"
+        )
     frozen = old[old["auction_date"] <= today]
+    added = new.loc[new["auction_date"] <= today, LOG_KEY].merge(
+        frozen[LOG_KEY], on=LOG_KEY, how="left", indicator=True
+    )
+    if (added["_merge"] == "left_only").any():
+        raise RuntimeError("une ligne figée du journal a été ajoutée après coup : écriture annulée")
     if frozen.empty:
         return
     found = frozen[LOG_KEY].merge(new, on=LOG_KEY, how="left", indicator=True)
@@ -416,7 +432,7 @@ def _up_to_date(sample: pd.DataFrame, models_dir: Path) -> dict[str, object] | N
         metadata.get("sample_sha256") == _sample_fingerprint(sample)
         and metadata.get("features") == list(md.FEATURE_SETS[FEATURE_SET])
         and metadata.get("models") == list(md.MODEL_NAMES)
-        and metadata.get("versions") == _installed_versions()
+        and metadata.get("versions") == installed_versions()
     )
     complete = all(
         _model_path(models_dir, family, target, model).exists()

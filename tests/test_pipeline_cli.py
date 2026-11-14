@@ -5,7 +5,9 @@ from __future__ import annotations
 import pytest
 
 from tresor import pipeline
+from tresor.config import OUTPUT_DIR
 from tresor.http import FetchError
+from tresor.sources.collect import FETCH_STATUS_FILE
 
 
 @pytest.fixture
@@ -72,7 +74,8 @@ def test_a_failed_source_does_not_block_the_evening_prediction(
     }
     monkeypatch.setattr(pipeline, "STEPS", steps)
 
-    assert pipeline.main(["--all"]) == 1  # l'échec reste signalé
+    # L'échec reste signalé, avec un code distinct d'une erreur bloquante.
+    assert pipeline.main(["--all"]) == pipeline.PARTIAL_FETCH_EXIT == 3
     assert executed == ["fetch", "clean", "predict"]
 
 
@@ -109,4 +112,38 @@ def test_collection_failure_gives_an_error_code(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(pipeline, "STEPS", {"fetch": ("", broken)})
 
-    assert pipeline.main(["--fetch"]) == 1
+    assert pipeline.main(["--fetch"]) == 3
+
+
+def test_an_unexpected_error_in_a_middle_step_stops_everything(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executed: list[str] = []
+
+    def failed_fetch() -> None:
+        executed.append("fetch")
+        raise FetchError("Sources en échec : fred")
+
+    def broken_clean() -> None:
+        executed.append("clean")
+        raise KeyError("colonne absente")
+
+    steps = {
+        "fetch": ("", failed_fetch),
+        "clean": ("", broken_clean),
+        "predict": ("", lambda: executed.append("predict")),
+    }
+    monkeypatch.setattr(pipeline, "STEPS", steps)
+
+    # Une erreur bloquante l'emporte sur la panne de source : code 1, pas 3.
+    assert pipeline.main(["--all"]) == pipeline.BLOCKING_ERROR_EXIT == 1
+    assert executed == ["fetch", "clean"]
+
+
+def test_the_evening_fetch_writes_its_report(monkeypatch: pytest.MonkeyPatch) -> None:
+    received: list[dict[str, object]] = []
+    monkeypatch.setattr(pipeline, "collect_all", lambda **kwargs: received.append(kwargs))
+
+    pipeline._run_fetch()
+
+    assert received == [{"status_path": OUTPUT_DIR / FETCH_STATUS_FILE}]

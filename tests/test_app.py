@@ -156,10 +156,69 @@ def test_the_quality_page_survives_a_failing_check(monkeypatch: pytest.MonkeyPat
     app = page("qualite").run()
 
     assert not app.exception, app.exception
-    sources = app.dataframe[0].value.set_index("Source")
+    sources = table_with(app, "État").set_index("Source")
     assert sources.loc["CBOE : VIX", "État"] == "🔴 problème"
-    checks = app.dataframe[1].value.set_index("Contrôle")
+    checks = table_with(app, "Contrôle").set_index("Contrôle")
     assert checks.loc["Marché : taux hors bornes", "Cas trouvés"] == 2
+
+
+def table_with(app: AppTest, column: str) -> pd.DataFrame:
+    """Le tableau de la page qui a cette colonne (l'ordre des tableaux peut changer)."""
+    return next(frame.value for frame in app.dataframe if column in frame.value.columns)
+
+
+FETCH_FAILED = {
+    "run_at": "2026-11-14T23:17:00+00:00",
+    "failed": ["fiscaldata_auctions"],
+    "sources": {
+        "cboe_vix": {
+            "ok": True,
+            "rows": 9,
+            "last_date": "2026-11-13",
+            "last_success_at": "2026-11-14T23:17:00+00:00",
+        },  # fmt: skip
+        "fiscaldata_auctions": {
+            "ok": False,
+            "error": "FetchError : HTTP 503",
+            "last_success_at": "2026-11-13T23:20:00+00:00",
+        },  # fmt: skip
+    },
+}
+
+
+def test_a_source_outage_is_shown_not_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
+    replace_json(monkeypatch, "fetch_status.json", FETCH_FAILED)
+
+    app = page("qualite").run()
+    main_app = main().run()
+
+    assert not app.exception, app.exception
+    assert any("1 source(s) en échec" in w.value and "Fiscal Data : adjudications" in w.value
+               for w in app.warning)  # fmt: skip
+    downloads = table_with(app, "Résultat")
+    assert list(downloads["Résultat"]) == ["🔴 échec", "🟢 reçue"]  # les échecs d'abord
+    assert downloads["Dernière réussite"][0] == "ven. 13/11/2026 à 18:20 (New York)"
+    assert downloads["Erreur"][0] == "FetchError : HTTP 503"
+    assert any("1 source(s) en échec" in c.value for c in main_app.sidebar.caption)
+
+
+def test_a_complete_download_is_said_and_a_missing_report_too(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    complete = {
+        **FETCH_FAILED,
+        "failed": [],
+        "sources": {"cboe_vix": FETCH_FAILED["sources"]["cboe_vix"]},
+    }
+    replace_json(monkeypatch, "fetch_status.json", complete)
+    app = main().run()
+    assert any("toutes les sources reçues" in c.value for c in app.sidebar.caption)
+
+    replace_json(monkeypatch, "fetch_status.json", {})
+    quality = page("qualite").run()
+    assert not quality.exception, quality.exception
+    assert not quality.warning or all("en échec" not in w.value for w in quality.warning)
+    assert any("Rapport de téléchargement absent" in c.value for c in quality.caption)
 
 
 def test_a_broken_status_file_does_not_break_the_app(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -203,7 +262,7 @@ def test_the_update_button_shows_a_provisional_prediction(
 @pytest.mark.parametrize(
     ("error", "kind", "text"),
     [
-        (refresh.ModelsUnavailable("absents"), "warning", "Modèles absents"),
+        (refresh.ModelsUnavailable("absents"), "warning", "Modèles indisponibles"),
         (refresh.RefreshBusy("occupé"), "info", "déjà en cours"),
         (ValueError("format imprévu"), "error", "format imprévu"),
     ],
@@ -244,3 +303,12 @@ def test_a_rewritten_file_is_read_again(tmp_path: Path, monkeypatch: pytest.Monk
     assert app_ui.json_file("etat.json") == {"version": 22}
     path.write_text("pas du json")
     assert app_ui.json_file("etat.json") == {}
+
+
+def test_the_method_page_links_the_code_and_gives_the_versions() -> None:
+    app = page("methodologie").run()
+
+    assert not app.exception, app.exception
+    links = " ".join(m.value for m in app.markdown)
+    assert "https://github.com/make4this/tresor-auctions/blob/main/journal_llm.md" in links
+    assert any("python 3.11" in c.value and "lightgbm" in c.value for c in app.caption)

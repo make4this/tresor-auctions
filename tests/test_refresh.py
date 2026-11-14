@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import hashlib
+import tarfile
+from datetime import date
 from pathlib import Path
 
+import httpx
 import pandas as pd
 import pytest
 from tests.test_live import fast_model
 
 from tresor import features as ft
-from tresor import live, refresh
+from tresor import live, models_store, refresh
 from tresor import models as md
-from tresor.config import CLEAN_DIR, DATA_DIR, RAW_DIR
+from tresor.config import CACHE_DIR, CLEAN_DIR, DATA_DIR, RAW_DIR
 from tresor.http import FetchError
+from tresor.sources import treasury_rates
 
 NOW = pd.Timestamp("2026-11-13 23:00", tz="UTC")
 CHANGED = "912810UZ9"  # le 20 ans du 18 novembre 2026
@@ -113,3 +117,74 @@ def test_a_second_click_during_an_update_is_refused(models_dir: Path) -> None:
             refresh.light_refresh(now=NOW, models_dir=models_dir)
     finally:
         refresh._RUNNING.release()
+
+
+def test_the_rates_cache_is_a_temporary_copy_too(
+    models_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """En janvier, l'année écoulée entre dans le cache des taux : jamais dans le dépôt."""
+    caches: list[Path] = []
+
+    def history(client: object, kind: str, first: int, current: object, cache_dir: Path) -> object:
+        caches.append(cache_dir)
+        assert (cache_dir / "treasury_rates").is_dir()  # le cache du dépôt a été recopié
+        (cache_dir / "treasury_rates" / f"{kind}_2026.csv").write_text("Date,\n")
+        raise FetchError("pas de réseau dans les tests")
+
+    def collect(sources: list, client: object, raw_dir: Path) -> list[object]:
+        for source in sources:
+            if source.name in ("treasury_yield_curve", "treasury_bill_rates"):
+                with pytest.raises(FetchError):
+                    source.fetch(client)
+        return []
+
+    monkeypatch.setattr(treasury_rates, "_fetch_history", history)
+    monkeypatch.setattr(refresh, "collect_all", collect)
+    before = fingerprints()
+
+    refresh.light_refresh(now=NOW, models_dir=models_dir)
+
+    assert len(caches) == 2
+    assert all(CACHE_DIR not in [c, *c.parents] for c in caches)
+    assert fingerprints() == before
+
+
+def test_the_cleaning_uses_the_new_york_date(
+    models_dir: Path, calls: list, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """3 h UTC le 14 novembre = 22 h à New York le 13 : la date du jour est le 13."""
+    seen: list[date] = []
+    original = refresh.run_cleaning
+
+    def cleaning(**arguments: object) -> object:
+        seen.append(arguments["today"])  # type: ignore[arg-type]
+        return original(**arguments)
+
+    monkeypatch.setattr(refresh, "run_cleaning", cleaning)
+
+    refresh.light_refresh(now=pd.Timestamp("2026-11-14 03:00", tz="UTC"), models_dir=models_dir)
+
+    assert seen == [date(2026, 11, 13)]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.ConnectError("hors ligne"),
+        ValueError("empreinte de l'archive des modèles différente"),
+        FileNotFoundError("models_release.json"),
+        tarfile.ReadError("archive illisible"),
+    ],
+)
+def test_a_failed_models_download_is_reported_before_any_data_download(
+    error: Exception, calls: list, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken() -> Path:
+        raise error
+
+    monkeypatch.setattr(models_store, "models_dir_for_app", broken)
+
+    with pytest.raises(refresh.ModelsUnavailable):
+        refresh.light_refresh(now=NOW)
+
+    assert calls == []  # ni modèles chargés, ni données téléchargées

@@ -18,5 +18,10 @@ dist/
 .DS_Store
 .ipynb_checkpoints/
 
-# Modèles finaux (8,6 Mo) : où les garder sera décidé en phase 10
+# Modèles finaux (8,6 Mo) : hors de git, déposés chaque soir dans la release GitHub
 data/models/
+data/models.old/
+data/models.part/
+
+# Secrets de Streamlit, s'il y en avait un jour (l'application n'en utilise aucun)
+.streamlit/secrets.toml

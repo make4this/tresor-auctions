@@ -192,6 +192,8 @@ def test_a_round_trip_through_parquet_keeps_the_freeze_working(tmp_path: Path) -
         lambda f: f.assign(pred=3.0),
         lambda f: f.assign(offering_amt=1.0),
         lambda f: f.assign(predicted_at=utc("2026-11-11")),
+        lambda f: f.assign(pred=f["pred"] + 1e-12),  # même un écart infime
+        lambda f: f.assign(maturity_bucket="30Y"),
         lambda f: f.iloc[0:0],
     ],
 )
@@ -200,6 +202,46 @@ def test_the_guard_refuses_any_change_to_a_frozen_row(tamper: object) -> None:
 
     with pytest.raises(RuntimeError, match="figée"):
         live.check_frozen_unchanged(log, tamper(log), AUCTION)  # type: ignore[operator]
+
+
+def test_the_guard_refuses_a_frozen_row_added_after_the_fact() -> None:
+    """Une prévision glissée dans le journal pour une enchère du jour ou passée, absente de
+    l'ancien journal, est refusée, même datée d'avant l'enchère."""
+    log = logged(pred=2.5)
+    sneaked = live.update_log(
+        EMPTY, predictions(2.5, cusip="B", auction=AUCTION), utc("2026-11-10 23:30")
+    )
+
+    with pytest.raises(RuntimeError, match="ajoutée après coup"):
+        live.check_frozen_unchanged(log, pd.concat([log, sneaked]), AUCTION)
+    # La veille de l'enchère, la même ligne n'est pas encore figée : elle peut entrer.
+    live.check_frozen_unchanged(log, pd.concat([log, sneaked]), AUCTION - pd.Timedelta(days=1))
+
+
+@pytest.mark.parametrize(
+    ("predicted_at", "refused"),
+    [
+        ("2026-11-18 04:59", False),  # 23 h 59 à New York la veille : le 18 en UTC, accepté
+        ("2026-11-18 05:00", True),  # minuit à New York, le jour de l'enchère
+        ("2026-11-19 12:00", True),  # après l'enchère
+        (None, True),  # date de prévision manquante
+    ],
+)
+def test_the_guard_refuses_a_prediction_dated_on_its_auction_day(
+    predicted_at: str | None, refused: bool
+) -> None:
+    """La date qui compte est celle de New York, pas celle d'UTC, même si la ligne n'est
+    pas encore figée pour le contrôle."""
+    log = logged(pred=2.5)
+    when = utc(predicted_at) if predicted_at else pd.NaT
+    late = log.assign(predicted_at=pd.Series([when], dtype="datetime64[us, UTC]"))
+    before = AUCTION - pd.Timedelta(days=5)
+
+    if refused:
+        with pytest.raises(RuntimeError, match="datée du jour de son enchère"):
+            live.check_frozen_unchanged(EMPTY, late, before)
+    else:
+        live.check_frozen_unchanged(EMPTY, late, before)
 
 
 def test_bad_logs_and_naive_times_are_refused(tmp_path: Path) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from collections.abc import Callable, Sequence
@@ -13,13 +14,15 @@ import httpx
 import pandas as pd
 
 from tresor.config import RAW_DIR
-from tresor.http import FetchError, build_client
+from tresor.http import SECRET_PARAMETER, FetchError, build_client
 from tresor.sources import cboe, cftc, fiscaldata, fred, nyfed, treasury_rates, treasurydirect
 from tresor.sources.raw import RawDataError
 
 logger = logging.getLogger(__name__)
 
 PREVIEW_ROWS = 3
+FETCH_STATUS_FILE = "fetch_status.json"  # résultat de chaque source au dernier téléchargement
+MAX_ERROR_CHARS = 300
 TREASURY_DIRECT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 US_DATE_FORMAT = "%m/%d/%Y"
 
@@ -230,15 +233,61 @@ def _collect_one(source: RawSource, client: httpx.Client, raw_dir: Path) -> RawS
     return summary
 
 
+def _safe_error(error: Exception) -> str:
+    """Résumé de l'erreur pour un fichier publié : clé d'API masquée, texte raccourci."""
+    text = SECRET_PARAMETER.sub(r"\1***", f"{type(error).__name__} : {error}")
+    return text[:MAX_ERROR_CHARS]
+
+
+def write_fetch_status(
+    path: Path,
+    summaries: Sequence[RawSummary],
+    errors: dict[str, str],
+    now: pd.Timestamp,
+) -> None:
+    """Écrit le résultat de chaque source, pour que l'application montre une panne.
+
+    Une source en échec garde la date de sa dernière réussite, lue dans le fichier précédent.
+    """
+    try:
+        previous = json.loads(path.read_text(encoding="utf-8")).get("sources", {})
+    except (OSError, ValueError, AttributeError):
+        previous = {}
+    previous = previous if isinstance(previous, dict) else {}
+    run_at = now.isoformat()
+    sources: dict[str, dict[str, object]] = {}
+    for summary in summaries:
+        sources[summary.name] = {
+            "ok": True,
+            "rows": summary.rows,
+            "last_date": summary.last_date.isoformat(),
+            "last_success_at": run_at,
+        }
+    for name, error in errors.items():
+        before = previous.get(name, {})
+        last_success = before.get("last_success_at") if isinstance(before, dict) else None
+        sources[name] = {"ok": False, "error": error, "last_success_at": last_success}
+    content = {"run_at": run_at, "failed": sorted(errors), "sources": sources}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.part")
+    temporary_path.write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary_path.replace(path)
+
+
 def collect_all(
     sources: Sequence[RawSource] = RAW_SOURCES,
     client: httpx.Client | None = None,
     raw_dir: Path = RAW_DIR,
+    status_path: Path | None = None,
+    now: pd.Timestamp | None = None,
 ) -> list[RawSummary]:
-    """Collecte chaque source. Une panne n'empêche pas les autres et garde l'ancien fichier."""
+    """Collecte chaque source. Une panne n'empêche pas les autres et garde l'ancien fichier.
+
+    Avec `status_path`, le résultat de chaque source y est écrit, même en cas d'échec.
+    """
     own_client = client if client is not None else build_client()
     summaries: list[RawSummary] = []
-    failed_sources: list[str] = []
+    errors: dict[str, str] = {}
     try:
         for source in sources:
             try:
@@ -247,10 +296,13 @@ def collect_all(
             except Exception as error:
                 kind = type(error).__name__
                 logger.error("%s : échec de la collecte (%s) : %s", source.name, kind, error)
-                failed_sources.append(source.name)
+                errors[source.name] = _safe_error(error)
     finally:
         if client is None:
             own_client.close()
-    if failed_sources:
-        raise FetchError(f"Sources en échec : {', '.join(failed_sources)}")
+    if status_path is not None:
+        now = pd.Timestamp.now(tz="UTC") if now is None else now
+        write_fetch_status(status_path, summaries, errors, now)
+    if errors:
+        raise FetchError(f"Sources en échec : {', '.join(errors)}")
     return summaries

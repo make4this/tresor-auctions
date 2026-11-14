@@ -15,6 +15,8 @@ import shutil
 import tarfile
 import tempfile
 import threading
+from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 import httpx
@@ -22,10 +24,11 @@ import pandas as pd
 
 from tresor import live, models_store
 from tresor.clean.run import run_cleaning
-from tresor.config import RAW_DIR
+from tresor.config import CACHE_DIR, RAW_DIR
 from tresor.features import run_features
 from tresor.http import FetchError, build_client
-from tresor.sources.collect import RAW_SOURCES, collect_all
+from tresor.sources import treasury_rates
+from tresor.sources.collect import RAW_SOURCES, RawSource, collect_all
 
 LIGHT_SOURCES = (
     "treasurydirect_recent",
@@ -35,6 +38,29 @@ LIGHT_SOURCES = (
 )
 TIMEOUT_SECONDS = 20.0  # l'utilisateur attend devant l'écran : on abandonne plus vite
 _RUNNING = threading.Lock()  # une seule mise à jour à la fois pour toute l'application
+
+
+# Les taux du Trésor gardent les années terminées en cache : pendant la mise à jour, ce cache
+# est lui aussi une copie temporaire (sinon, en janvier, l'année écoulée serait écrite dans le
+# dossier du dépôt).
+_RATE_FETCHERS = {
+    "treasury_yield_curve": treasury_rates.fetch_yield_curve,
+    "treasury_bill_rates": treasury_rates.fetch_bill_rates,
+}
+
+
+def light_sources(cache_dir: Path) -> list[RawSource]:
+    """Les sources légères, avec le cache des taux placé dans `cache_dir`."""
+    chosen = []
+    for source in RAW_SOURCES:
+        if source.name not in LIGHT_SOURCES:
+            continue
+        if source.name in _RATE_FETCHERS:
+            source = replace(
+                source, fetch=partial(_RATE_FETCHERS[source.name], cache_dir=cache_dir)
+            )
+        chosen.append(source)
+    return chosen
 
 
 class ModelsUnavailable(RuntimeError):
@@ -49,6 +75,7 @@ def light_refresh(
     now: pd.Timestamp | None = None,
     models_dir: Path | None = None,
     raw_dir: Path = RAW_DIR,
+    cache_dir: Path = CACHE_DIR,
 ) -> tuple[pd.DataFrame, str | None]:
     """Prévisions provisoires des enchères à venir, et le message d'échec éventuel d'une source.
 
@@ -68,8 +95,10 @@ def light_refresh(
         with tempfile.TemporaryDirectory(prefix="tresor-maj-") as folder:
             work = Path(folder)
             shutil.copytree(raw_dir, work / "raw")
+            if cache_dir.exists():
+                shutil.copytree(cache_dir, work / "cache")
             failure = None
-            sources = [source for source in RAW_SOURCES if source.name in LIGHT_SOURCES]
+            sources = light_sources(work / "cache")
             with build_client(timeout=TIMEOUT_SECONDS) as client:
                 try:
                     collect_all(sources, client=client, raw_dir=work / "raw")

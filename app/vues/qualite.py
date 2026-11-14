@@ -8,10 +8,12 @@ import streamlit as st
 from tresor import app_data as ad
 from tresor import app_ui as ui
 from tresor.clean.checks import MAX_DELAY_BUSINESS_DAYS, MAX_DELAY_OVERRIDES
+from tresor.sources.collect import FETCH_STATUS_FILE
 
 st.title("Qualité des données")
 quality = ui.json_file("data_quality.json")
 report = ui.json_file("cleaning_report.json")
+fetch = ui.json_file(FETCH_STATUS_FILE)
 if not quality:
     st.error("Rapport de qualité absent : lancer `python -m tresor.pipeline --clean`.")
     st.stop()
@@ -33,6 +35,13 @@ st.markdown(
     f"**État général : {STATUS.get(str(quality.get('status')), '?')}** — contrôles du"
     f" {ui.day_fr(quality.get('today_new_york'))} (date de New York)."
 )
+failed = ad.failed_sources(fetch)
+if failed:
+    st.warning(
+        f"Dernier téléchargement ({ui.moment_fr(fetch.get('run_at'))}) : {len(failed)}"
+        f" source(s) en échec — {', '.join(failed)}. Les calculs utilisent leurs dernières"
+        " données enregistrées ; leur fraîcheur est contrôlée dans le tableau ci-dessous."
+    )
 
 table = ad.quality_table(quality)
 st.subheader("Sources")
@@ -66,6 +75,26 @@ st.caption(
     " futures, d'où un retard négatif. Les séries hebdomadaires (dealers, CFTC) sont publiées"
     " plusieurs jours après leur date d'observation."
 )
+
+st.subheader("Dernier téléchargement")
+downloads = ad.fetch_table(fetch)
+if downloads.empty:
+    st.caption("Rapport de téléchargement absent : il est écrit par `--fetch`.")
+else:
+    st.caption(f"Passage du {ui.moment_fr(fetch.get('run_at'))}.")
+    st.dataframe(
+        pd.DataFrame(
+            {
+                "Source": downloads["source"].map(lambda s: ad.SOURCE_LABELS.get(s, s)),
+                "Résultat": downloads["ok"].map({True: "🟢 reçue", False: "🔴 échec"}),
+                "Dernière réussite": downloads["last_success_at"].map(ui.moment_fr),
+                "Erreur": downloads["error"],
+            }
+        ),
+        hide_index=True,
+        width="stretch",
+        height=35 * (len(downloads) + 1) + 3,
+    )
 
 auctions = quality.get("auctions", {})
 market = quality.get("market", {})

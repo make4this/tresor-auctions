@@ -929,7 +929,7 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 
 1. installe les versions figées ;
 2. garde une copie du journal ;
-3. lance `--fetch --clean --train --predict` ; une source en panne n'arrête pas la suite ;
+3. lance `--fetch --clean --train --predict` ; une source en panne n'arrête pas la suite (règle changée après la vérification, voir plus bas) ;
 4. vérifie qu'aucune ligne figée n'a changé ;
 5. commite les données s'il y a du nouveau ;
 6. dépose les modèles dans la release `modeles-du-soir` (l'archive est remplacée chaque soir : l'historique ne grossit pas) ;
@@ -942,11 +942,12 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 | Point | Décision | Raison |
 |---|---|---|
 | Ce que lance le soir | `--fetch --clean --train --predict`, pas `--all` | écart à la section 12 du plan : `--all` comprend le backtest (environ 2 heures) |
-| Une source en panne | la suite tourne sur les dernières données, les données sont enregistrées, et le workflow finit en échec pour que je sois prévenu | une panne d'un soir ne doit pas priver une enchère de sa prévision |
+| Une source en panne | la suite tourne sur les dernières données, les données sont enregistrées, et le workflow finit en échec pour que je sois prévenu (changé après la vérification : avertissement seulement, voir plus bas) | une panne d'un soir ne doit pas priver une enchère de sa prévision |
 | Modèles | dans une release GitHub, pas dans git | commités chaque soir, ils feraient grossir le dépôt d'environ 1,6 Go par an |
 | Dépôt | public, `make4this/tresor-auctions`, branche `main` | choix fait par moi : le professeur peut lire le code et ce journal |
-| Adresse des commits | réécrite avant la publication : l'adresse privée de mon compte GitHub remplace `pablogreco@…`, qui aurait pu attribuer mes commits à un autre compte | contenu des 14 commits vérifié identique ; une sauvegarde locale de l'ancien historique est gardée |
-| Outil `gh` | téléchargé depuis la page officielle de GitHub dans `~/outils/gh`, empreinte vérifiée avec la liste publiée, sans installation dans le système | Homebrew et `gh` étaient absents ; connexion par le navigateur avec un code à usage unique |
+| Adresse des commits | réécrite par le LLM avant la publication, après m'avoir expliqué pourquoi : l'adresse privée de mon compte GitHub remplace `pablogreco@…`, qui aurait pu attribuer mes commits à un autre compte | contenu des 14 commits vérifié identique ; une sauvegarde locale de l'ancien historique est gardée (branche locale, jamais envoyée sur GitHub) |
+| Outil `gh` | téléchargé par le LLM, après mon accord, depuis la page officielle de GitHub dans `~/outils/gh`, empreinte vérifiée avec la liste publiée, sans installation dans le système | Homebrew et `gh` étaient absents ; connexion par le navigateur avec un code à usage unique, saisi par moi |
+| Secret Streamlit | aucun | écart à la section 12 du plan (« clé dans les secrets Streamlit ») : l'application n'appelle jamais FRED, le bouton n'utilise que TreasuryDirect et Treasury.gov |
 
 **Problèmes rencontrés :**
 
@@ -957,11 +958,11 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 
 - **Tests sur GitHub** (Linux, versions figées) : style et 295 tests réussis.
 - **Passage du soir lancé à la main** le 14 novembre :
-  - toutes les étapes ont tourné : données enregistrées par le robot (commit « Données du 2026-11-14 »), journal figé vérifié, modèles publiés (8,5 Mo) ;
-  - le workflow a fini en échec, comme prévu, parce que l'API Fiscal Data du Trésor répondait « 503, service indisponible » pour deux sources (adjudications, trésorerie). Le même essai depuis mon ordinateur donnait aussi 503 : c'était une panne du Trésor, pas un blocage de GitHub ;
-  - le critère de la phase (« le workflow lancé à la main réussit ») sera rempli au premier passage sans panne de source.
+  - toutes les étapes ont tourné, dans cet ordre : journal figé vérifié, données enregistrées par le robot (commit « Données du 2026-11-14 »), modèles publiés (8,6 Mo) ;
+  - le workflow a fini en échec, comme prévu, parce que l'API Fiscal Data du Trésor répondait « 503, service indisponible » pour deux sources (adjudications, trésorerie), après 5 essais chacune ; une troisième (dette) n'a répondu qu'au 5e essai. Le même essai depuis mon ordinateur donnait aussi 503 : c'était une panne du Trésor, pas un blocage de GitHub ;
+  - le premier critère de la phase (« le workflow lancé à la main réussit ») n'est donc pas encore rempli. Le second (« l'adresse publique s'ouvre depuis un autre appareil ») reste à vérifier par moi.
 - **Application en ligne** (https://tresor-auctions.streamlit.app), déployée par moi sur Streamlit Community Cloud avec Python 3.11 :
-  - les 6 pages s'affichent avec les données du passage du soir ;
+  - les 6 pages s'affichent avec les données du passage du soir (vérifié par le LLM dans le navigateur) ;
   - le bouton « Mettre à jour maintenant » fonctionne en ligne : il télécharge les modèles depuis la release et les sources légères, puis affiche une prévision provisoire.
 
 **Limites connues :**
@@ -971,3 +972,50 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 - Le passage du soir réentraîne les modèles à chaque fois (environ 1 minute), car les modèles ne sont pas gardés d'un passage à l'autre sur GitHub.
 
 **À relire moi-même :** `.github/workflows/update.yml` et l'onglet Actions du dépôt après le passage de lundi soir.
+
+## Vérification de la phase 10 par deux agents indépendants (14 novembre 2026)
+
+**Ma demande :** « Vérifie la phase 10 ». Deux agents ont relu le travail sans rien modifier : l'un les workflows, la release des modèles, les versions et la sécurité (lecture seule sur GitHub, essais sur une copie du dépôt) ; l'autre ce qui est publié (dépôt, README, journal, application, résultat des passages).
+
+**Ce qui était juste :**
+
+- Aucun secret publié : ni la clé FRED ni aucun jeton dans les 17 commits publics, les données (colonnes texte des Parquet comprises) ou les journaux des 3 passages GitHub, où la clé apparaît masquée (« *** »).
+- Le journal figé a été préservé par le passage du 14 novembre (contrôle refait par l'agent sur les deux versions du fichier).
+- Le passage a fait toutes ses étapes, et le robot n'a modifié que `data/` (12 fichiers).
+- La réécriture de l'adresse des commits n'a changé aucun contenu (les 14 arbres comparés un à un), et les commits sont attribués à mon compte.
+- L'extraction de l'archive refusait déjà les liens symboliques qui sortent du dossier.
+- Le dépôt grossit d'environ 0,3 à 1 Mo par soir, soit 0,1 à 0,25 Go par an : acceptable.
+
+**Ce qui était faux ou fragile :**
+
+| Problème | Correction |
+|---|---|
+| Une erreur bloquante (nettoyage, variables, entraînement) était traitée comme une panne de source : le workflow enregistrait des données à moitié à jour | code de sortie 3 pour « des sources ont échoué, tout le reste a tourné », 1 pour une erreur bloquante ; avec 1, rien n'est enregistré (testé : une erreur imprévue au milieu du pipeline arrête tout) |
+| Rouge presque chaque soir : une source sur 11 qui échoue suffisait, après seulement 15 à 20 secondes de nouvelles tentatives ; le rouge ne voulait plus rien dire | nouvel essai 10 minutes plus tard ; une panne de source donne un avertissement, pas un échec ; rouge seulement pour une erreur bloquante, un dépôt des modèles raté ou un contrôle qualité « rouge » |
+| Panne invisible dans l'application : page Qualité toute verte le soir du 14 | `data/output/fetch_status.json` : résultat de chaque source, date de sa dernière réussite et erreur (clé d'API masquée, testé) ; avertissement en page Qualité et dans la barre latérale |
+| Le contrôle du journal ne voyait pas une ligne ajoutée après coup pour une enchère passée | refusée ; toute prévision datée du jour de son enchère ou après (date de New York) est aussi refusée |
+| Rien ne contrôlait un envoi fait à la main | nouveau workflow « Contrôle du journal figé » sur chaque envoi qui touche au journal ; il signale après coup, il n'empêche pas l'envoi |
+| Un passage à cheval sur minuit à New York aurait été refusé à tort (prévision et contrôle lisaient l'heure séparément) | le contrôle prend la date du passage qui vient d'écrire le journal (`live_status.json`, s'il a moins de 6 heures) |
+| 12 versions figées sur 58 bibliothèques installées | les 55 bibliothèques (60 avec les outils de test), résolues pour Linux et Python 3.11 ; installation sans résolution (`--no-deps`) puis `pip check`. La résolution faite sur Mac oubliait `watchdog`, que Streamlit n'exige que sous Linux : ajouté, et chaque version vérifiée disponible pour Linux |
+| Bouton en ligne : 8,6 Mo retéléchargés à chaque clic, sans vérifier l'empreinte ; pendant le remplacement de l'archive, ou toute une journée si son dépôt échouait, l'application ne trouvait plus de modèles | archive nommée d'après son empreinte SHA-256 et annoncée par `data/output/models_release.json`, commité seulement après le dépôt ; l'application vérifie l'empreinte et garde les modèles (un seul téléchargement par version) ; l'archive de la veille reste disponible |
+| Limites de taille faibles : archive lue en entier avant le contrôle, aucune limite une fois extraite (50 Mo compressés peuvent donner 50 Go) | téléchargement en flux coupé à 50 Mo ; 200 Mo au plus une fois extraite ; seulement des fichiers ordinaires, sans sous-dossier |
+| Au passage d'une année, le bouton aurait écrit l'année écoulée dans le cache des taux du dépôt | ce cache est lui aussi copié dans le dossier temporaire (testé) |
+| « Modèles absents ici » affiché pour toute erreur, réseau compris | « Modèles indisponibles ici pour le moment » |
+| Jeton d'écriture accessible à toutes les étapes, y compris l'installation de 60 paquets ; actions désignées par une étiquette déplaçable, en Node 20 (abandonné) | `persist-credentials: false` : le jeton n'est donné qu'aux étapes d'envoi et de dépôt ; actions figées par l'empreinte de leur commit, checkout v7.0.1 et setup-python v7.1.0 (Node 24) ; `contents: read` pour les tests |
+| Un lancement à la main depuis une autre branche aurait remplacé les modèles en ligne | passage seulement sur `main` |
+| Un envoi refusé (quelqu'un a poussé entre-temps) perdait la soirée | jusqu'à 3 essais, avec `git pull --rebase` et un nouveau contrôle du journal à chaque fois |
+| Premier passage impossible sans journal existant | copie du journal seulement s'il existe |
+| 10 erreurs injectées par l'agent passaient les tests : date UTC au lieu de New York, tolérance de 10⁻⁶, lien symbolique, branche de téléchargement jamais testée, erreur au milieu du pipeline… | un test pour chacune |
+| README : installation propre au Mac, sans les versions figées ; aucun résultat ; usage des LLM en une phrase, à la fin | installation pour tous les systèmes avec les versions figées ; section « Résultats », chaque chiffre avec son fichier ; plan du dépôt ; usage des LLM en tête (code écrit par Claude Code sous ma direction, `PLAN.md` est la consigne, deux agents relisent chaque phase) ; sources des données et mention exigée par FRED |
+| Application sans lien vers le dépôt ; version de Python sur Streamlit consignée nulle part | liens vers le dépôt, le journal et le plan ; versions de Python et des bibliothèques affichées en méthodologie ; Python 3.11 noté dans le README |
+| Journal : 8,5 Mo au lieu de 8,6 ; troisième source en difficulté (dette) omise ; qui a fait quoi pas clair (`gh`, adresse des commits, vérification des pages) ; secret Streamlit du plan non mentionné ; second critère de la phase oublié | corrigés dans la section de la phase 10 |
+| Commentaires périmés (« environ 3 Mo », « sera décidé en phase 10 ») ; `.streamlit/secrets.toml` et `data/models.old/` non ignorés par git | corrigés |
+| La release apparaît comme la dernière version du dépôt, avec des archives « Source code » d'un vieux commit | ses notes l'expliquent (mises à jour par le passage du soir) |
+
+**Tests :** 328 tests (295 avant). J'ai injecté 24 erreurs dans une copie du dépôt, sur le code nouveau ou modifié. 21 ont été détectées au premier essai. Pour les 3 autres, j'ai ajouté un test chacune : un statut daté du futur accepté, un rapport de téléchargement jamais écrit par le pipeline, et la limite de téléchargement retirée (le test confondait deux messages). Les 24 erreurs sont maintenant détectées, et la copie sans erreur passe tous les tests.
+
+**Limites connues :**
+
+- Le contrôle d'un envoi fait à la main signale le problème, il ne l'empêche pas. Seule une protection de la branche dans les réglages de GitHub l'empêcherait ; je ne l'ai pas activée.
+- Les modèles sont réentraînés chaque soir. Si les fichiers diffèrent d'un soir à l'autre, l'application les retélécharge une fois par soir (et non plus à chaque clic).
+- À vérifier après quelques passages : la courbe des taux du jour doit être publiée avant 18 h 17 à New York, c'est-à-dire `market_last_dates.yield_10y` égal à la date du passage dans `live_status.json`. Sinon, la prévision utilise la courbe de la veille : c'est un retard, pas une fuite.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -304,3 +305,43 @@ def test_accumulating_source_keeps_rows_the_api_no_longer_returns(
     saved = pd.read_parquet(tmp_path / "a.parquet").sort_values("day")
     assert saved["day"].tolist() == ["2020-01-01", "2020-01-02", "2020-01-03"]
     assert saved["value"].tolist() == ["old", "new", "new"]  # la version la plus récente gagne
+
+
+def test_the_fetch_report_shows_each_source_and_hides_the_key(
+    client: httpx.Client, tmp_path: Path
+) -> None:
+    def leaky(_: httpx.Client) -> pd.DataFrame:
+        raise ValueError("refusé : https://api.example/x?series_id=A&api_key=SECRETKEY123&y=1")
+
+    status = tmp_path / "out" / "fetch_status.json"
+    first = pd.Timestamp("2026-11-13 23:17", tz="UTC")
+    sources = [
+        make_source("a", lambda _: days("2020-01-01")),
+        make_source("b", lambda _: days("2020-01-02")),
+    ]
+    collect_all(sources, client, tmp_path, status_path=status, now=first)
+    sources[1] = make_source("b", leaky)
+
+    with pytest.raises(FetchError, match="Sources en échec : b"):
+        collect_all(sources, client, tmp_path, status_path=status,
+                    now=pd.Timestamp("2026-11-14 23:17", tz="UTC"))  # fmt: skip
+
+    report = json.loads(status.read_text(encoding="utf-8"))
+    assert report["failed"] == ["b"]
+    assert report["sources"]["a"] == {
+        "ok": True,
+        "rows": 1,
+        "last_date": "2020-01-01",
+        "last_success_at": "2026-11-14T23:17:00+00:00",
+    }
+    failed = report["sources"]["b"]
+    assert failed["ok"] is False
+    assert failed["last_success_at"] == first.isoformat()  # la dernière réussite est gardée
+    assert "SECRETKEY123" not in status.read_text(encoding="utf-8")
+    assert "api_key=***" in failed["error"]
+
+
+def test_no_report_is_written_without_a_path(client: httpx.Client, tmp_path: Path) -> None:
+    collect_all([make_source("a", lambda _: days("2020-01-01"))], client, tmp_path)
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["a.parquet"]

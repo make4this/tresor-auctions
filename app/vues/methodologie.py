@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tresor.app_ui import DISCLAIMER
+from tresor.app_ui import DISCLAIMER, REPOSITORY_URL
+from tresor.live import installed_versions
 
 st.title("Méthodologie")
 st.info(DISCLAIMER)
@@ -86,9 +87,20 @@ honnêtement les prévisions.
   de chaque variable à la prévision du modèle.
 
 ### Usage des LLM
-Ce projet a été construit avec l'aide d'un LLM (Claude, d'Anthropic) utilisé comme assistant de
-programmation, phase par phase. Chaque phase a ensuite été relue par d'autres agents LLM lancés
-séparément ; les erreurs trouvées et corrigées sont documentées, avec les demandes et les choix,
-dans le fichier `journal_llm.md` du dépôt.
+Le code a été écrit par un LLM (Claude Code, d'Anthropic) sous la direction de l'étudiant,
+phase par phase, à partir d'un plan écrit à l'avance (`PLAN.md`). Chaque phase a ensuite été
+relue par deux autres agents LLM lancés séparément ; les erreurs trouvées et corrigées sont
+documentées, avec les demandes et les choix, dans le journal du dépôt.
 """
+)
+
+st.markdown(
+    f"**Code et journal** : [dépôt GitHub]({REPOSITORY_URL}) ·"
+    f" [journal_llm.md]({REPOSITORY_URL}/blob/main/journal_llm.md) ·"
+    f" [PLAN.md]({REPOSITORY_URL}/blob/main/PLAN.md)"
+)
+st.caption(
+    "Versions utilisées par cette application : "
+    + ", ".join(f"{name} {version}" for name, version in installed_versions().items())
+    + "."
 )

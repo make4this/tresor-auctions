@@ -9,8 +9,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from tresor import app_data as ad
 from tresor import live
-from tresor.config import CLEAN_DIR, OUTPUT_DIR
+from tresor.config import CLEAN_DIR, GITHUB_REPOSITORY, NEW_YORK_TZ, OUTPUT_DIR
+from tresor.sources.collect import FETCH_STATUS_FILE
 
 # Couleurs du plan : principale et alerte. Les graphiques à plusieurs séries reprennent la
 # palette validée des figures du rapport (lisible par les daltoniens).
@@ -20,6 +22,7 @@ SERIES = ("#2a78d6", "#eb6834")
 MUTED = "#8a897f"
 GRID = "#e4e3df"
 CACHE_SECONDS = 3600
+REPOSITORY_URL = f"https://github.com/{GITHUB_REPOSITORY}"
 DISCLAIMER = (
     "Projet étudiant (cours « Machine Learning for Finance », emlyon business school, 2026)."
     " Ces prévisions ne sont pas un conseil en investissement."
@@ -115,23 +118,36 @@ def day_fr(text: object) -> str:
         return "–"
 
 
+def moment_fr(text: object) -> str:
+    """Instant ISO avec fuseau (2026-11-14T23:17:00+00:00) en jour et heure de New York."""
+    try:
+        moment = pd.Timestamp(str(text)).tz_convert(NEW_YORK_TZ)
+    except (ValueError, TypeError):  # absent, illisible ou sans fuseau
+        return "inconnue"
+    return f"{date_fr(moment)} à {moment:%H:%M} (New York)"
+
+
 def sidebar() -> None:
     """Fraîcheur des données et bouton de mise à jour, sur toutes les pages."""
     status = json_file(live.STATUS_FILE)
     quality = json_file("data_quality.json")
+    fetch = json_file(FETCH_STATUS_FILE)
     with st.sidebar:
         st.markdown("**Données**")
-        try:
-            run_at = pd.Timestamp(str(status["run_at"])).tz_convert("America/New_York")
-            st.caption(f"Dernière prévision : {date_fr(run_at)} à {run_at:%H:%M} (New York)")
-        except (KeyError, TypeError, ValueError):
-            st.caption("Dernière prévision : inconnue")
+        st.caption(f"Dernière prévision : {moment_fr(status.get('run_at'))}")
         market = status.get("market_last_dates", {})
         if isinstance(market, dict) and market.get("yield_10y"):
             st.caption(f"Derniers taux de marché : {day_fr(market['yield_10y'])}")
         if quality:
             label = {"vert": "bon", "orange": "à surveiller", "rouge": "problème"}
             st.caption(f"Contrôle qualité : {label.get(str(quality.get('status')), '?')}")
+        if fetch:
+            failed = ad.failed_sources(fetch)
+            st.caption(
+                f"⚠️ Dernier téléchargement : {len(failed)} source(s) en échec (page Qualité)"
+                if failed
+                else "Dernier téléchargement : toutes les sources reçues"
+            )
         if st.button("Mettre à jour maintenant", width="stretch"):
             _refresh()
         st.caption(
@@ -139,7 +155,7 @@ def sidebar() -> None:
             " données. La prévision obtenue est provisoire : seul le passage du soir l'inscrit"
             " au journal figé."
         )
-        st.caption(DISCLAIMER)
+        st.caption(f"{DISCLAIMER} [Code et journal du projet]({REPOSITORY_URL}).")
 
 
 def _refresh() -> None:
@@ -152,7 +168,10 @@ def _refresh() -> None:
             st.sidebar.info("Une mise à jour est déjà en cours : réessayer dans une minute.")
             return
         except refresh.ModelsUnavailable:
-            st.sidebar.warning("Modèles absents ici : la mise à jour se fait le soir.")
+            st.sidebar.warning(
+                "Modèles indisponibles ici pour le moment : la prévision du soir reste affichée,"
+                " réessayer plus tard."
+            )
             return
         except Exception as error:  # l'application reste utilisable
             st.sidebar.error(f"Mise à jour impossible : {error}")

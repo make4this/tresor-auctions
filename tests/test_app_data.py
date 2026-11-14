@@ -294,3 +294,23 @@ def test_explorer_series_starts_in_2009_and_overlays_the_backtest() -> None:
 
     assert list(series["cusip"]) == ["A", "B"]  # ni 2008, ni sans valeur, ni à venir
     assert np.isnan(series.loc[0, "prediction"]) and series.loc[1, "prediction"] == 2.55
+
+
+def test_fetch_table_puts_failures_first_and_survives_bad_files() -> None:
+    status = {
+        "sources": {
+            "cboe_vix": {"ok": True, "last_success_at": "2026-11-14T23:17:00+00:00"},
+            "fred_series": {"ok": False, "error": "FetchError : HTTP 503", "last_success_at": None},
+            "bizarre": "pas un dictionnaire",
+        }
+    }
+
+    table = ad.fetch_table(status)
+
+    assert list(table["source"]) == ["fred_series", "cboe_vix"]
+    assert list(table["ok"]) == [False, True]
+    assert table.loc[1, "error"] == ""
+    assert ad.failed_sources(status) == ["FRED : séries macroéconomiques"]
+    for broken in ({}, {"sources": "rien"}, {"sources": None}):
+        assert ad.fetch_table(broken).empty
+        assert ad.failed_sources(broken) == []

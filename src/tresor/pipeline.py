@@ -8,9 +8,10 @@ import sys
 from collections.abc import Callable, Sequence
 
 from tresor.clean.run import run_cleaning
+from tresor.config import OUTPUT_DIR
 from tresor.features import run_features
 from tresor.http import FetchError
-from tresor.sources.collect import collect_all
+from tresor.sources.collect import FETCH_STATUS_FILE, collect_all
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,8 @@ StepFunction = Callable[[], None]
 
 
 def _run_fetch() -> None:
-    """Télécharge les sources et enregistre les tables brutes."""
-    collect_all()
+    """Télécharge les sources, enregistre les tables brutes et le résultat de chaque source."""
+    collect_all(status_path=OUTPUT_DIR / FETCH_STATUS_FILE)
 
 
 def _run_backtest() -> None:
@@ -27,7 +28,6 @@ def _run_backtest() -> None:
     import pandas as pd
 
     from tresor import models, plots
-    from tresor.config import OUTPUT_DIR
 
     metrics = models.run_backtest()
     importance = models.run_interpretation()
@@ -72,6 +72,11 @@ def _run_clean() -> None:
 # fraîcheur est contrôlée par --clean), et le code de sortie signale quand même l'échec.
 CONTINUE_AFTER_FETCH_ERROR = {"fetch"}
 
+# Codes de sortie. Le workflow du soir les distingue : avec 3, les données sont enregistrées
+# (une panne du Trésor ne doit pas bloquer la prévision) ; avec 1, rien n'est enregistré.
+BLOCKING_ERROR_EXIT = 1  # une étape indispensable a échoué : la suite n'a pas tourné
+PARTIAL_FETCH_EXIT = 3  # des sources ont échoué au téléchargement, tout le reste a tourné
+
 # L'ordre de ce dictionnaire est l'ordre d'exécution de --all.
 STEPS: dict[str, tuple[str, StepFunction]] = {
     "fetch": ("télécharger toutes les sources dans data/raw/", _run_fetch),
@@ -115,13 +120,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         except FetchError as error:
             logger.error("Étape « %s » : %s", name, error)
             if name not in CONTINUE_AFTER_FETCH_ERROR:
-                return 1
+                return BLOCKING_ERROR_EXIT
             failed = True  # on continue avec les dernières données enregistrées
         except Exception:
             # Erreur imprévue : on garde le détail pour comprendre, et on s'arrête proprement.
             logger.exception("Étape « %s » : erreur inattendue", name)
-            return 1
-    return 1 if failed else 0
+            return BLOCKING_ERROR_EXIT
+    return PARTIAL_FETCH_EXIT if failed else 0
 
 
 if __name__ == "__main__":
