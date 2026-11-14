@@ -961,7 +961,7 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
   - toutes les étapes ont tourné, dans cet ordre : journal figé vérifié, données enregistrées par le robot (commit « Données du 2026-11-14 »), modèles publiés (8,6 Mo) ;
   - le workflow a fini en échec, comme prévu, parce que l'API Fiscal Data du Trésor répondait « 503, service indisponible » pour deux sources (adjudications, trésorerie), après 5 essais chacune ; une troisième (dette) n'a répondu qu'au 5e essai. Le même essai depuis mon ordinateur donnait aussi 503 : c'était une panne du Trésor, pas un blocage de GitHub ;
   - le premier critère de la phase (« le workflow lancé à la main réussit ») n'est donc pas encore rempli. Le second (« l'adresse publique s'ouvre depuis un autre appareil ») reste à vérifier par moi.
-- **Application en ligne** (https://tresor-auctions.streamlit.app), déployée par moi sur Streamlit Community Cloud avec Python 3.11 :
+- **Application en ligne** (https://tresor-auctions.streamlit.app), déployée par moi sur Streamlit Community Cloud. Je pensais avoir choisi Python 3.11 ; elle tourne en réalité sous Python 3.14 (voir la vérification ci-dessous) :
   - les 6 pages s'affichent avec les données du passage du soir (vérifié par le LLM dans le navigateur) ;
   - le bouton « Mettre à jour maintenant » fonctionne en ligne : il télécharge les modèles depuis la release et les sources légères, puis affiche une prévision provisoire.
 
@@ -1011,6 +1011,7 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 | Journal : 8,5 Mo au lieu de 8,6 ; troisième source en difficulté (dette) omise ; qui a fait quoi pas clair (`gh`, adresse des commits, vérification des pages) ; secret Streamlit du plan non mentionné ; second critère de la phase oublié | corrigés dans la section de la phase 10 |
 | Commentaires périmés (« environ 3 Mo », « sera décidé en phase 10 ») ; `.streamlit/secrets.toml` et `data/models.old/` non ignorés par git | corrigés |
 | La release apparaît comme la dernière version du dépôt, avec des archives « Source code » d'un vieux commit | ses notes l'expliquent (mises à jour par le passage du soir) |
+| Version de Python de l'application jamais vérifiée (le réglage n'est visible que dans Streamlit) | versions affichées en méthodologie : l'application tourne sous **Python 3.14.10**, pas 3.11. Les 60 versions figées existent pour 3.14 et s'y résolvent à l'identique ; les tests tournent maintenant sous 3.11 et 3.14 ; les modèles entraînés sous 3.11 se relisent, car numpy, scikit-learn et LightGBM ont les mêmes versions. Redéployer l'application en 3.11 reste possible |
 
 **Tests :** 328 tests (295 avant). J'ai injecté 24 erreurs dans une copie du dépôt, sur le code nouveau ou modifié. 21 ont été détectées au premier essai. Pour les 3 autres, j'ai ajouté un test chacune : un statut daté du futur accepté, un rapport de téléchargement jamais écrit par le pipeline, et la limite de téléchargement retirée (le test confondait deux messages). Les 24 erreurs sont maintenant détectées, et la copie sans erreur passe tous les tests.
 

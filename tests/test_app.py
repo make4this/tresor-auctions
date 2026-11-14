@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import platform
 from pathlib import Path
 
 import numpy as np
@@ -311,4 +312,5 @@ def test_the_method_page_links_the_code_and_gives_the_versions() -> None:
     assert not app.exception, app.exception
     links = " ".join(m.value for m in app.markdown)
     assert "https://github.com/make4this/tresor-auctions/blob/main/journal_llm.md" in links
-    assert any("python 3.11" in c.value and "lightgbm" in c.value for c in app.caption)
+    python = f"python {platform.python_version()}"
+    assert any(python in c.value and "lightgbm 4.7.0" in c.value for c in app.caption)
