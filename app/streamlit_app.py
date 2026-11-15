@@ -10,11 +10,15 @@ from pathlib import Path
 
 # Le code du projet est dans src/ : on le rend importable même sans installation du paquet
 # (une seule fois : ce script est relancé à chaque interaction).
-SOURCE = str(Path(__file__).resolve().parents[1] / "src")
-if SOURCE not in sys.path:
-    sys.path.insert(0, SOURCE)
+SOURCE = Path(__file__).resolve().parents[1] / "src"
+if str(SOURCE) not in sys.path:
+    sys.path.insert(0, str(SOURCE))
 
 import streamlit as st  # noqa: E402
+from fresh_project import load_fresh  # noqa: E402
+
+# Après une mise à jour du dépôt, le code de src/ est relu s'il a changé (voir fresh_project).
+load_fresh("tresor", SOURCE)
 
 from tresor.app_ui import sidebar  # noqa: E402
 

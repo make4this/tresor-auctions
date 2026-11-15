@@ -1013,7 +1013,7 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 | La release apparaît comme la dernière version du dépôt, avec des archives « Source code » d'un vieux commit | ses notes l'expliquent (mises à jour par le passage du soir) |
 | Version de Python de l'application jamais vérifiée (le réglage n'est visible que dans Streamlit) | versions affichées en méthodologie : l'application tourne sous **Python 3.14.10**, pas 3.11. Les 60 versions figées existent pour 3.14 et s'y résolvent à l'identique ; les tests tournent maintenant sous 3.11 et 3.14 ; les modèles entraînés sous 3.11 se relisent, car numpy, scikit-learn et LightGBM ont les mêmes versions. Redéployer l'application en 3.11 reste possible |
 
-**Tests :** 334 tests (295 avant). J'ai injecté 24 erreurs dans une copie du dépôt, sur le code nouveau ou modifié. 21 ont été détectées au premier essai. Pour les 3 autres, j'ai ajouté un test chacune : un statut daté du futur accepté, un rapport de téléchargement jamais écrit par le pipeline, et la limite de téléchargement retirée (le test confondait deux messages). Les 24 erreurs sont maintenant détectées, et la copie sans erreur passe tous les tests.
+**Tests :** 338 tests (295 avant). J'ai injecté 24 erreurs dans une copie du dépôt, sur le code nouveau ou modifié. 21 ont été détectées au premier essai. Pour les 3 autres, j'ai ajouté un test chacune : un statut daté du futur accepté, un rapport de téléchargement jamais écrit par le pipeline, et la limite de téléchargement retirée (le test confondait deux messages). Les 24 erreurs sont maintenant détectées, et la copie sans erreur passe tous les tests.
 
 **Limites connues :**
 
@@ -1038,3 +1038,8 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
   - la page Qualité et la barre latérale signalent les 3 sources en échec ;
   - le bouton « Mettre à jour maintenant » a téléchargé l'archive annoncée et l'a vérifiée par empreinte, puis a donné une prévision provisoire sous Python 3.14.
 - **Bogue trouvé grâce aux vraies données du passage** : les trois sources de Fiscal Data n'avaient encore jamais réussi depuis la création du rapport de téléchargement. Leur date de dernière réussite était donc vide, et cette date vide faisait planter le tableau des téléchargements de la page Qualité, en ligne comme sur mon ordinateur. Mes tests ne prévoyaient que des dates remplies. Correction : une date absente s'affiche « inconnue ». J'ai ajouté le cas aux tests ; sans la correction, 5 tests échouent. J'ai aussi retiré une double parenthèse dans l'avertissement.
+- **Code non relu en ligne** : une fois la correction envoyée, l'application en ligne plantait encore. Streamlit relit les fichiers du dossier `app/` quand le dépôt change, mais pas les modules de `src/tresor/` déjà chargés. L'application gardait donc l'ancien code en mémoire jusqu'à un redémarrage manuel, vérifié dans le code de Streamlit. Correction :
+  - le paquet note l'empreinte de ses fichiers quand il est chargé ;
+  - à chaque affichage, l'application la compare aux fichiers actuels (`app/fresh_project.py`). Si un fichier a changé, tous les modules du projet sont oubliés puis relus ensemble.
+  - 4 tests couvrent ce mécanisme.
+  - Je l'ai aussi vérifié sur un vrai serveur Streamlit lancé sur une copie : un texte modifié dans `src/tresor/` apparaît sans redémarrage.
