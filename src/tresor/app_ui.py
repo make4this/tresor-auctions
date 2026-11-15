@@ -110,7 +110,7 @@ p, li, label, td, th, input, textarea, summary, small, .stCaption, h1, h2, h3, h
 [data-testid="stSidebarNavItems"] a > span:not([data-testid="stIconMaterial"]),
 [data-testid="stNavSectionHeader"] {{ font-family: Inter, sans-serif !important; }}
 h1, h2, h3, h4 {{ font-weight: 600 !important; letter-spacing: -0.01em; }}
-.block-container {{ padding-top: 2.2rem; }}
+.block-container {{ padding-top: 2.2rem; padding-left: 2rem; padding-right: 2rem; }}
 [data-testid="stSidebar"] {{ background-color: {NAVY}; }}
 [data-testid="stSidebar"] * {{ color: #CBD5E1; }}
 [data-testid="stSidebar"] [aria-current="page"] {{ background-color: #1E293B; }}
@@ -135,8 +135,9 @@ table.tr-table {{ width: 100%; border-collapse: collapse; font-size: 0.88rem;
 table.tr-table th {{ background: #F3F5F8; color: #374151; font-weight: 600; font-size: 0.8rem;
   padding: 0.45rem 0.75rem; border-top: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB;
   white-space: nowrap; }}
-table.tr-table td {{ padding: 0.42rem 0.75rem; border-bottom: 1px solid #F1F3F6;
+table.tr-table td {{ padding: 0.42rem 0.6rem; border-bottom: 1px solid #F1F3F6;
   white-space: nowrap; }}
+table.tr-table td.tr-wrap {{ white-space: normal; }}
 table.tr-table tr:last-child td {{ border-bottom: none; }}
 .tr-right {{ text-align: right; }}
 .tr-up {{ color: {UP}; }}
@@ -167,6 +168,10 @@ table.tr-table tr:last-child td {{ border-bottom: none; }}
   margin-right: 0.45rem; }}
 [class*="st-key-panel"] {{ background: #FFFFFF; border: 1px solid #E2E6EC !important;
   border-radius: 6px; }}
+@media (max-width: 1240px) {{
+  .st-key-home_grid [data-testid="stHorizontalBlock"] {{ flex-wrap: wrap; }}
+  .st-key-home_grid [data-testid="stColumn"] {{ flex: 1 1 100% !important; min-width: 100%; }}
+}}
 @media (max-width: 640px) {{
   table.tr-table td, table.tr-table th {{ padding: 0.4rem 0.5rem; }}
 }}
@@ -200,13 +205,25 @@ def panel(title: str, body: str, note: str = "") -> str:
     )
 
 
-def table(headers: list[str], rows: list[list[str]], right: set[int] | None = None) -> str:
-    """Tableau compact ; `right` : indices des colonnes alignées à droite (nombres)."""
-    right = right or set()
+def table(
+    headers: list[str],
+    rows: list[list[str]],
+    right: set[int] | None = None,
+    wrap: set[int] | None = None,
+) -> str:
+    """Tableau compact ; `right` : colonnes alignées à droite (nombres), `wrap` : colonnes dont
+    le texte peut passer à la ligne (les autres restent sur une ligne)."""
+    right, wrap = right or set(), wrap or set()
 
     def cell(tag: str, index: int, content: str) -> str:
-        align = ' class="tr-right"' if index in right else ""
-        return f"<{tag}{align}>{content}</{tag}>"
+        classes = " ".join(
+            name for name, on in (("tr-right", index in right), ("tr-wrap", index in wrap)) if on
+        )
+        return (
+            f'<{tag} class="{classes}">{content}</{tag}>'
+            if classes
+            else f"<{tag}>{content}</{tag}>"
+        )
 
     head = "".join(cell("th", i, escape(h)) for i, h in enumerate(headers))
     body = "".join(

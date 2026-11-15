@@ -1289,11 +1289,12 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
 - les noms en bout de courbe se chevauchaient : ils ont été remplacés par une légende ;
 - les dates des sources étaient coupées : elles sont affichées sans l'année ;
 - le titre « Key findings since 2014 » était faux pour un chiffre calculé sur 2009-2026 : il est devenu « Key findings ».
+- en ligne, sur un écran de 1 280 px, les tableaux débordaient encore et la colonne « Demand » était coupée. Les marges latérales ont été réduites, les noms des sources et la mention « (est.) » peuvent passer à la ligne, et les deux colonnes s'empilent sous 1 240 px de large.
 
 **Choix gardé :** la police et les arrondis restent dans le CSS de `app_ui.py`, pas dans `config.toml`, car ces options avaient cassé le site en ligne (voir la section précédente).
 
 **Tests :** le tableau des prochaines enchères comparé à `upcoming_table`, les taux et la grille des modèles comparés aux fichiers, l'accueil sans enchère annoncée, et les nouvelles fonctions `market_snapshot`, `demand_counts`, `scorecard` et `btc_history`.
 
-**Vérifié par le LLM dans le navigateur :** l'accueil à la taille d'un ordinateur et d'un téléphone.
+**Vérifié par le LLM dans le navigateur :** l'accueil à 1 600, 1 280, 1 250 et 1 200 px de large et à la taille d'un téléphone (aucun tableau coupé, pas de défilement horizontal de la page), la page Model performance avec le nouveau thème, et le site en ligne après le déploiement.
 
 **Résultat vérifié :** 365 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.

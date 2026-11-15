@@ -33,7 +33,8 @@ upcoming = ad.upcoming_table(log, auctions, ui.today_new_york())
 threshold = en(SIGNAL_THRESHOLD, 2)
 
 # --- Deux colonnes : à gauche les enchères et le graphique, à droite les panneaux courts ------
-left, right = st.columns([2, 1], gap="medium")
+# Conteneur nommé : sous 1 240 px de large, le CSS empile les deux colonnes (app_ui.PAGE_CSS).
+left, right = st.container(key="home_grid").columns([1.8, 1], gap="medium")
 with left:
     if upcoming.empty:
         body = (
@@ -54,7 +55,9 @@ with left:
             for row in upcoming.head(ROWS).itertuples()
         ]
         headers = ["Date", "Auction", "Size", "Forecast", "Last 3", "Gap", "Demand"]
-        body = ui.table(headers, rows, right={2, 3, 4, 5})
+        body = ui.table(
+            headers, rows, right={2, 3, 4, 5}, wrap={2}
+        )  # « (est.) » à la ligne si besoin
         shown = f"Next {min(ROWS, len(upcoming))} of {len(upcoming)} announced auctions."
         note = (
             f"{shown} Forecast and Last 3: bid-to-cover predicted, and its average over the last 3"
@@ -96,7 +99,7 @@ with right:
     st.markdown(
         ui.panel(
             "Market today",
-            ui.table(["Series", "Level", "Change"], rows, right={1, 2}),
+            ui.table(["Series", "Level", "Change"], rows, right={1, 2}, wrap={0}),
             f"Close of {when}, change since the previous close.",
         ),
         unsafe_allow_html=True,
@@ -174,7 +177,7 @@ with right:
     st.markdown(
         ui.panel(
             "Data sources",
-            ui.table(["Source", "Latest data"], rows, right={1}),
+            ui.table(["Source", "Latest data"], rows, right={1}, wrap={0}),
             "Green: up to date. Details on the Data quality page.",
         ),
         unsafe_allow_html=True,
