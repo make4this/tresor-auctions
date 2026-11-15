@@ -1019,6 +1019,7 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 
 - Le contrôle d'un envoi fait à la main signale le problème, il ne l'empêche pas. Seule une protection de la branche dans les réglages de GitHub l'empêcherait ; je ne l'ai pas activée.
 - Les modèles sont réentraînés chaque soir. Si les fichiers diffèrent d'un soir à l'autre, l'application les retélécharge une fois par soir (et non plus à chaque clic).
+- Le contrôle des envois faits à la main (`journal.yml`) n'a pas encore tourné pour de vrai : aucun envoi n'a touché au journal depuis sa création. Sa commande est la même que celle du passage du soir, testée.
 - À vérifier après quelques passages : la courbe des taux du jour doit être publiée avant 18 h 17 à New York, c'est-à-dire `market_last_dates.yield_10y` égal à la date du passage dans `live_status.json`. Sinon, la prévision utilise la courbe de la veille : c'est un retard, pas une fuite.
 
 **Après les corrections :**
@@ -1036,7 +1037,8 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 - **Application en ligne** (vérifiée par le LLM dans le navigateur) :
   - elle se redéploie d'elle-même à chaque envoi sur GitHub ;
   - la page Qualité et la barre latérale signalent les 3 sources en échec ;
-  - le bouton « Mettre à jour maintenant » a téléchargé l'archive annoncée et l'a vérifiée par empreinte, puis a donné une prévision provisoire sous Python 3.14.
+  - le bouton « Mettre à jour maintenant » a téléchargé l'archive annoncée et l'a vérifiée par empreinte, puis a donné une prévision provisoire sous Python 3.14 ;
+  - après deux clics, GitHub compte un seul téléchargement de l'archive : les modèles sont bien gardés entre deux clics.
 - **Bogue trouvé grâce aux vraies données du passage** : les trois sources de Fiscal Data n'avaient encore jamais réussi depuis la création du rapport de téléchargement. Leur date de dernière réussite était donc vide, et cette date vide faisait planter le tableau des téléchargements de la page Qualité, en ligne comme sur mon ordinateur. Mes tests ne prévoyaient que des dates remplies. Correction : une date absente s'affiche « inconnue ». J'ai ajouté le cas aux tests ; sans la correction, 5 tests échouent. J'ai aussi retiré une double parenthèse dans l'avertissement.
 - **Code non relu en ligne** : une fois la correction envoyée, l'application en ligne plantait encore. Streamlit relit les fichiers du dossier `app/` quand le dépôt change, mais pas les modules de `src/tresor/` déjà chargés. L'application gardait donc l'ancien code en mémoire jusqu'à un redémarrage manuel, vérifié dans le code de Streamlit. Correction :
   - le paquet note l'empreinte de ses fichiers quand il est chargé ;
