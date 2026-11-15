@@ -26,7 +26,6 @@ MUTED = "#8a897f"
 GRID = "#e4e3df"
 CACHE_SECONDS = 3600
 REPOSITORY_URL = f"https://github.com/{GITHUB_REPOSITORY}"
-DISCLAIMER = "Academic project (emlyon business school, 2026). Not investment advice."
 
 # Lecture mise en cache une heure au plus (section 11 du plan). La date de modification et la
 # taille du fichier font partie de la clé : un fichier réécrit est relu tout de suite.

@@ -125,5 +125,3 @@ left, right = st.columns(2)
 for index, (path, label, text) in enumerate(links):
     column = left if index % 2 == 0 else right
     column.page_link(path, label=f"{label}: {text}", icon=":material/arrow_forward:")
-
-st.caption(ui.DISCLAIMER)

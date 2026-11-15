@@ -65,8 +65,7 @@ def test_the_main_app_opens_on_the_home_page() -> None:
     assert not app.exception, app.exception
     assert any("US Treasury auctions" in m.value for m in app.markdown)
     assert any(button.label == "Refresh now" for button in app.button)
-    assert any("Not investment advice" in c.value for c in app.caption)
-    assert all("Academic project" not in c.value for c in app.sidebar.caption)  # barre sobre
+    assert all("Academic project" not in c.value for c in [*app.caption, *app.sidebar.caption])
 
 
 def home_html(app: AppTest) -> str:

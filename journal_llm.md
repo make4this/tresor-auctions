@@ -1253,7 +1253,7 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
 - **Une page Methodology** sans la section sur les LLM ni les versions. Ses chiffres sont lus dans les fichiers au lieu d'être écrits à la main.
 - **Le rapport reste en français :** les figures et `reports/chiffres_cles.md` ne changent pas (`--check` : 79 chiffres, 0 erreur). Les noms des sources en français sont désormais dans `key_figures.py`, et la mise en forme des nombres (française et anglaise) est dans `formats.py`.
 
-**Choix du LLM, à valider par moi :** une ligne discrète reste en bas de l'accueil : « Academic project (emlyon business school, 2026). Not investment advice. » Le signal ressemble à une recommandation, et cette mention, d'usage sur un site financier, évite de le prendre pour un conseil.
+**Ligne « Not investment advice » :** le LLM avait gardé une ligne discrète en bas de l'accueil (« Academic project (emlyon business school, 2026). Not investment advice. »), parce que le signal ressemble à une recommandation. À ma demande, elle a été retirée.
 
 **Usage des LLM :** il n'est plus mentionné sur le site, mais la règle du cours reste respectée par ce journal et par le README, qui le disent en tête.
 
