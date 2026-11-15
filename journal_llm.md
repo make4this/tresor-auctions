@@ -1298,3 +1298,44 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
 **Vérifié par le LLM dans le navigateur :** l'accueil à 1 600, 1 280, 1 250 et 1 200 px de large et à la taille d'un téléphone (aucun tableau coupé, pas de défilement horizontal de la page), la page Model performance avec le nouveau thème, et le site en ligne après le déploiement.
 
 **Résultat vérifié :** 365 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
+
+## Aide à la lecture et page « Upcoming auctions » (15 novembre 2026)
+
+**Ma demande :** continuer à améliorer le site, le rendre simple d'utilisation, et proposer une fonctionnalité utile, par exemple pour expliquer comment lire le graphique ou les enchères, de façon concise et précise.
+
+**Ce que le LLM a produit :**
+
+- **Une aide « How to read » sur chaque panneau.** Un clic sur le titre ouvre 3 ou 4 lignes d'explication. C'est un élément HTML `<details>` : il marche sans JavaScript, au doigt comme à la souris. Les longues notes sous les panneaux ont été raccourcies, puisque l'explication est dans l'aide.
+- **Un nouveau panneau « Auction in detail »** remplace le graphique de l'historique, qui reste sur la page History :
+  - on choisit une enchère à venir dans une liste ;
+  - une phrase lit le signal : la prévision, la moyenne des 3 dernières enchères de la même maturité, l'écart et le seuil, puis la conclusion ;
+  - un graphique montre le bid-to-cover passé de cette maturité, les 3 dernières enchères, leur moyenne en pointillés et la prévision en losange (rouge, vert ou gris selon le signal) ;
+  - la vue par défaut couvre 6 mois pour les bills (une enchère par semaine) et 3 ans pour les notes et bonds ;
+  - une dernière phrase donne le bilan du signal dans le backtest. Par exemple, pour les notes et bonds : quand le signal disait « weaker », le bid-to-cover est arrivé sous la moyenne des 3 dernières dans 84 cas sur 109 (77 %), contre 52 % pour toutes les enchères.
+- **Une ligne d'intro** qui dit comment se servir de la page : le tableau d'abord, puis une enchère en détail, puis un clic sur un titre pour l'aide.
+- **La page Upcoming auctions dans le même style :**
+  - toutes les enchères annoncées dans un tableau, avec les étiquettes de demande et les prévisions des trois autres mesures ;
+  - un tableau « Track record of the signal » : nombre de signaux, cas justes, et la même part pour toutes les enchères, ce que donnerait l'absence de signal.
+
+  Le bloc de R² en texte a été retiré : la grille de l'accueil et la page Model performance le donnent déjà.
+
+**Corrigé par le LLM en vérifiant :**
+
+- **Couleur d'un écart nul.** Un écart de +0,0003 s'affichait « +0.00 » en vert. Les nombres sont maintenant arrondis avant d'être colorés : « 0.000 » en gris.
+- **Écart et signal en désaccord.** Le signal est calculé sur l'écart exact. Avec 2 décimales, un écart de −0,076 s'affiche « −0.08 » à côté d'une étiquette « Normal ». Cela serait arrivé pour 111 des 3 910 prévisions du backtest. L'écart est donc affiché avec 3 décimales, comme l'ancienne page le faisait déjà.
+- **Formulation au seuil.** Pour un écart égal au seuil, « a gap of −0.08, beyond −0.08 » est devenu « at or below the −0.08 threshold ».
+- **Marges des tableaux.** Elles ont été réduites un peu plus : à 1 250 et 1 280 px de large, plus aucun tableau ne déborde.
+
+**Tests ajoutés :**
+
+- la phrase de lecture (plus faible, normal, plus fort, valeur manquante, écart pile au seuil) et la phrase de bilan ;
+- le tableau du bilan du signal et les nombres arrondis avant leur couleur ;
+- l'aide des panneaux ;
+- le panneau « Auction in detail » pour une enchère de chaque famille ;
+- la page Upcoming auctions : nombre de lignes, ordre des étiquettes, bilan du signal ;
+- la prévision provisoire dans son nouveau tableau.
+
+**Vérifié par le LLM dans le navigateur :** l'accueil à 1 440, 1 280 et 1 250 px, en tablette et en téléphone ; l'ouverture des aides ; le choix d'une autre enchère ; la page Upcoming auctions à 1 280 px.
+
+**Résultat vérifié :** 370 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
+

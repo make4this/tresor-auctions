@@ -1,7 +1,8 @@
-"""Page d'accueil : tableau de bord en panneaux (enchères à venir, demande attendue, taux du
-jour, historique du bid-to-cover, fiabilité des modèles, sources, résultats clés).
+"""Page d'accueil : tableau de bord en panneaux (enchères à venir, lecture d'une enchère,
+demande attendue, taux du jour, fiabilité des modèles, sources, résultats clés).
 
-Tous les chiffres sont lus dans les fichiers de data/, comme sur les autres pages.
+Chaque panneau a une courte aide « How to read », ouverte au clic sur son titre. Tous les
+chiffres sont lus dans les fichiers de data/, comme sur les autres pages.
 """
 
 from __future__ import annotations
@@ -18,21 +19,56 @@ from tresor.config import SIGNAL_THRESHOLD
 from tresor.formats import en
 
 ROWS = 10  # enchères affichées dans le panneau ; toutes sont sur la page « Upcoming auctions »
-PERIODS = {"1Y": 1, "3Y": 3, "5Y": 5, "10Y": 10, "All": None}
+PERIODS = {"6M": 6, "1Y": 12, "3Y": 36, "All": None}  # en mois
+# Vue par défaut : 6 mois pour les bills (une enchère par semaine), 3 ans pour les coupons.
+DEFAULT_PERIOD = {"bill": "6M", "nominal_coupon": "3Y"}
+THRESHOLD = en(SIGNAL_THRESHOLD, 2)
+FORECAST_COLOURS = {ad.WEAK: ui.ALERT, ad.STRONG: ui.UP, ad.NORMAL: "#64748B"}
+
+GUIDES = {
+    "upcoming": ui.upcoming_guide(),
+    "focus": [
+        "<b>Blue line</b>: bid-to-cover of each past auction of this maturity; the 3 dots are"
+        " the last 3.",
+        "<b>Dashed line</b>: their average, the usual level the forecast is compared with.",
+        f"<b>Diamond</b>: the forecast. Red if at least {THRESHOLD} below the dashed line"
+        f" (weaker demand), green if at least {THRESHOLD} above (stronger), grey otherwise.",
+        "Bills (weeks) usually draw more bids than notes and bonds (years): compare an auction"
+        " with its own history, not with other maturities.",
+    ],
+    "market": [
+        "Yields in % at the latest close; change since the previous close in bp"
+        " (1 bp = 0.01 percentage point).",
+        "<b>VIX</b>: expected volatility of US stocks over 30 days, a gauge of market stress.",
+        "Both feed the models: auctions are priced against these yields.",
+    ],
+    "scorecard": [
+        "Each cell: how much smaller the squared forecast error is than with the last-3"
+        " average, out of sample over 2020-2026 (+10% = errors 10% smaller).",
+        "<b>Green</b>: better, with 90% confidence. <b>Red</b>: worse. <b>Grey</b>: no clear"
+        " difference.",
+        "The tail mostly follows the market move of the day, which no model sees in advance.",
+    ],
+    "sources": [
+        "<b>Green</b>: up to date. <b>Orange</b>: late, to watch. <b>Red</b>: problem.",
+        "<b>Latest data</b>: date of the most recent value received.",
+        "If a source fails, the forecasts use its latest saved data.",
+    ],
+}
 
 st.markdown(
     '<p class="tr-intro">Forecasts of investor demand at each US Treasury auction, made the'
     " evening before with public data only. <b>Bid-to-cover</b> = amount bid ÷ amount sold:"
-    " the higher, the stronger the demand.</p>",
+    " the higher, the stronger the demand. Start with the table, pick an auction below to see"
+    " why, and click a panel title for help.</p>",
     unsafe_allow_html=True,
 )
 
 log = ui.parquet("predictions_log.parquet")
 auctions = ui.parquet("auctions.parquet", folder="clean")
 upcoming = ad.upcoming_table(log, auctions, ui.today_new_york())
-threshold = en(SIGNAL_THRESHOLD, 2)
 
-# --- Deux colonnes : à gauche les enchères et le graphique, à droite les panneaux courts ------
+# --- Deux colonnes : à gauche les enchères, à droite les panneaux courts ---------------------
 # Conteneur nommé : sous 1 240 px de large, le CSS empile les deux colonnes (app_ui.PAGE_CSS).
 left, right = st.container(key="home_grid").columns([1.8, 1], gap="medium")
 with left:
@@ -42,29 +78,14 @@ with left:
         )
         note = ""
     else:
-        rows = [
-            [
-                escape(ui.date_en(row.auction_date, year=False)),
-                f"<b>{escape(row.title)}</b>",
-                escape(ad.amount(row.offering_amt, bool(row.offering_estimated))),
-                en(row.pred_btc, 2),
-                en(row.bench_mean3_btc, 2),
-                ui.signed(row.gap_btc, en(row.gap_btc, 2, sign=True)),
-                ui.demand_tag(row.signal),
-            ]
-            for row in upcoming.head(ROWS).itertuples()
-        ]
-        headers = ["Date", "Auction", "Size", "Forecast", "Last 3", "Gap", "Demand"]
-        body = ui.table(
-            headers, rows, right={2, 3, 4, 5}, wrap={2}
-        )  # « (est.) » à la ligne si besoin
-        shown = f"Next {min(ROWS, len(upcoming))} of {len(upcoming)} announced auctions."
+        body = ui.upcoming_html(upcoming.head(ROWS))
         note = (
-            f"{shown} Forecast and Last 3: bid-to-cover predicted, and its average over the last 3"
-            f" auctions of the same maturity. Demand is <b>weaker</b> when the gap is −{threshold}"
-            f" or less, <b>stronger</b> when it is +{threshold} or more."
+            f"Next {min(ROWS, len(upcoming))} of {len(upcoming)} announced auctions. All of them,"
+            " with the other measures, are on the Upcoming auctions page."
         )
-    st.markdown(ui.panel("Upcoming auctions", body, note), unsafe_allow_html=True)
+    st.markdown(
+        ui.panel("Upcoming auctions", body, note, GUIDES["upcoming"]), unsafe_allow_html=True
+    )
 
 with right:
     counts = ad.demand_counts(upcoming)
@@ -89,9 +110,7 @@ with right:
         [
             escape(row.label),
             en(row.value, 2) + ("%" if row.unit == "bp" else ""),
-            ui.signed(
-                row.change, en(row.change, 0 if row.unit == "bp" else 2, sign=True) + f" {row.unit}"
-            ),  # fmt: skip
+            ui.signed_number(row.change, 0 if row.unit == "bp" else 2, f" {row.unit}"),
         ]
         for row in market.itertuples()
     ]
@@ -100,45 +119,90 @@ with right:
         ui.panel(
             "Market today",
             ui.table(["Series", "Level", "Change"], rows, right={1, 2}, wrap={0}),
-            f"Close of {when}, change since the previous close.",
+            f"Close of {when}.",
+            GUIDES["market"],
         ),
         unsafe_allow_html=True,
     )
 
-# --- Suite des deux colonnes : historique du bid-to-cover | fiabilité et sources -------------
-with left, st.container(border=True, key="panel_history"):
-    st.markdown('<div class="tr-panel-head" style="padding: 0">Bid-to-cover history</div>',
-                unsafe_allow_html=True)  # fmt: skip
+
+def focus_chart(row: pd.Series, period: str) -> go.Figure:
+    """Bid-to-cover passé de la maturité, moyenne des 3 dernières et prévision (losange)."""
     features = ui.parquet("features.parquet", folder="clean")
-    period = st.segmented_control(
-        "Period", list(PERIODS), default="5Y", required=True, label_visibility="collapsed"
-    ) or "5Y"  # fmt: skip
-    main = ["4W", "13W", "26W", "52W", "2Y", "5Y", "10Y", "30Y"]  # les plus suivies
-    available = [b for b in main if b in set(features["maturity_bucket"])]
-    buckets = st.pills(
-        "Maturities", available, selection_mode="multi", default=["13W", "2Y", "10Y"],
-        format_func=ad.MATURITY_LABELS.get, label_visibility="collapsed",
-    ) or ["10Y"]  # fmt: skip
-    buckets = buckets[: len(ui.SERIES)]  # 4 courbes au plus : une couleur chacune
-    years = PERIODS[period]
-    start = ui.today_new_york() - pd.DateOffset(years=years) if years else None
-    history = ad.btc_history(features, buckets, start)
+    past = ad.btc_history(features, [row["maturity_bucket"]])
+    past = past[past["auction_date"] < row["auction_date"]]
+    last3 = past.tail(3)
+    months = PERIODS[period]
+    if months:
+        past = past[past["auction_date"] >= row["auction_date"] - pd.DateOffset(months=months)]
+    label = ad.MATURITY_LABELS.get(row["maturity_bucket"], row["maturity_bucket"])
+    hover = "%{x|%b %d, %Y}<br>Bid-to-cover %{y:.2f}"
     figure = go.Figure()
-    for color, bucket in zip(ui.SERIES, buckets, strict=False):
-        part = history[history["maturity_bucket"] == bucket]
-        if part.empty:
-            continue
-        label = ad.MATURITY_LABELS[bucket]
+    figure.add_scatter(
+        x=past["auction_date"], y=past["btc"], mode="lines", name=f"Past {label} auctions",
+        line={"color": ui.SERIES[0], "width": 2}, hovertemplate=hover + "<extra></extra>",
+    )  # fmt: skip
+    figure.add_scatter(
+        x=last3["auction_date"], y=last3["btc"], mode="markers", showlegend=False,
+        marker={"color": ui.SERIES[0], "size": 9, "line": {"color": "#FFFFFF", "width": 2}},
+        hovertemplate=hover + "<extra>one of the last 3</extra>",
+    )  # fmt: skip
+    mean3, pred = row["bench_mean3_btc"], row["pred_btc"]
+    if not last3.empty and pd.notna(mean3):
         figure.add_scatter(
-            x=part["auction_date"], y=part["btc"], mode="lines", name=label,
-            line={"color": color, "width": 1.6},
-            hovertemplate=f"{label}<br>%{{x|%b %d, %Y}}<br>%{{y:.2f}}<extra></extra>",
+            x=[last3["auction_date"].min(), row["auction_date"]], y=[mean3, mean3],
+            mode="lines", name=f"Last-3 average {en(mean3, 2)}",
+            line={"color": ui.NAVY, "dash": "dash", "width": 2},
+            hovertemplate=f"Last-3 average {en(mean3, 2)}<extra></extra>",
         )  # fmt: skip
-    ui.chart(figure, height=340)
-    st.caption(
-        "Bid-to-cover of each completed auction. Pick the maturities above; bills (weeks) usually"
-        " attract more bids than notes and bonds (years)."
-    )
+    if pd.notna(pred):
+        figure.add_scatter(
+            x=[row["auction_date"]], y=[pred], mode="markers", name=f"Forecast {en(pred, 2)}",
+            marker={"symbol": "diamond", "size": 14, "line": {"color": "#FFFFFF", "width": 2},
+                    "color": FORECAST_COLOURS.get(row["signal"], "#64748B")},
+            hovertemplate=f"{ui.date_en(row['auction_date'])}<br>Forecast {en(pred, 2)}"
+            "<extra></extra>",
+        )  # fmt: skip
+    first = past["auction_date"].min() if not past.empty else row["auction_date"]
+    room = pd.Timedelta(days=max(3, (row["auction_date"] - first).days // 25))  # marge à droite
+    figure.update_xaxes(range=[first - room, row["auction_date"] + room])
+    return figure
+
+
+# --- Suite des deux colonnes : lecture d'une enchère | fiabilité et sources ------------------
+with left, st.container(border=True, key="panel_focus"):
+    st.markdown(ui.panel_head("Auction in detail", GUIDES["focus"]), unsafe_allow_html=True)
+    if upcoming.empty:
+        st.markdown(
+            '<div class="tr-small">The detail appears here once an auction is announced.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        names = [
+            " · ".join([ui.date_en(r.auction_date, year=False), r.title,
+                        ad.amount(r.offering_amt, bool(r.offering_estimated))])
+            for r in upcoming.itertuples()
+        ]  # fmt: skip
+        choice = st.selectbox(
+            "Auction", range(len(upcoming)), format_func=names.__getitem__,
+            label_visibility="collapsed",
+        )  # fmt: skip
+        row = upcoming.iloc[choice]
+        st.markdown(
+            f'<div class="tr-reading">{ui.demand_tag(row["signal"])}'
+            f"{escape(ad.auction_reading(row))}</div>",
+            unsafe_allow_html=True,
+        )
+        default = DEFAULT_PERIOD.get(row["family"], "1Y")
+        period = st.segmented_control(
+            "Period", list(PERIODS), default=default, required=True,
+            label_visibility="collapsed", key=f"focus_period_{row['family']}",
+        ) or default  # fmt: skip
+        ui.chart(focus_chart(row, period), height=320)
+        record = ad.signal_track_record(ui.parquet("backtest_predictions.parquet"))
+        sentence = ad.signal_record_sentence(record, row["family"], row["signal"])
+        if sentence:
+            st.markdown(f'<div class="tr-small">{escape(sentence)}</div>', unsafe_allow_html=True)
 
 with right:
     card = ad.scorecard(ui.csv("backtest_metrics.csv")).set_index(["family", "target"])
@@ -151,16 +215,15 @@ with right:
             if (family, target) not in card.index:
                 cells.append('<div class="tr-cell tr-unclear">–</div>')
                 continue
-            row = card.loc[(family, target)]
-            value = en(row["r2_vs_mean3"] * 100, 0, sign=True) + "%"
-            cells.append(f'<div class="tr-cell tr-{row["verdict"]}">{value}</div>')
+            score = card.loc[(family, target)]
+            value = en(score["r2_vs_mean3"] * 100, 0, sign=True) + "%"
+            cells.append(f'<div class="tr-cell tr-{score["verdict"]}">{value}</div>')
     st.markdown(
         ui.panel(
             "Model scorecard",
             f'<div class="tr-grid">{"".join(cells)}</div>',
-            "How much smaller the forecast errors are than with the last-3 average (out of"
-            " sample, 2020-2026). Green: reliably better; red: reliably worse; grey: not clearly"
-            " different. The tail mostly follows the day's market.",
+            "Forecast errors versus the last-3 average, 2020-2026.",
+            GUIDES["scorecard"],
         ),
         unsafe_allow_html=True,
     )
@@ -168,17 +231,18 @@ with right:
     colours = {"vert": ui.UP, "orange": "#D97706", "rouge": ui.ALERT}
     rows = [
         [
-            f'<span class="tr-dot" style="background:{colours.get(row.status, ui.MUTED)}">'
-            f"</span>{escape(ad.SOURCE_LABELS.get(row.source, row.source))}",
-            escape(ui.day_en(row.last_date, year=False)),
+            f'<span class="tr-dot" style="background:{colours.get(item.status, ui.MUTED)}">'
+            f"</span>{escape(ad.SOURCE_LABELS.get(item.source, item.source))}",
+            escape(ui.day_en(item.last_date, year=False)),
         ]
-        for row in quality.itertuples()
+        for item in quality.itertuples()
     ]
     st.markdown(
         ui.panel(
             "Data sources",
             ui.table(["Source", "Latest data"], rows, right={1}, wrap={0}),
-            "Green: up to date. Details on the Data quality page.",
+            "Details on the Data quality page.",
+            GUIDES["sources"],
         ),
         unsafe_allow_html=True,
     )

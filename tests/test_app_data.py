@@ -174,6 +174,44 @@ def test_signal_track_record() -> None:
     assert row["base_rate_below"] == 0.5 and row["base_rate_above"] == 0.375
 
 
+def test_signal_record_table_and_sentence() -> None:
+    record = ad.signal_track_record(backtest_rows())
+
+    table = ad.signal_record_table(record).set_index("signal")
+
+    assert table.loc[ad.WEAK, ["cases", "right"]].tolist() == [2, 1]
+    assert table.loc[ad.STRONG, ["cases", "right"]].tolist() == [1, 1]
+    assert ad.signal_record_sentence(record, "bill", ad.WEAK) == (
+        "Track record in tests over 2014-2026: when the signal said weaker for bills, the"
+        " bid-to-cover came in below the last-3 average in 1 of 2 cases (50%), against 50% for"
+        " all bill auctions."
+    )
+    assert "1 of 1 cases (100%)" in ad.signal_record_sentence(record, "bill", ad.STRONG)
+    assert ad.signal_record_sentence(record, "bill", ad.NORMAL).startswith("When the gap")
+    assert ad.signal_record_sentence(record, "nominal_coupon", ad.WEAK) == ""  # pas de données
+
+
+def reading(pred: float, mean3: float) -> str:
+    row = pd.Series({"maturity_bucket": "10Y", "pred_btc": pred, "bench_mean3_btc": mean3})
+    return ad.auction_reading(row)
+
+
+def test_auction_reading() -> None:
+    start = "Forecast {} against 2.61 on average over the last 3 10-year auctions: a gap of {}"
+    assert reading(2.52, 2.61) == start.format("2.52", f"{MINUS}0.090") + (
+        f", at or below the {MINUS}0.08 threshold, so demand should be weaker than usual."
+    )
+    assert reading(2.53, 2.61).endswith("weaker than usual.")  # −0,08 pile, malgré l'arrondi
+    assert reading(2.70, 2.61).endswith("at or above the +0.08 threshold, so demand should be"
+                                        " stronger than usual.")  # fmt: skip
+    assert reading(2.60, 2.61) == start.format("2.60", f"{MINUS}0.010") + (
+        ", within ±0.08, so demand should be normal."
+    )
+    assert (
+        reading(2.60, np.nan) == "No forecast or no last-3 average yet for the 10-year: no signal."
+    )
+
+
 def tracking_rows() -> pd.DataFrame:
     tracking = log_rows(models=("moyenne_5",))
     tracking["status"] = np.select(

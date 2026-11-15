@@ -276,6 +276,72 @@ def signal_track_record(
     return pd.DataFrame(rows)
 
 
+def auction_reading(row: pd.Series, threshold: float = SIGNAL_THRESHOLD) -> str:
+    """Une phrase qui lit le signal d'une enchère : prévision, moyenne des 3 dernières, écart."""
+    label = MATURITY_LABELS.get(row["maturity_bucket"], row["maturity_bucket"])
+    if pd.isna(row["pred_btc"]) or pd.isna(row["bench_mean3_btc"]):
+        return f"No forecast or no last-3 average yet for the {label}: no signal."
+    gap = row["pred_btc"] - row["bench_mean3_btc"]
+    verdict = signal(gap, threshold)
+    start = (
+        f"Forecast {en(row['pred_btc'], 2)} against {en(row['bench_mean3_btc'], 2)} on average"
+        f" over the last 3 {label} auctions: a gap of {en(gap, 3, sign=True)}"
+    )
+    if verdict == NORMAL:
+        return f"{start}, within ±{en(threshold, 2)}, so demand should be normal."
+    limit = en(-threshold if verdict == WEAK else threshold, 2, sign=True)
+    side = "below" if verdict == WEAK else "above"
+    return f"{start}, at or {side} the {limit} threshold, so demand should be {verdict} than usual."
+
+
+def signal_record_sentence(record: pd.DataFrame, family: str, verdict: str) -> str:
+    """Ce que le signal a donné dans le backtest (2014-2026), pour la famille et le signal lus."""
+    if verdict == NORMAL:
+        return (
+            "When the gap is this small the model makes no call: the result can land on either"
+            " side of the usual level."
+        )
+    rows = record.set_index("family")
+    if verdict not in (WEAK, STRONG) or family not in rows.index:
+        return ""
+    row = rows.loc[family]
+    kind = "weak" if verdict == WEAK else "strong"
+    side, base = ("below", "base_rate_below") if verdict == WEAK else ("above", "base_rate_above")
+    cases = int(row[f"{kind}_count"])
+    right = round(row[f"{kind}_then_{side}"] * cases)
+    group, single = {
+        "bill": ("bills", "bill"),
+        "nominal_coupon": ("notes and bonds", "note and bond"),
+    }[family]
+    return (
+        f"Track record in tests over 2014-2026: when the signal said {verdict} for {group}, the"
+        f" bid-to-cover came in {side} the last-3 average in {en(right, 0)} of {en(cases, 0)} cases"
+        f" ({en(right / cases * 100, 0)}%), against {en(row[base] * 100, 0)}% for all {single}"
+        " auctions."
+    )
+
+
+def signal_record_table(record: pd.DataFrame) -> pd.DataFrame:
+    """Le bilan du signal en lignes : famille, signal, nombre de cas, cas justes, part juste,
+    et la même part pour toutes les enchères (ce que donnerait l'absence de signal)."""
+    rows = []
+    for item in record.itertuples():
+        for verdict, kind, side in ((WEAK, "weak", "below"), (STRONG, "strong", "above")):
+            cases = int(getattr(item, f"{kind}_count"))
+            share = getattr(item, f"{kind}_then_{side}")
+            rows.append(
+                {
+                    "family": item.family,
+                    "signal": verdict,
+                    "cases": cases,
+                    "right": round(share * cases) if cases else 0,
+                    "share": share,
+                    "base": getattr(item, f"base_rate_{side}"),
+                }
+            )
+    return pd.DataFrame(rows, columns=["family", "signal", "cases", "right", "share", "base"])
+
+
 def live_summary(tracking: pd.DataFrame, model: str = md.ENSEMBLE) -> dict[str, int]:
     """Nombre d'enchères suivies, par statut (une enchère compte une fois)."""
     auctions = tracking[tracking["model"] == model].drop_duplicates(["cusip", "auction_date"])

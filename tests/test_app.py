@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import json
+import re
+from html import escape
 from pathlib import Path
 
 import numpy as np
@@ -86,9 +88,48 @@ def test_the_home_page_lists_the_next_upcoming_auctions(today: pd.Timestamp) -> 
     assert panel.count("<tr>") == min(10, len(upcoming)) + 1  # en-tête et 10 enchères au plus
     for row in upcoming.head(10).itertuples():
         assert f"<b>{row.title}</b>" in panel
-        assert en(row.gap_btc, 2, sign=True) in panel
+        assert app_ui.signed_number(row.gap_btc, 3) in panel
     counts = ad.demand_counts(upcoming)
     assert f'<div class="tr-value">{counts[ad.WEAK]}</div>' in html
+
+
+def test_the_home_page_reads_one_auction(today: pd.Timestamp) -> None:
+    log = pd.read_parquet(OUTPUT_DIR / "predictions_log.parquet")
+    auctions = pd.read_parquet(CLEAN_DIR / "auctions.parquet")
+    upcoming = ad.upcoming_table(log, auctions, today)
+    record = ad.signal_track_record(pd.read_parquet(OUTPUT_DIR / "backtest_predictions.parquet"))
+
+    app = main().run()
+
+    assert not app.exception, app.exception
+    for index in (
+        0,
+        next(i for i, f in enumerate(upcoming["family"]) if f != upcoming["family"].iloc[0]),
+    ):
+        if index:  # une enchère de l'autre famille, choisie dans la liste
+            app.selectbox[0].set_value(index).run()
+        row = upcoming.iloc[index]
+        html = home_html(app)
+        assert escape(ad.auction_reading(row)) in html
+        sentence = ad.signal_record_sentence(record, row["family"], row["signal"])
+        assert escape(sentence) in html
+        assert app.segmented_control[0].value == ("6M" if row["family"] == "bill" else "3Y")
+
+
+def test_signed_numbers_are_rounded_before_their_colour() -> None:
+    assert app_ui.signed_number(0.0004, 3) == '<span class="tr-flat">0.000</span>'
+    assert app_ui.signed_number(-0.0004, 3) == '<span class="tr-flat">0.000</span>'  # pas de −0
+    assert app_ui.signed_number(-0.085, 3) == '<span class="tr-down">−0.085</span>'
+    assert app_ui.signed_number(4.6, 0, " bp") == '<span class="tr-up">+5 bp</span>'
+
+
+def test_a_panel_title_opens_its_guide() -> None:
+    with_guide = app_ui.panel("Market today", "<table></table>", guide=["<b>VIX</b>: stress."])
+    plain = app_ui.panel("Key findings", "<div></div>")
+
+    assert '<details class="tr-help">' in with_guide and "How to read" in with_guide
+    assert "<li><b>VIX</b>: stress.</li>" in with_guide
+    assert "<details" not in plain and "How to read" not in plain
 
 
 def test_the_home_page_panels_come_from_the_files() -> None:
@@ -128,25 +169,30 @@ def test_the_home_page_without_upcoming_auction(monkeypatch: pytest.MonkeyPatch)
     assert "No bill, note or bond auction has been announced yet." in home_html(app)
 
 
-def test_the_upcoming_table_shows_the_reference_model_from_today(today: pd.Timestamp) -> None:
+def test_the_upcoming_page_shows_every_auction_and_the_track_record(
+    today: pd.Timestamp,
+) -> None:
     log = pd.read_parquet(OUTPUT_DIR / "predictions_log.parquet")
     auctions = pd.read_parquet(CLEAN_DIR / "auctions.parquet")
     expected = ad.upcoming_table(log, auctions, today)
 
     app = page("prochaines").run()
-    shown = app.dataframe[0].value
+    html = "\n".join(m.value for m in app.markdown)
+    table = html.split("All announced auctions", 1)[1].split("</table>", 1)[0]
 
-    assert len(shown) == len(expected) == log.loc[log["auction_date"] >= today, "cusip"].nunique()
-    assert list(shown["Expected demand"]) == list(expected["signal"])
-    assert list(shown["Bid-to-cover forecast"]) == [en(v, 2) for v in expected["pred_btc"]]
-    assert list(shown["Dealer share forecast"]) == [
-        ad.format_target(v, "dealer_share") for v in expected["pred_dealer_share"]
-    ]
-    record = ad.signal_track_record(pd.read_parquet(OUTPUT_DIR / "backtest_predictions.parquet"))
-    row = record.set_index("family").loc["nominal_coupon"]
-    text = " ".join(m.value for m in app.markdown)
-    assert f"{en(row['weak_then_below'] * 100, 0)}% of the time" in text
-    assert f"versus {en(row['base_rate_below'] * 100, 0)}% for all auctions" in text
+    assert not app.exception, app.exception
+    rows = table.count("<tr>") - 1  # sans l'en-tête
+    assert rows == len(expected) == log.loc[log["auction_date"] >= today, "cusip"].nunique()
+    css = {ad.WEAK: "weak", ad.NORMAL: "normal", ad.STRONG: "strong"}
+    assert re.findall(r"tr-tag tr-(\w+)", table) == [css[s] for s in expected["signal"]]
+    for row in expected.itertuples():
+        assert ad.format_target(row.pred_dealer_share, "dealer_share") in table
+    record = ad.signal_record_table(
+        ad.signal_track_record(pd.read_parquet(OUTPUT_DIR / "backtest_predictions.parquet"))
+    )
+    for row in record.itertuples():
+        assert f"{en(row.right, 0)} ({en(row.share * 100, 0)}%)" in html
+        assert f"{en(row.base * 100, 0)}%" in html
 
 
 def test_the_live_page_shows_realised_results(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -340,13 +386,16 @@ def test_the_update_button_shows_a_provisional_prediction(
     assert not app.exception, app.exception
     assert "provisional" in app.session_state
     assert any("Provisional forecast" in expander.label for expander in app.expander)
-    fresh = app.dataframe[1].value  # le tableau provisoire, pas le journal figé
+    box = next(e for e in app.expander if "Provisional forecast" in e.label)
+    fresh = "\n".join(m.value for m in box.markdown)  # le tableau provisoire, pas le journal
     expected = ad.upcoming_table(
         provisional.assign(predicted_at=provisional["computed_at"]),
         pd.read_parquet(CLEAN_DIR / "auctions.parquet"),
         today,
     )
-    assert list(fresh["Bid-to-cover forecast"]) == [en(v, 2) for v in expected["pred_btc"]]
+    assert fresh.count("<tr>") == len(expected) + 1
+    for value in expected["pred_btc"]:
+        assert f'<td class="tr-right">{en(value, 2)}</td>' in fresh
 
 
 @pytest.mark.parametrize(

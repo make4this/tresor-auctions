@@ -12,7 +12,8 @@ import streamlit as st
 
 from tresor import app_data as ad
 from tresor import live
-from tresor.config import CLEAN_DIR, GITHUB_REPOSITORY, NEW_YORK_TZ, OUTPUT_DIR
+from tresor.config import CLEAN_DIR, GITHUB_REPOSITORY, NEW_YORK_TZ, OUTPUT_DIR, SIGNAL_THRESHOLD
+from tresor.formats import en
 from tresor.sources.collect import FETCH_STATUS_FILE
 
 # Couleurs du tableau de bord : barres foncées, panneaux blancs, hausse en vert, baisse en
@@ -130,12 +131,27 @@ h1, h2, h3, h4 {{ font-weight: 600 !important; letter-spacing: -0.01em; }}
 .tr-panel-head {{ font-weight: 600; font-size: 1.05rem; padding: 0.7rem 0.9rem 0.5rem 0.9rem;
   color: #111827; }}
 .tr-panel-note {{ color: #6B7280; font-size: 0.8rem; padding: 0.5rem 0.9rem 0.7rem 0.9rem; }}
+details.tr-help > summary {{ list-style: none; cursor: pointer; display: flex;
+  justify-content: space-between; align-items: baseline; gap: 0.6rem; }}
+details.tr-help > summary::-webkit-details-marker {{ display: none; }}
+.tr-how {{ color: {PRIMARY}; font-size: 0.78rem; font-weight: 500; white-space: nowrap; }}
+.tr-how::before {{ content: "ⓘ "; }}
+details.tr-help[open] .tr-how {{ color: #6B7280; }}
+.tr-help-body {{ margin: 0 0.9rem 0.7rem 0.9rem; padding: 0.55rem 0.8rem 0.55rem 1.7rem;
+  background: #EFF6FF; border-radius: 4px; color: #1F2937; font-size: 0.82rem;
+  line-height: 1.45; }}
+.tr-help-body li {{ margin: 0.15rem 0; font-size: 0.82rem !important; line-height: 1.45; }}
+[class*="st-key-panel"] .tr-panel-head {{ padding: 0 0 0.3rem 0; }}
+[class*="st-key-panel"] .tr-help-body {{ margin: 0.2rem 0 0.4rem 0; }}
+.tr-reading {{ font-size: 0.9rem; color: #1F2937; line-height: 1.5; margin-bottom: 0.5rem; }}
+.tr-reading .tr-tag {{ margin-right: 0.35rem; }}
+.tr-small {{ color: #6B7280; font-size: 0.8rem; line-height: 1.45; }}
 table.tr-table {{ width: 100%; border-collapse: collapse; font-size: 0.88rem;
   font-variant-numeric: tabular-nums; }}
 table.tr-table th {{ background: #F3F5F8; color: #374151; font-weight: 600; font-size: 0.8rem;
-  padding: 0.45rem 0.75rem; border-top: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB;
+  padding: 0.45rem 0.55rem; border-top: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB;
   white-space: nowrap; }}
-table.tr-table td {{ padding: 0.42rem 0.6rem; border-bottom: 1px solid #F1F3F6;
+table.tr-table td {{ padding: 0.42rem 0.55rem; border-bottom: 1px solid #F1F3F6;
   white-space: nowrap; }}
 table.tr-table td.tr-wrap {{ white-space: normal; }}
 table.tr-table tr:last-child td {{ border-bottom: none; }}
@@ -197,12 +213,24 @@ def top_bar() -> None:
 # --- Petits morceaux de HTML pour les panneaux (textes déjà échappés par l'appelant) --------
 
 
-def panel(title: str, body: str, note: str = "") -> str:
-    """Un panneau blanc : titre, contenu, note grise facultative."""
-    foot = f'<div class="tr-panel-note">{note}</div>' if note else ""
+def panel_head(title: str, guide: list[str] | None = None) -> str:
+    """Titre d'un panneau. Avec `guide`, le titre s'ouvre au clic sur une courte aide
+    « How to read » (élément HTML <details> : marche sans JavaScript, au doigt comme à la
+    souris)."""
+    if not guide:
+        return f'<div class="tr-panel-head">{escape(title)}</div>'
+    items = "".join(f"<li>{item}</li>" for item in guide)
     return (
-        f'<div class="tr-panel"><div class="tr-panel-head">{escape(title)}</div>{body}{foot}</div>'
+        f'<details class="tr-help"><summary class="tr-panel-head">{escape(title)}'
+        f'<span class="tr-how">How to read</span></summary>'
+        f'<ul class="tr-help-body">{items}</ul></details>'
     )
+
+
+def panel(title: str, body: str, note: str = "", guide: list[str] | None = None) -> str:
+    """Un panneau blanc : titre (et son aide), contenu, note grise facultative."""
+    foot = f'<div class="tr-panel-note">{note}</div>' if note else ""
+    return f'<div class="tr-panel">{panel_head(title, guide)}{body}{foot}</div>'
 
 
 def table(
@@ -238,11 +266,68 @@ def signed(value: float, text: str) -> str:
     return f'<span class="{css}">{escape(text)}</span>'
 
 
+def signed_number(value: float, decimals: int, suffix: str = "") -> str:
+    """Nombre signé et coloré, arrondi d'abord : +0,003 s'affiche « 0.00 » en gris, pas
+    « +0.00 » en vert."""
+    if pd.isna(value):
+        return en(value)
+    shown = round(float(value), decimals) + 0.0  # + 0.0 : pas de « −0 »
+    return signed(shown, en(shown, decimals, sign=shown != 0) + suffix)
+
+
 def demand_tag(signal: str) -> str:
     """Étiquette colorée du signal de demande."""
     label, css = {ad.WEAK: ("Weaker", "tr-weak"), ad.STRONG: ("Stronger", "tr-strong"),
                   ad.NORMAL: ("Normal", "tr-normal")}.get(signal, ("n/a", "tr-normal"))  # fmt: skip
     return f'<span class="tr-tag {css}">{label}</span>'
+
+
+def upcoming_guide(more: bool = False) -> list[str]:
+    """Aide « How to read » du tableau des enchères à venir (accueil et page détaillée)."""
+    threshold = en(SIGNAL_THRESHOLD, 2)
+    guide = [
+        "<b>Forecast</b>: bid-to-cover expected by the average of 5 models, using only data"
+        " public the evening before.",
+        "<b>Last 3</b>: average bid-to-cover of the last 3 auctions of the same maturity, the"
+        " usual level.",
+        f"<b>Gap</b> = Forecast − Last 3. <b>Weaker</b> if −{threshold} or less,"
+        f" <b>Stronger</b> if +{threshold} or more, otherwise <b>Normal</b>.",
+        "<b>Size (est.)</b>: not announced yet, so the size of the previous auction is used.",
+    ]
+    if more:
+        guide.append(
+            "<b>Dealer share, Indirect share, Tail</b>: forecasts of the other measures. The"
+            " Model scorecard on Home shows how reliable each one is; the signal uses the"
+            " bid-to-cover only."
+        )
+    return guide
+
+
+def upcoming_html(frame: pd.DataFrame, more: bool = False) -> str:
+    """Tableau des enchères à venir ; `more` ajoute les prévisions des trois autres mesures."""
+    headers = ["Date", "Auction", "Size", "Forecast", "Last 3", "Gap", "Demand"]
+    if more:
+        headers += ["Dealer share", "Indirect share", "Tail"]
+    rows = []
+    for row in frame.itertuples():
+        cells = [
+            escape(date_en(row.auction_date, year=False)),
+            f"<b>{escape(row.title)}</b>",
+            escape(ad.amount(row.offering_amt, bool(row.offering_estimated))),
+            en(row.pred_btc, 2),
+            en(row.bench_mean3_btc, 2),
+            signed_number(row.gap_btc, 3),  # 3 décimales : le signal porte sur l'écart exact
+            demand_tag(row.signal),
+        ]
+        if more:
+            cells += [
+                ad.format_target(row.pred_dealer_share, "dealer_share"),
+                ad.format_target(row.pred_indirect_share, "indirect_share"),
+                ad.format_target(row.pred_tail_bp, "tail_bp"),
+            ]
+        rows.append(cells)
+    right = {2, 3, 4, 5} | ({7, 8, 9} if more else set())
+    return table(headers, rows, right=right, wrap={2})  # « (est.) » passe à la ligne si besoin
 
 
 def chart(figure: go.Figure, height: int = 380, container: object = st) -> None:
