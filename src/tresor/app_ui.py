@@ -14,10 +14,13 @@ from tresor import live
 from tresor.config import CLEAN_DIR, GITHUB_REPOSITORY, NEW_YORK_TZ, OUTPUT_DIR
 from tresor.sources.collect import FETCH_STATUS_FILE
 
-# Couleurs du plan : principale et alerte. Les graphiques à plusieurs séries reprennent la
-# palette validée des figures du rapport (lisible par les daltoniens).
-PRIMARY = "#1F4E79"
+# Couleurs : bleu marine d'Imoframe (proche du #1F4E79 du plan) et alerte du plan. Les
+# graphiques à plusieurs séries reprennent la palette validée des figures du rapport (lisible
+# par les daltoniens).
+PRIMARY = "#172A45"
 ALERT = "#C8553D"
+SOFT_TEXT = "rgba(17, 17, 17, 0.55)"
+CARD = "#F0F0EF"
 SERIES = ("#2a78d6", "#eb6834")
 MUTED = "#8a897f"
 GRID = "#e4e3df"
@@ -94,6 +97,49 @@ def style(figure: go.Figure, height: int = 380) -> go.Figure:
     figure.update_xaxes(gridcolor=GRID, zeroline=False)
     figure.update_yaxes(gridcolor=GRID, zerolinecolor=MUTED)
     return figure
+
+
+PAGE_CSS = f"""
+<style>
+h1, h2, h3 {{ letter-spacing: -0.02em; }}
+.tr-hero h1 {{ font-size: clamp(2.1rem, 5vw, 3.4rem); line-height: 1.05; letter-spacing: -0.045em;
+  margin: 0 0 0.9rem 0; padding: 0; font-weight: 500; }}
+.tr-hero h1 .tr-soft {{ color: rgba(17, 17, 17, 0.38); }}
+.tr-hero p {{ font-size: 1.1rem; color: {SOFT_TEXT}; max-width: 46rem; margin: 0; }}
+.tr-steps {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem; margin: 0.5rem 0 0.5rem 0; }}
+.tr-step {{ background: {CARD}; padding: 1.1rem 1.2rem; }}
+.tr-step .tr-number {{ color: rgba(17, 17, 17, 0.32); font-size: 0.85rem; }}
+.tr-step h4, .tr-card h4 {{ margin: 0.15rem 0 0.35rem 0; padding: 0; font-weight: 500;
+  font-size: 1.2rem; letter-spacing: -0.01em; }}
+.tr-step p, .tr-card p {{ margin: 0; color: {SOFT_TEXT}; font-size: 0.95rem; line-height: 1.45; }}
+.tr-cards {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem; margin: 0.5rem 0 0.5rem 0; }}
+.tr-card {{ background: {CARD}; padding: 1rem 1.1rem 1.1rem 1.1rem; }}
+.tr-card .tr-date {{ color: {SOFT_TEXT}; font-size: 0.85rem; }}
+.tr-badge {{ display: inline-block; padding: 0.2rem 0.55rem; margin: 0.15rem 0 0.55rem 0;
+  font-size: 0.85rem; font-weight: 600; }}
+.tr-weak {{ background: {ALERT}; color: #FFFFFF; }}
+.tr-strong {{ background: {PRIMARY}; color: #FFFFFF; }}
+.tr-normal {{ background: #E4E3DF; color: #111111; }}
+.tr-panel {{ background-color: {PRIMARY}; color: #FFFFFF; padding: 1.4rem 1.5rem;
+  background-image: radial-gradient(120% 150% at 0% 0%, rgba(120, 150, 205, 0.42) 0%,
+  rgba(60, 90, 150, 0.16) 38%, rgba(23, 42, 69, 0) 68%); }}
+.tr-panel h4 {{ color: #FFFFFF; margin: 0 0 0.4rem 0; padding: 0; font-weight: 500; }}
+.tr-panel p {{ color: rgba(255, 255, 255, 0.85); margin: 0 0 0.3rem 0; }}
+.tr-facts {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.75rem; }}
+.tr-fact {{ border-top: 1px solid #D9D8D3; padding-top: 0.8rem; }}
+.tr-fact .tr-value {{ font-family: Inter, sans-serif; font-size: 2rem; font-weight: 500;
+  letter-spacing: -0.03em; line-height: 1.1; }}
+.tr-fact p {{ color: {SOFT_TEXT}; margin: 0.3rem 0 0 0; font-size: 0.95rem; }}
+</style>
+"""
+
+
+def page_style() -> None:
+    """Classes CSS des blocs de la page d'accueil (cartes, étapes, chiffres), style Imoframe."""
+    st.markdown(PAGE_CSS, unsafe_allow_html=True)
 
 
 def chart(figure: go.Figure, height: int = 380, container: object = st) -> None:

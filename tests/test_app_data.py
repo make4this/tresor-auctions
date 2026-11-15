@@ -314,3 +314,61 @@ def test_fetch_table_puts_failures_first_and_survives_bad_files() -> None:
     for broken in ({}, {"sources": "rien"}, {"sources": None}):
         assert ad.fetch_table(broken).empty
         assert ad.failed_sources(broken) == []
+
+
+def test_home_cards_say_it_simply() -> None:
+    table = pd.DataFrame(
+        {
+            "auction_date": pd.to_datetime(["2026-11-16", "2026-11-18"]),
+            "title": ["13 semaines", "20 ans"],
+            "family": ["bill", "nominal_coupon"],
+            "offering_amt": [95e9, 16e9],
+            "offering_estimated": [0, 1],
+            "signal": [ad.WEAK, "–"],
+            "pred_btc": [2.79, 2.52],
+            "bench_mean3_btc": [2.87, float("nan")],
+        }
+    )
+
+    first, second = ad.home_cards(table)
+
+    assert first["badge"] == "Demande plus faible" and first["css"] == "tr-weak"
+    assert first["sentence"] == (
+        "Bid-to-cover prévu : 2,79, contre 2,87 en moyenne aux 3 dernières enchères de même durée."
+    )
+    assert first["amount"] == "95\xa0Md$" and first["family"] == "Bills"
+    assert second["badge"] == "Pas de comparaison possible"
+    assert "pas de moyenne des 3 dernières" in second["sentence"]
+    assert second["amount"].endswith("(estimé)")
+
+
+def test_key_facts_refuse_unexpected_files() -> None:
+    metrics = pd.DataFrame(
+        {
+            "model": "moyenne_5",
+            "feature_set": "toutes",
+            "period": "2020-2026",
+            "family": ["nominal_coupon", "bill"],
+            "target": "btc",
+            "r2_vs_mean3": [0.1, 0.2],
+            "r2_ci_low": 0.0,
+            "r2_ci_high": 0.3,
+            "r2_vs_constant": 0.5,
+            "direction": 0.6,
+        }
+    )
+    summary = pd.DataFrame({"period": ["2020-2026"], "rule": ["strategie"], "mean_bp": [-1.4]})
+    quintiles = pd.DataFrame(
+        {
+            "period": ["2009-2026"],
+            "surprise": ["bid_to_cover"],
+            "quintile": [5],
+            "rate_change_mean_bp": [2.0],
+        }  # fmt: skip
+    )
+
+    facts = ad.key_facts(metrics, summary, quintiles)
+
+    assert facts == {"r2_coupons": 0.1, "r2_bills": 0.2, "weak_move_bp": 2.0, "strategy_bp": -1.4}
+    with pytest.raises(ValueError):
+        ad.key_facts(metrics, pd.concat([summary, summary]), quintiles)

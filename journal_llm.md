@@ -1201,3 +1201,41 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 **À décider par moi :** `PLAN.md` cite « une première version en R » et des appels d'API faits le 3 novembre. Si un LLM m'a aidé pour cela, il faut le dire dans la synthèse.
 
 **Résultat vérifié :** 353 tests réussis, `ruff check .` et `ruff format --check .` propres. `python reports/make_figures.py --check` : 79 chiffres recalculés, 0 erreur.
+
+## Après la phase 11 — Une interface plus simple, au style d'Imoframe (15 novembre 2026)
+
+**Ma demande :** l'application est bien faite, mais difficile à comprendre ; la simplifier et reprendre le style d'Imoframe (imoframe.com, mon autre projet). J'ai aussi demandé s'il fallait ajouter d'autres API.
+
+**Contexte donné par moi :** l'oral du 18 novembre demande une bonne base ; le projet se rend le 31 décembre et sera affiné d'ici là.
+
+**Réponse du LLM sur les données :** le projet n'utilise pas seulement la Fed. Il lit 11 tables publiques sur 7 sites : Fiscal Data, TreasuryDirect et Treasury.gov (Trésor américain), Fed de New York, FRED (Fed de Saint-Louis), CFTC et CBOE. Seul FRED demande une clé.
+
+Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouvelle API ne se justifie que si elle est mesurée de la même façon : dates de publication vérifiées, puis validation relancée. C'est reporté après l'oral, dans le temps qui reste jusqu'au 31 décembre.
+
+**Ce que le LLM a produit :**
+
+- **Style d'Imoframe, relevé sur le site avec Chrome :**
+  - fond blanc cassé (#FAFAFA), cartes gris clair (#F0F0EF) ;
+  - bleu marine #172A45, avec un léger dégradé ;
+  - coins carrés ;
+  - titres Inter demi-gras et serrés, texte DM Sans gris doux.
+
+  Il est appliqué à toute l'application par `.streamlit/config.toml` (thème Streamlit) et par quelques classes CSS (`app_ui.page_style`). Le bleu marine remplace le #1F4E79 du plan, très proche ; la couleur d'alerte du plan est gardée.
+- **Nouvelle page d'accueil** (`app/vues/accueil.py`), en mots simples :
+  - un titre qui dit ce que fait le site ;
+  - trois étapes : collecter, prévoir, vérifier ;
+  - une carte par enchère à venir : date, durée, montant, « demande plus faible / dans la norme / plus forte » et une phrase avec les deux chiffres comparés. Les 6 premières sont affichées, les autres repliées ;
+  - un encadré « Comment lire une carte » ;
+  - trois chiffres clés lus dans les fichiers : −10 % d'erreur contre « comme les 3 dernières fois », +2,0 pb de hausse du taux quand la demande est la plus faible, −1,4 pb par opération pour la stratégie ;
+  - des liens vers les pages détaillées.
+- **Navigation :** les 6 pages existantes, inchangées, sont regroupées sous « Pour aller plus loin ».
+- **Tests :** la carte de chaque enchère, les chiffres de l'accueil comparés aux fichiers, l'accueil sans enchère annoncée, et la prévision provisoire, désormais sur la page des prochaines enchères.
+
+**Vérifié par le LLM dans le navigateur :** l'accueil à la taille d'un ordinateur et d'un téléphone, la page Backtest et la page des prochaines enchères avec le nouveau thème.
+
+**Résultat vérifié :** 358 tests réussis, `ruff check .` et `ruff format --check .` propres.
+
+**Reste à faire d'ici le 31 décembre :**
+
+- réécrire les pages détaillées dans le même langage simple ;
+- chercher, mesurer, puis garder ou non de nouvelles sources de données.

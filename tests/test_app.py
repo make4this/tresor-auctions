@@ -59,13 +59,57 @@ def test_each_page_runs(name: str, title: str) -> None:
     assert app.title[0].value == title
 
 
-def test_the_main_app_opens_on_the_upcoming_auctions() -> None:
+def test_the_main_app_opens_on_the_home_page() -> None:
     app = main().run()
 
     assert not app.exception, app.exception
-    assert app.title[0].value == "Prochaines enchères"
+    assert any("Les enchères du Trésor américain" in m.value for m in app.markdown)
     assert any(button.label == "Mettre à jour maintenant" for button in app.button)
     assert any("pas un conseil en investissement" in c.value for c in app.sidebar.caption)
+
+
+def home_html(app: AppTest) -> str:
+    return "\n".join(m.value for m in app.markdown)
+
+
+def test_the_home_page_shows_one_card_per_upcoming_auction(today: pd.Timestamp) -> None:
+    log = pd.read_parquet(OUTPUT_DIR / "predictions_log.parquet")
+    auctions = pd.read_parquet(CLEAN_DIR / "auctions.parquet")
+    cards = ad.home_cards(ad.upcoming_table(log, auctions, today))
+
+    app = main().run()  # l'accueil a besoin de la navigation (liens vers les autres pages)
+    html = home_html(app)
+
+    assert not app.exception, app.exception
+    assert html.count('class="tr-card"') == len(cards) > 0  # les 6 premières et les autres
+    for card in cards:
+        assert card["sentence"] in html and card["badge"] in html
+    if len(cards) > 6:
+        assert any(f"Voir les {len(cards) - 6} autres" in e.label for e in app.expander)
+
+
+def test_the_home_page_numbers_come_from_the_files() -> None:
+    facts = ad.key_facts(
+        pd.read_csv(OUTPUT_DIR / "backtest_metrics.csv"),
+        pd.read_csv(OUTPUT_DIR / "strategy_summary.csv"),
+        pd.read_csv(OUTPUT_DIR / "quintiles.csv"),
+    )
+
+    html = home_html(main().run())
+
+    assert ad.fr(-facts["r2_coupons"] * 100, 0, sign=True, suffix=" %") in html
+    assert ad.fr(-facts["r2_bills"] * 100, 0, sign=True, suffix=" %") in html
+    assert f"{ad.fr(facts['weak_move_bp'], 1, sign=True)} pb" in html
+    assert f"{ad.fr(facts['strategy_bp'], 1, sign=True)} pb" in html
+
+
+def test_the_home_page_without_upcoming_auction(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ad, "upcoming_table", lambda *args, **kwargs: pd.DataFrame())
+
+    app = main().run()
+
+    assert not app.exception, app.exception
+    assert any("Aucune enchère" in info.value for info in app.info)
 
 
 def test_the_upcoming_table_shows_the_reference_model_from_today(today: pd.Timestamp) -> None:
@@ -269,6 +313,8 @@ def test_the_update_button_shows_a_provisional_prediction(
     monkeypatch.setattr(refresh, "light_refresh", lambda: (provisional, None))
 
     app = click_update(main().run())
+    assert any("Prévision provisoire calculée" in s.value for s in app.sidebar.success)
+    app.switch_page("vues/prochaines.py").run()  # la prévision provisoire est sur cette page
 
     assert not app.exception, app.exception
     assert "provisional" in app.session_state
@@ -280,7 +326,6 @@ def test_the_update_button_shows_a_provisional_prediction(
         today,
     )
     assert list(fresh["Bid-to-cover prévu"]) == [ad.fr(v, 2) for v in expected["pred_btc"]]
-    assert any("Prévision provisoire calculée" in s.value for s in app.sidebar.success)
 
 
 @pytest.mark.parametrize(

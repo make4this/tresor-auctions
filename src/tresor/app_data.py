@@ -341,3 +341,64 @@ def backtest_r2(metrics: pd.DataFrame, period: str = "2020-2026") -> pd.DataFram
     ]
     columns = ["r2_vs_mean3", "r2_ci_low", "r2_ci_high", "r2_vs_constant", "direction"]
     return data[["family", "target", *columns]]
+
+
+# --- Page d'accueil : les mêmes informations, en mots simples ---------------------------------
+
+BADGES = {WEAK: ("Demande plus faible", "tr-weak"), STRONG: ("Demande plus forte", "tr-strong"),
+          NORMAL: ("Demande dans la norme", "tr-normal")}  # fmt: skip
+
+
+def home_cards(table: pd.DataFrame) -> list[dict[str, str]]:
+    """Une carte par enchère à venir : date, titre, montant, signal et une phrase simple.
+
+    `table` : le résultat de `upcoming_table`. Les dates restent des Timestamp : la page les
+    écrit en français.
+    """
+    cards = []
+    for row in table.itertuples():
+        badge, css = BADGES.get(row.signal, ("Pas de comparaison possible", "tr-normal"))
+        predicted = fr(row.pred_btc, 2)
+        if pd.isna(row.bench_mean3_btc):
+            sentence = f"Bid-to-cover prévu : {predicted}. Première enchère de sa série : pas de"
+            sentence += " moyenne des 3 dernières pour comparer."
+        else:
+            sentence = (
+                f"Bid-to-cover prévu : {predicted}, contre {fr(row.bench_mean3_btc, 2)} en"
+                " moyenne aux 3 dernières enchères de même durée."
+            )
+        amount = fr(row.offering_amt / 1e9, 0, suffix=" Md$")
+        cards.append(
+            {
+                "date": row.auction_date,
+                "title": row.title,
+                "family": FAMILY_LABELS.get(row.family, row.family),
+                "amount": amount + (" (estimé)" if row.offering_estimated else ""),
+                "badge": badge,
+                "css": css,
+                "sentence": sentence,
+            }
+        )
+    return cards
+
+
+def key_facts(
+    metrics: pd.DataFrame, summary: pd.DataFrame, quintiles: pd.DataFrame
+) -> dict[str, float]:
+    """Les trois chiffres de la page d'accueil, lus dans les fichiers du backtest et de la
+    stratégie (les mêmes que dans reports/chiffres_cles.md)."""
+    r2 = backtest_r2(metrics).set_index(["family", "target"])["r2_vs_mean3"]
+    strategy = summary[(summary["period"] == "2020-2026") & (summary["rule"] == "strategie")]
+    weakest = quintiles[
+        (quintiles["period"] == "2009-2026")
+        & (quintiles["surprise"] == "bid_to_cover")
+        & (quintiles["quintile"] == 5)
+    ]
+    if len(strategy) != 1 or len(weakest) != 1:
+        raise ValueError("fichiers de stratégie ou de quintiles inattendus")
+    return {
+        "r2_coupons": float(r2.loc[("nominal_coupon", "btc")]),
+        "r2_bills": float(r2.loc[("bill", "btc")]),
+        "weak_move_bp": float(weakest["rate_change_mean_bp"].iloc[0]),
+        "strategy_bp": float(strategy["mean_bp"].iloc[0]),
+    }
