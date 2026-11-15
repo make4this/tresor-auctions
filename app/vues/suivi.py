@@ -1,4 +1,4 @@
-"""Page 2 : suivi en direct, prévu contre réalisé."""
+"""Page « Live track record » : chaque prévision figée face au résultat publié."""
 
 from __future__ import annotations
 
@@ -9,30 +9,25 @@ import streamlit as st
 from tresor import app_data as ad
 from tresor import app_ui as ui
 
-st.title("Suivi en direct")
+st.title("Live track record")
 st.caption(
-    "Chaque prévision figée est comparée au résultat publié par le Trésor, et à la moyenne des"
-    " 3 dernières enchères de même maturité (le benchmark à battre). Prévisions de la moyenne"
-    " des 5 modèles."
+    "Each frozen forecast is compared with the result published by the Treasury, and with the"
+    " average of the last 3 auctions of the same maturity, the benchmark to beat."
 )
 
 tracking = ui.parquet("live_tracking.parquet")
 counts = ad.live_summary(tracking)
 columns = st.columns(4)
-columns[0].metric("Enchères suivies", counts["suivies"])
-columns[1].metric("Réalisées", counts["realisees"])
-columns[2].metric("En attente", counts["en_attente"])
-columns[3].metric("Sans résultat", counts["sans_resultat"], help="Date passée sans résultat :"
-                  " enchère déplacée, annulée, ou résultat pas encore collecté.")  # fmt: skip
+columns[0].metric("Auctions tracked", counts["suivies"])
+columns[1].metric("Results in", counts["realisees"])
+columns[2].metric("Waiting", counts["en_attente"])
+columns[3].metric("No result", counts["sans_resultat"], help="Date passed without a result:"
+                  " auction moved or cancelled, or result not collected yet.")  # fmt: skip
 
 target = st.segmented_control(
-    "Cible",
-    list(ad.TARGET_LABELS),
-    default="btc",
-    format_func=lambda name: ad.TARGET_LABELS[name].split(" (")[0],
+    "Measure", list(ad.TARGET_LABELS), default="btc", format_func=ad.TARGET_LABELS.get,
     required=True,
-)
-target = target or "btc"
+) or "btc"  # fmt: skip
 scale = 100 if target in ("dealer_share", "indirect_share") else 1
 done = ad.live_results(tracking, target)
 
@@ -44,69 +39,65 @@ def shown(values: pd.Series, sign: bool = False) -> pd.Series:
 if done.empty:
     pending = tracking[(tracking["model"] == "moyenne_5") & (tracking["status"] == "en_attente")]
     if counts["realisees"]:
-        st.info("Des enchères ont eu lieu, mais aucun résultat n'est publié pour cette cible.")
+        st.info("Some auctions have taken place, but no result is published for this measure.")
     else:
         first = pending["auction_date"].min()
-        when = f" ({ui.date_fr(first)})" if pd.notna(first) else ""
+        when = f" ({ui.date_en(first)})" if pd.notna(first) else ""
         st.info(
-            f"Aucune enchère suivie n'a encore eu lieu. Les premiers résultats apparaîtront ici"
-            f" après la première enchère suivie{when}, à la mise à jour du soir. La page"
-            " « Backtest » montre la même comparaison sur 2014-2026."
+            f"No tracked auction has taken place yet. Results will appear here after the first"
+            f" one{when}, with the evening update. *Model performance* shows the same comparison"
+            " over 2014-2026."
         )
 else:
     left, right = st.columns(2)
     figure = go.Figure()
     low = min(done["actual"].min(), done["pred"].min()) * scale
     high = max(done["actual"].max(), done["pred"].max()) * scale
-    figure.add_scatter(x=[low, high], y=[low, high], mode="lines", name="Prévision parfaite",
+    figure.add_scatter(x=[low, high], y=[low, high], mode="lines", name="Perfect forecast",
                        line={"color": ui.MUTED, "dash": "dot", "width": 1})  # fmt: skip
     figure.add_scatter(
         x=done["pred"] * scale,
         y=done["actual"] * scale,
         mode="markers",
-        name="Moyenne des 5",
+        name="5-model average",
         marker={"color": ui.SERIES[0], "size": 9},
-        text=[ui.date_fr(day) for day in done["auction_date"]],
-        hovertemplate="%{text}<br>prévu %{x:.2f}<br>réalisé %{y:.2f}<extra></extra>",
+        text=[ui.date_en(day) for day in done["auction_date"]],
+        hovertemplate="%{text}<br>forecast %{x:.2f}<br>actual %{y:.2f}<extra></extra>",
     )
     figure.add_scatter(
         x=done["bench_mean3"] * scale,
         y=done["actual"] * scale,
         mode="markers",
-        name="Moyenne des 3 dernières",
+        name="Last-3 average",
         marker={"color": ui.SERIES[1], "size": 8, "symbol": "diamond"},
-        hovertemplate="moyenne des 3 %{x:.2f}<br>réalisé %{y:.2f}<extra></extra>",
+        hovertemplate="last-3 average %{x:.2f}<br>actual %{y:.2f}<extra></extra>",
     )
-    unit = " (%)" if scale == 100 else (" (pb)" if target == "tail_bp" else "")
-    figure.update_layout(title="Prévu contre réalisé")
-    figure.update_xaxes(title=f"Prévu{unit}")
-    figure.update_yaxes(title=f"Réalisé{unit}")
+    unit = " (%)" if scale == 100 else (" (bp)" if target == "tail_bp" else "")
+    figure.update_layout(title="Forecast versus actual")
+    figure.update_xaxes(title=f"Forecast{unit}")
+    figure.update_yaxes(title=f"Actual{unit}")
     ui.chart(figure, container=left)
     figure = go.Figure()
     line = {"color": ui.SERIES[0], "width": 2}
     figure.add_scatter(x=done["auction_date"], y=done["gain"] * 100, mode="lines+markers",
-                       name="Gain cumulé", line=line)  # fmt: skip
-    figure.update_layout(
-        title="Gain cumulé contre la moyenne des 3 dernières, en % de son erreur totale",
-        showlegend=False,
-    )
-    figure.update_yaxes(ticksuffix=" %")
+                       name="Cumulative gain", line=line)  # fmt: skip
+    figure.update_layout(title="Cumulative gain versus the last-3 average", showlegend=False)
+    figure.update_yaxes(ticksuffix="%")
     ui.chart(figure, container=right)
     st.caption(
-        "Gain cumulé : somme des (réel − moyenne des 3)² − (réel − prévu)², rapportée à l'erreur"
-        " totale de la moyenne des 3. Au-dessus de 0, la prévision fait mieux ; la courbe finit"
-        " au R² du suivi en direct."
+        "Cumulative gain: how much smaller the forecast's squared errors are than those of the"
+        " last-3 average, as a share of the latter. Above 0, the forecast does better."
     )
     st.dataframe(
         pd.DataFrame(
             {
-                "Date": [ui.date_fr(day) for day in done["auction_date"]],
-                "Enchère": [ad.MATURITY_LABELS.get(b, b) for b in done["maturity_bucket"]],
-                "Prévu": shown(done["pred"]),
-                "Moyenne des 3 dernières": shown(done["bench_mean3"]),
-                "Réalisé": shown(done["actual"]),
-                "Erreur de la prévision": shown(done["error"], sign=True),
-                "Erreur de la moyenne des 3": shown(done["bench_error"], sign=True),
+                "Date": [ui.date_en(day) for day in done["auction_date"]],
+                "Auction": [ad.MATURITY_LABELS.get(b, b) for b in done["maturity_bucket"]],
+                "Forecast": shown(done["pred"]),
+                "Last-3 average": shown(done["bench_mean3"]),
+                "Actual": shown(done["actual"]),
+                "Forecast error": shown(done["error"], sign=True),
+                "Last-3 average error": shown(done["bench_error"], sign=True),
             }
         ),
         hide_index=True,
@@ -116,19 +107,19 @@ else:
 waiting = tracking[(tracking["model"] == "moyenne_5") & (tracking["status"] != "realisee")]
 waiting = waiting[waiting["target"] == target].sort_values("auction_date")
 if not waiting.empty:
-    st.subheader("Prévisions en attente de résultat")
+    st.subheader("Forecasts waiting for a result")
     st.dataframe(
         pd.DataFrame(
             {
-                "Date": [ui.date_fr(day) for day in waiting["auction_date"]],
-                "Enchère": [ad.MATURITY_LABELS.get(b, b) for b in waiting["maturity_bucket"]],
-                "Prévu": shown(waiting["pred"]),
-                "Moyenne des 3 dernières": shown(waiting["bench_mean3"]),
-                "Statut": waiting["status"].map(
-                    {"en_attente": "en attente", "sans_resultat": "sans résultat"}
+                "Date": [ui.date_en(day) for day in waiting["auction_date"]],
+                "Auction": [ad.MATURITY_LABELS.get(b, b) for b in waiting["maturity_bucket"]],
+                "Forecast": shown(waiting["pred"]),
+                "Last-3 average": shown(waiting["bench_mean3"]),
+                "Status": waiting["status"].map(
+                    {"en_attente": "waiting", "sans_resultat": "no result"}
                 ),
-                "Prévu le (New York)": [
-                    ui.date_fr(t.tz_convert("America/New_York")) for t in waiting["predicted_at"]
+                "Forecast made on": [
+                    ui.date_en(t.tz_convert("America/New_York")) for t in waiting["predicted_at"]
                 ],
             }
         ),

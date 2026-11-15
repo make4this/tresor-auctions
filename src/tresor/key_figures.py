@@ -21,9 +21,9 @@ import pandas as pd
 
 from tresor import features as ft
 from tresor import live
-from tresor.app_data import SOURCE_LABELS, fr
 from tresor.config import DATA_DIR
 from tresor.features import NEW_SOURCE_GROUPS
+from tresor.formats import fr
 
 FIXED, DAILY = "figé", "du jour"
 FAMILIES = {"nominal_coupon": "notes et bonds", "bill": "bills"}
@@ -38,6 +38,20 @@ EVALUATION = "2020-2026"  # période de jugement ; 2014-2019 sert au choix du me
 DELAYS_SINCE = "2014-01-01"  # délais de publication mesurés sur la période du walk-forward
 DOLLAR_INDEX = ("fred_dtwexb", "fred_dtwexbgs")
 HEADER = ["Chiffre", "Valeur", "Nature", "Fichier", "Calcul"]
+# Noms des sources en français, pour le rapport (l'application les écrit en anglais).
+SOURCE_LABELS = {
+    "fiscaldata_auctions": "Fiscal Data : adjudications",
+    "treasurydirect_recent": "TreasuryDirect : résultats récents",
+    "treasurydirect_upcoming": "TreasuryDirect : calendrier",
+    "treasury_yield_curve": "Treasury.gov : courbe des taux",
+    "treasury_bill_rates": "Treasury.gov : taux des bills",
+    "cboe_vix": "CBOE : VIX",
+    "fiscaldata_debt": "Fiscal Data : dette",
+    "fiscaldata_cash_balance": "Fiscal Data : trésorerie",
+    "nyfed_dealer_positions": "New York Fed : positions des dealers",
+    "cftc_positions": "CFTC : positions sur les futures",
+    "fred_series": "FRED : séries macroéconomiques",
+}
 STAMP = "Données utilisées : "
 
 DATA = "Données (`--fetch`, `--clean`)"

@@ -22,7 +22,6 @@ if str(ROOT / "src") not in sys.path:  # utilisable sans installer le paquet
 import pandas as pd  # noqa: E402
 
 from tresor import key_figures, plots  # noqa: E402
-from tresor.app_data import SOURCE_LABELS  # noqa: E402
 from tresor.config import DATA_DIR, FIGURES_DIR  # noqa: E402
 from tresor.strategy import COST_BP  # noqa: E402
 
@@ -36,7 +35,7 @@ def make_figures(data_dir: Path = DATA_DIR, figures_dir: Path = FIGURES_DIR) -> 
     quintiles = pd.read_csv(output / "quintiles.csv")
     market = pd.read_parquet(data_dir / "clean" / "market.parquet")
     return [
-        plots.source_coverage(quality, SOURCE_LABELS, figures_dir),
+        plots.source_coverage(quality, key_figures.SOURCE_LABELS, figures_dir),
         plots.auctions_by_year(
             pd.read_csv(output / "auctions_by_family_year.csv"),
             key_figures.auctions_overview(data_dir),

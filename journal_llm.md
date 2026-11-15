@@ -1240,3 +1240,25 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
 
 - réécrire les pages détaillées dans le même langage simple ;
 - chercher, mesurer, puis garder ou non de nouvelles sources de données.
+
+## Site en anglais, plus simple (15 novembre 2026)
+
+**Ma demande :** tout le site en anglais ; retirer les textes annexes de la barre latérale et de la page Méthodologie (explication du bouton, mention « projet étudiant », lien vers le code, section « Usage des LLM », versions des bibliothèques) ; un site facile à comprendre, plus simple et plus professionnel.
+
+**Ce que le LLM a produit :**
+
+- **Tous les textes du site en anglais**, nombres et dates à l'anglaise (« 2.79 », « $95bn », « Mon, Nov 16, 2026, 3:31 PM ET »). Les pages ont été renommées : Home, Upcoming auctions, Live track record, Model performance, History, Data quality, Methodology.
+- **Des explications plus courtes** sur chaque page.
+- **Une barre latérale réduite** à la date de mise à jour, à une alerte quand une source n'a pas pu être téléchargée, et au bouton « Refresh now », dont l'explication passe dans une bulle d'aide.
+- **Une page Methodology** sans la section sur les LLM ni les versions. Ses chiffres sont lus dans les fichiers au lieu d'être écrits à la main.
+- **Le rapport reste en français :** les figures et `reports/chiffres_cles.md` ne changent pas (`--check` : 79 chiffres, 0 erreur). Les noms des sources en français sont désormais dans `key_figures.py`, et la mise en forme des nombres (française et anglaise) est dans `formats.py`.
+
+**Choix du LLM, à valider par moi :** une ligne discrète reste en bas de l'accueil : « Academic project (emlyon business school, 2026). Not investment advice. » Le signal ressemble à une recommandation, et cette mention, d'usage sur un site financier, évite de le prendre pour un conseil.
+
+**Usage des LLM :** il n'est plus mentionné sur le site, mais la règle du cours reste respectée par ce journal et par le README, qui le disent en tête.
+
+**Correction faite en passant :** la traduction de la page Model performance reliait par deux-points deux constats indépendants (« même en connaissant le résultat, on gagne peu » et « la partie prévisible de la demande ne fait pas bouger les taux »). C'est l'erreur relevée lors de la vérification de la phase 9 ; ce sont de nouveau deux phrases séparées.
+
+**Vérifié par le LLM dans le navigateur :** les 7 pages à la taille d'un ordinateur, et l'accueil à la taille d'un téléphone.
+
+**Résultat vérifié :** 361 tests réussis, `ruff check .` et `ruff format --check .` propres.

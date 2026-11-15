@@ -7,30 +7,44 @@ import pandas as pd
 import pytest
 
 from tresor import app_data as ad
+from tresor.formats import en, fr
 
 NBSP, MINUS = " ", "−"
 
 
-def test_french_numbers() -> None:
-    assert ad.fr(1234.5, 1) == f"1{NBSP}234,5"
-    assert ad.fr(-0.08, 2, sign=True) == f"{MINUS}0,08"
-    assert ad.fr(0.0632, 3, sign=True) == "+0,063"
-    assert ad.fr(95, 0, suffix=" Md$") == f"95{NBSP}Md$"  # pas de retour à la ligne avant l'unité
-    assert ad.fr(-0.3, 0) == "0"  # pas de « −0 »
-    assert ad.fr(np.nan) == "–"
+def test_numbers_for_the_report_and_the_site() -> None:
+    """Rapport : nombres à la française ; site : à l'anglaise."""
+    assert fr(1234.5, 1) == f"1{NBSP}234,5"
+    assert fr(-0.08, 2, sign=True) == f"{MINUS}0,08"
+    assert fr(95, 0, suffix=" Md$") == f"95{NBSP}Md$"  # pas de retour à la ligne avant l'unité
+    assert en(1234.5, 1) == "1,234.5"
+    assert en(-0.08, 2, sign=True) == f"{MINUS}0.08"
+    assert en(0.0632, 3, sign=True) == "+0.063"
+    assert en(2.9, 1, suffix=" bp") == f"2.9{NBSP}bp"
+    for formatter in (fr, en):
+        assert formatter(-0.3, 0) == "0"  # pas de « −0 »
+        assert formatter(np.nan) == "–"
 
 
 def test_values_in_their_unit() -> None:
-    assert ad.format_target(0.3327, "dealer_share") == f"33,3{NBSP}%"
-    assert ad.format_target(2.857, "tail_bp") == f"+2,9{NBSP}pb"
-    assert ad.format_target(2.7917, "btc") == "2,79"
+    assert ad.format_target(0.3327, "dealer_share") == "33.3%"
+    assert ad.format_target(2.857, "tail_bp") == f"+2.9{NBSP}bp"
+    assert ad.format_target(2.7917, "btc") == "2.79"
+    assert ad.amount(95e9) == "$95bn" and ad.amount(16e9, estimated=True) == "$16bn (est.)"
 
 
 def test_auction_titles() -> None:
-    assert ad.auction_title("10Y", "nominal_coupon", True) == "10 ans, réouverture"
-    assert ad.auction_title("20Y", "nominal_coupon", False) == "20 ans"
+    assert ad.auction_title("10Y", "nominal_coupon", True) == "10-year (reopening)"
+    assert ad.auction_title("20Y", "nominal_coupon", False) == "20-year"
     # Pour les bills, « réouverture » ne dit rien d'utile : non affiché.
-    assert ad.auction_title("13W", "bill", True) == "13 semaines"
+    assert ad.auction_title("13W", "bill", True) == "13-week"
+
+
+def test_feature_names_are_readable() -> None:
+    assert ad.feature_label("vix") == "VIX"
+    assert ad.feature_label("btc_mean3") == "Bid-to-cover (average of last 3)"
+    assert ad.feature_label("dealer_share_lag1") == "Dealer share (last auction)"
+    assert ad.feature_label("inconnue") == "inconnue"
 
 
 @pytest.mark.parametrize(
@@ -103,10 +117,10 @@ def test_upcoming_table_keeps_today_and_later_with_the_reference_model() -> None
 
     assert list(table["cusip"]) == ["B", "C", "E", "D"]  # par date, puis par maturité
     assert list(table["title"]) == [
-        "13 semaines",
-        "20 ans, réouverture",
-        "6 semaines",
-        "52 semaines",
+        "13-week",
+        "20-year (reopening)",
+        "6-week",
+        "52-week",
     ]
     assert table["pred_btc"].tolist() == pytest.approx([2.79, 2.53, 2.7, 3.0])  # pas le Lasso
     assert table["gap_btc"].tolist() == pytest.approx([-0.0816, -0.08, 0.09, 0.39])
@@ -131,7 +145,7 @@ def test_upcoming_table_keeps_auctions_missing_from_the_calendar() -> None:
     table = ad.upcoming_table(log_rows(), AUCTIONS.iloc[:1], pd.Timestamp("2026-11-13"))
 
     assert len(table) == 4
-    assert list(table["title"])[1] == "20 ans"  # réouverture inconnue : non affichée
+    assert list(table["title"])[1] == "20-year"  # réouverture inconnue : non affichée
 
 
 def backtest_rows() -> pd.DataFrame:
@@ -257,7 +271,7 @@ def test_quality_table() -> None:
         "last_date": "2026-11-12",
         "last_published": "2026-11-12",
         "business_days_since_last": 1,
-        "alerts": "aucune",
+        "alerts": "none",
     }
     assert table.iloc[1]["alerts"] == "retard" and pd.isna(table.iloc[1]["last_date"])
     assert ad.quality_table({}).empty
@@ -310,7 +324,7 @@ def test_fetch_table_puts_failures_first_and_survives_bad_files() -> None:
     assert list(table["source"]) == ["fred_series", "cboe_vix"]
     assert list(table["ok"]) == [False, True]
     assert table.loc[1, "error"] == ""
-    assert ad.failed_sources(status) == ["FRED : séries macroéconomiques"]
+    assert ad.failed_sources(status) == ["FRED: macro series"]
     for broken in ({}, {"sources": "rien"}, {"sources": None}):
         assert ad.fetch_table(broken).empty
         assert ad.failed_sources(broken) == []
@@ -320,7 +334,7 @@ def test_home_cards_say_it_simply() -> None:
     table = pd.DataFrame(
         {
             "auction_date": pd.to_datetime(["2026-11-16", "2026-11-18"]),
-            "title": ["13 semaines", "20 ans"],
+            "title": ["13-week", "20-year"],
             "family": ["bill", "nominal_coupon"],
             "offering_amt": [95e9, 16e9],
             "offering_estimated": [0, 1],
@@ -332,14 +346,15 @@ def test_home_cards_say_it_simply() -> None:
 
     first, second = ad.home_cards(table)
 
-    assert first["badge"] == "Demande plus faible" and first["css"] == "tr-weak"
+    assert first["badge"] == "Weaker demand" and first["css"] == "tr-weak"
     assert first["sentence"] == (
-        "Bid-to-cover prévu : 2,79, contre 2,87 en moyenne aux 3 dernières enchères de même durée."
+        "Expected bid-to-cover: 2.79, versus 2.87 on average over the last 3 auctions of the"
+        " same maturity."
     )
-    assert first["amount"] == "95\xa0Md$" and first["family"] == "Bills"
-    assert second["badge"] == "Pas de comparaison possible"
-    assert "pas de moyenne des 3 dernières" in second["sentence"]
-    assert second["amount"].endswith("(estimé)")
+    assert first["amount"] == "$95bn" and first["family"] == "Bills"
+    assert second["badge"] == "No comparison yet"
+    assert "no recent average to compare with" in second["sentence"]
+    assert second["amount"] == "$16bn (est.)"
 
 
 def test_key_facts_refuse_unexpected_files() -> None:

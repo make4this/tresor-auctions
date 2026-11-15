@@ -22,19 +22,19 @@ load_fresh("tresor", SOURCE)
 
 from tresor.app_ui import page_style, sidebar  # noqa: E402
 
-st.set_page_config(page_title="Adjudications du Trésor", page_icon="📈", layout="wide")
+st.set_page_config(page_title="US Treasury Auctions", page_icon="📈", layout="wide")
 
 # L'accueil explique l'essentiel en mots simples ; les pages détaillées sont regroupées.
-HOME = st.Page("vues/accueil.py", title="Accueil", icon=":material/home:", default=True)
+HOME = st.Page("vues/accueil.py", title="Home", icon=":material/home:", default=True)
 DETAILS = [
-    st.Page("vues/prochaines.py", title="Prochaines enchères", icon=":material/event:"),
-    st.Page("vues/suivi.py", title="Suivi en direct", icon=":material/fact_check:"),
-    st.Page("vues/backtest.py", title="Backtest", icon=":material/query_stats:"),
-    st.Page("vues/explorer.py", title="Explorer", icon=":material/show_chart:"),
-    st.Page("vues/qualite.py", title="Qualité des données", icon=":material/verified:"),
-    st.Page("vues/methodologie.py", title="Méthodologie", icon=":material/menu_book:"),
+    st.Page("vues/prochaines.py", title="Upcoming auctions", icon=":material/event:"),
+    st.Page("vues/suivi.py", title="Live track record", icon=":material/fact_check:"),
+    st.Page("vues/backtest.py", title="Model performance", icon=":material/query_stats:"),
+    st.Page("vues/explorer.py", title="History", icon=":material/show_chart:"),
+    st.Page("vues/qualite.py", title="Data quality", icon=":material/verified:"),
+    st.Page("vues/methodologie.py", title="Methodology", icon=":material/menu_book:"),
 ]
-PAGES = {"": [HOME], "Pour aller plus loin": DETAILS}
+PAGES = {"": [HOME], "More details": DETAILS}
 
 page = st.navigation(PAGES)
 page_style()

@@ -1,6 +1,7 @@
 """Données de l'application, préparées sans Streamlit (donc testables).
 
-Chaque fonction prend des tables déjà lues et renvoie une table prête à afficher.
+Chaque fonction prend des tables déjà lues et renvoie une table prête à afficher. Les textes
+affichés sont en anglais (application en ligne) ; les commentaires restent en français.
 """
 
 from __future__ import annotations
@@ -10,96 +11,160 @@ import pandas as pd
 
 from tresor import models as md
 from tresor.config import MODEL_SAMPLE_START, SIGNAL_THRESHOLD
+from tresor.formats import en
 
 SAMPLE_START = pd.Timestamp(MODEL_SAMPLE_START)
 
 MATURITY_LABELS = {
-    "2Y": "2 ans",
-    "3Y": "3 ans",
-    "5Y": "5 ans",
-    "7Y": "7 ans",
-    "10Y": "10 ans",
-    "20Y": "20 ans",
-    "30Y": "30 ans",
-    "4W": "4 semaines",
-    "6W": "6 semaines",
-    "8W": "8 semaines",
-    "13W": "13 semaines",
-    "17W": "17 semaines",
-    "26W": "26 semaines",
-    "52W": "52 semaines",
+    "2Y": "2-year",
+    "3Y": "3-year",
+    "5Y": "5-year",
+    "7Y": "7-year",
+    "10Y": "10-year",
+    "20Y": "20-year",
+    "30Y": "30-year",
+    "4W": "4-week",
+    "6W": "6-week",
+    "8W": "8-week",
+    "13W": "13-week",
+    "17W": "17-week",
+    "26W": "26-week",
+    "52W": "52-week",
 }
 MATURITY_ORDER = list(MATURITY_LABELS)
-FAMILY_LABELS = {"nominal_coupon": "Notes et bonds", "bill": "Bills"}
+FAMILY_LABELS = {"nominal_coupon": "Notes & bonds", "bill": "Bills"}
 TARGET_LABELS = {
     "btc": "Bid-to-cover",
-    "dealer_share": "Part des dealers",
-    "indirect_share": "Part des indirects",
-    "tail_bp": "Tail (écart au taux de la veille, pb)",
+    "dealer_share": "Dealer share",
+    "indirect_share": "Indirect share",
+    "tail_bp": "Tail",
 }
 SHORT_TARGETS = {
     "btc": "bid-to-cover",
-    "dealer_share": "part des dealers",
-    "indirect_share": "part des indirects",
+    "dealer_share": "dealer share",
+    "indirect_share": "indirect share",
     "tail_bp": "tail",
 }
-WEAK, STRONG, NORMAL = "plus faible", "plus forte", "dans la norme"
+WEAK, STRONG, NORMAL = "weaker", "stronger", "normal"
 SOURCE_LABELS = {
-    "fiscaldata_auctions": "Fiscal Data : adjudications",
-    "treasurydirect_recent": "TreasuryDirect : résultats récents",
-    "treasurydirect_upcoming": "TreasuryDirect : calendrier",
-    "treasury_yield_curve": "Treasury.gov : courbe des taux",
-    "treasury_bill_rates": "Treasury.gov : taux des bills",
-    "cboe_vix": "CBOE : VIX",
-    "fiscaldata_debt": "Fiscal Data : dette",
-    "fiscaldata_cash_balance": "Fiscal Data : trésorerie",
-    "nyfed_dealer_positions": "New York Fed : positions des dealers",
-    "cftc_positions": "CFTC : positions sur les futures",
-    "fred_series": "FRED : séries macroéconomiques",
+    "fiscaldata_auctions": "Fiscal Data: auction results",
+    "treasurydirect_recent": "TreasuryDirect: recent results",
+    "treasurydirect_upcoming": "TreasuryDirect: auction calendar",
+    "treasury_yield_curve": "Treasury.gov: yield curve",
+    "treasury_bill_rates": "Treasury.gov: bill rates",
+    "cboe_vix": "Cboe: VIX",
+    "fiscaldata_debt": "Fiscal Data: public debt",
+    "fiscaldata_cash_balance": "Fiscal Data: Treasury cash balance",
+    "nyfed_dealer_positions": "New York Fed: dealer positions",
+    "cftc_positions": "CFTC: futures positioning",
+    "fred_series": "FRED: macro series",
 }
 # Noms des lignes reçues dans le rapport de nettoyage des enchères.
 INPUT_LABELS = {
     "fiscaldata": "Fiscal Data",
-    "treasurydirect": "TreasuryDirect (récent)",
-    "treasurydirect_upcoming": "TreasuryDirect (calendrier)",
+    "treasurydirect": "TreasuryDirect (recent)",
+    "treasurydirect_upcoming": "TreasuryDirect (calendar)",
 }
 EXCLUSION_LABELS = {
-    "type_inconnu": "Type de titre inconnu",
-    "petite_emission_hors_calendrier": "Petite émission hors calendrier (moins de 1 Md$)",
-    "passee_sans_resultat": "Date passée sans résultat",
-    "future_hors_calendrier": "Date future absente du calendrier",
+    "type_inconnu": "Unknown security type",
+    "petite_emission_hors_calendrier": "Small off-calendar issue (under $1bn)",
+    "passee_sans_resultat": "Past date without a result",
+    "future_hors_calendrier": "Future date missing from the calendar",
 }
+MODEL_LABELS = {
+    "ridge": "Ridge",
+    "lasso": "Lasso",
+    "elasticnet": "ElasticNet",
+    "random_forest": "Random Forest",
+    "lightgbm": "LightGBM",
+    "moyenne_5": "5-model average",
+    "ridge_ecart": "Ridge (gap)",
+    "lasso_ecart": "Lasso (gap)",
+    "elasticnet_ecart": "ElasticNet (gap)",
+    "constante": "Constant",
+    "naive": "Naive (last auction)",
+}
+FEATURE_LABELS = {
+    "maturity_years": "Maturity (years)",
+    "is_reopening": "Reopening",
+    "log_offering": "Offering size (log)",
+    "offering_change": "Change in offering size",
+    "days_since_previous": "Days since previous auction",
+    "weekday": "Day of the week",
+    "refunding_month": "Refunding month",
+    "days_to_quarter_end": "Days to quarter end",
+    "is_quarter_end": "Quarter end",
+    "recent_relative_btc": "Recent demand (same family)",
+    "slope_10y_2y": "10y − 2y slope",
+    "rate_3m": "3-month rate",
+    "vix": "VIX",
+    "vix_chg_5d": "VIX, 5-day change",
+    "dollar_chg_20d": "Dollar, 20-day change",
+    "credit_spread_baa": "Baa credit spread",
+    "breakeven_10y": "10-year breakeven inflation",
+    "rate_level": "Yield of the maturity",
+    "rate_chg_5d": "Yield, 5-day change",
+    "rate_chg_20d": "Yield, 20-day change",
+    "rate_vol_20d": "Yield volatility, 20 days",
+    "debt_chg_30d": "Public debt, 30-day change",
+    "tga_chg_4w_bn": "Treasury cash, 4-week change",
+    "rrp_chg_4w_bn": "Reverse repo, 4-week change",
+    "fed_assets_chg_13w": "Fed balance sheet, 13-week change",
+    "dealer_total_z52": "Dealer positions, total (normalised)",
+    "dealer_net_z52": "Dealer positions, same maturity (normalised)",
+    "dealer_net_chg_4w_bn": "Dealer positions, same maturity, 4-week change",
+    "cftc_am_net_z52": "Asset managers (CFTC)",
+    "cftc_lev_net_z52": "Leveraged funds (CFTC)",
+}
+LAG_LABELS = {
+    "lag1": "last auction",
+    "lag2": "second-to-last auction",
+    "lag3": "third-to-last auction",
+    "mean3": "average of last 3",
+}
+RULE_LABELS = {
+    "strategie": "Strategy (5-model average)",
+    "toujours_vendeur": "Always short",
+    "information_parfaite": "Perfect foresight (impossible in practice)",
+}
+SURPRISE_LABELS = {
+    "part_des_dealers": "Dealer share surprise (actual − average of last 3)",
+    "bid_to_cover": "Bid-to-cover surprise (actual − average of last 3)",
+}
+# Crises du plafond de la dette, visibles sur les bills courts.
+DEBT_CEILING = {"Oct 2015": "2015-10-15", "Oct 2021": "2021-10-01", "May 2023": "2023-05-15"}
 
 
-def fr(value: float, decimals: int = 2, sign: bool = False, suffix: str = "") -> str:
-    """Nombre à la française : virgule décimale, espace insécable des milliers, vrai signe
-    moins ; « – » si la valeur manque. Un zéro arrondi ne garde pas de signe moins."""
-    if value is None or pd.isna(value):
-        return "–"
-    value = float(value)
-    if round(value, decimals) == 0:
-        value = 0.0
-    text = f"{value:{'+' if sign else ''},.{decimals}f}"
-    text = text.replace(",", " ").replace(".", ",").replace("-", "−")
-    if suffix.startswith(" "):
-        suffix = " " + suffix[1:]  # pas de retour à la ligne avant « % » ou « pb »
-    return text + suffix
+def feature_label(name: str) -> str:
+    """Nom lisible d'une variable, en anglais."""
+    if name in FEATURE_LABELS:
+        return FEATURE_LABELS[name]
+    target, _, kind = name.rpartition("_")
+    if target in TARGET_LABELS and kind in LAG_LABELS:
+        return f"{TARGET_LABELS[target]} ({LAG_LABELS[kind]})"
+    return name
 
 
 def format_target(value: float, target: str, sign: bool = False) -> str:
     """Valeur d'une cible dans son unité : bid-to-cover à 2 décimales, parts en %, tail en pb."""
     if target in ("dealer_share", "indirect_share"):
-        return fr(value * 100, 1, sign=sign, suffix=" %")
+        return en(value * 100, 1, sign=sign, suffix="%")
     if target == "tail_bp":
-        return fr(value, 1, sign=True, suffix=" pb")
-    return fr(value, 2, sign=sign)
+        return en(value, 1, sign=True, suffix=" bp")
+    return en(value, 2, sign=sign)
+
+
+def amount(value: float, estimated: bool = False) -> str:
+    """Montant d'une enchère, en milliards de dollars : « $95bn »."""
+    text = f"${en(value / 1e9, 0)}bn"
+    return text + (" (est.)" if estimated else "")
 
 
 def auction_title(bucket: str, family: str, reopening: bool) -> str:
-    """« 10 ans, réouverture ». Pour les bills, la réouverture n'apporte rien : non affichée."""
+    """« 10-year (reopening) ». Pour les bills, la réouverture n'apporte rien : non affichée."""
     label = MATURITY_LABELS.get(bucket, bucket)
     if family == "nominal_coupon" and bool(reopening):
-        return f"{label}, réouverture"
+        return f"{label} (reopening)"
     return label
 
 
@@ -302,7 +367,7 @@ def quality_table(quality: dict[str, object]) -> pd.DataFrame:
                 "last_date": source.get("last_date"),
                 "last_published": source.get("last_published"),
                 "business_days_since_last": source.get("business_days_since_last"),
-                "alerts": "; ".join(source.get("alerts", [])) or "aucune",
+                "alerts": "; ".join(source.get("alerts", [])) or "none",
             }
         )
     return pd.DataFrame(rows)
@@ -345,35 +410,34 @@ def backtest_r2(metrics: pd.DataFrame, period: str = "2020-2026") -> pd.DataFram
 
 # --- Page d'accueil : les mêmes informations, en mots simples ---------------------------------
 
-BADGES = {WEAK: ("Demande plus faible", "tr-weak"), STRONG: ("Demande plus forte", "tr-strong"),
-          NORMAL: ("Demande dans la norme", "tr-normal")}  # fmt: skip
+BADGES = {WEAK: ("Weaker demand", "tr-weak"), STRONG: ("Stronger demand", "tr-strong"),
+          NORMAL: ("Normal demand", "tr-normal")}  # fmt: skip
 
 
 def home_cards(table: pd.DataFrame) -> list[dict[str, str]]:
     """Une carte par enchère à venir : date, titre, montant, signal et une phrase simple.
 
     `table` : le résultat de `upcoming_table`. Les dates restent des Timestamp : la page les
-    écrit en français.
+    met en forme.
     """
     cards = []
     for row in table.itertuples():
-        badge, css = BADGES.get(row.signal, ("Pas de comparaison possible", "tr-normal"))
-        predicted = fr(row.pred_btc, 2)
+        badge, css = BADGES.get(row.signal, ("No comparison yet", "tr-normal"))
+        predicted = en(row.pred_btc, 2)
         if pd.isna(row.bench_mean3_btc):
-            sentence = f"Bid-to-cover prévu : {predicted}. Première enchère de sa série : pas de"
-            sentence += " moyenne des 3 dernières pour comparer."
+            sentence = f"Expected bid-to-cover: {predicted}. First auction of its series, so no"
+            sentence += " recent average to compare with."
         else:
             sentence = (
-                f"Bid-to-cover prévu : {predicted}, contre {fr(row.bench_mean3_btc, 2)} en"
-                " moyenne aux 3 dernières enchères de même durée."
+                f"Expected bid-to-cover: {predicted}, versus {en(row.bench_mean3_btc, 2)} on"
+                " average over the last 3 auctions of the same maturity."
             )
-        amount = fr(row.offering_amt / 1e9, 0, suffix=" Md$")
         cards.append(
             {
                 "date": row.auction_date,
                 "title": row.title,
                 "family": FAMILY_LABELS.get(row.family, row.family),
-                "amount": amount + (" (estimé)" if row.offering_estimated else ""),
+                "amount": amount(row.offering_amt, bool(row.offering_estimated)),
                 "badge": badge,
                 "css": css,
                 "sentence": sentence,

@@ -37,7 +37,7 @@ Les 11 phases du plan sont faites : collecte, nettoyage, variables point-in-time
 | `src/tresor/live.py`, `check_log.py` | modèles finaux, prévisions du soir et journal figé |
 | `src/tresor/models_store.py`, `refresh.py` | modèles déposés en ligne, bouton « Mettre à jour maintenant » |
 | `src/tresor/pipeline.py` | ligne de commande : `python -m tresor.pipeline --help` |
-| `app/` | application Streamlit : un accueil en mots simples et 6 pages détaillées |
+| `app/` | application Streamlit, en anglais : un accueil en mots simples et 6 pages détaillées |
 | `data/raw/`, `data/clean/`, `data/output/` | données brutes, nettoyées, et résultats, mis à jour chaque soir |
 | `reports/` | figures et chiffres clés pour le rapport et l'oral (`python reports/make_figures.py`) |
 | `tests/` | tests automatiques (sans réseau) |

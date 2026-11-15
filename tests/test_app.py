@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import json
-import platform
 from pathlib import Path
 
 import numpy as np
@@ -15,15 +14,16 @@ from streamlit.testing.v1 import AppTest
 from tresor import app_data as ad
 from tresor import app_ui, refresh
 from tresor.config import CLEAN_DIR, OUTPUT_DIR
+from tresor.formats import en
 
 APP = Path(__file__).resolve().parents[1] / "app"
 PAGES = {
-    "prochaines": "Prochaines enchères",
-    "suivi": "Suivi en direct",
-    "backtest": "Backtest",
-    "explorer": "Explorer",
-    "qualite": "Qualité des données",
-    "methodologie": "Méthodologie",
+    "prochaines": "Upcoming auctions",
+    "suivi": "Live track record",
+    "backtest": "Model performance",
+    "explorer": "History",
+    "qualite": "Data quality",
+    "methodologie": "Methodology",
 }
 TODAY = pd.Timestamp("2026-11-13")
 pytestmark = pytest.mark.skipif(
@@ -63,9 +63,10 @@ def test_the_main_app_opens_on_the_home_page() -> None:
     app = main().run()
 
     assert not app.exception, app.exception
-    assert any("Les enchères du Trésor américain" in m.value for m in app.markdown)
-    assert any(button.label == "Mettre à jour maintenant" for button in app.button)
-    assert any("pas un conseil en investissement" in c.value for c in app.sidebar.caption)
+    assert any("US Treasury auctions" in m.value for m in app.markdown)
+    assert any(button.label == "Refresh now" for button in app.button)
+    assert any("Not investment advice" in c.value for c in app.caption)
+    assert all("Academic project" not in c.value for c in app.sidebar.caption)  # barre sobre
 
 
 def home_html(app: AppTest) -> str:
@@ -85,7 +86,7 @@ def test_the_home_page_shows_one_card_per_upcoming_auction(today: pd.Timestamp) 
     for card in cards:
         assert card["sentence"] in html and card["badge"] in html
     if len(cards) > 6:
-        assert any(f"Voir les {len(cards) - 6} autres" in e.label for e in app.expander)
+        assert any(f"Show {len(cards) - 6} more" in e.label for e in app.expander)
 
 
 def test_the_home_page_numbers_come_from_the_files() -> None:
@@ -97,10 +98,10 @@ def test_the_home_page_numbers_come_from_the_files() -> None:
 
     html = home_html(main().run())
 
-    assert ad.fr(-facts["r2_coupons"] * 100, 0, sign=True, suffix=" %") in html
-    assert ad.fr(-facts["r2_bills"] * 100, 0, sign=True, suffix=" %") in html
-    assert f"{ad.fr(facts['weak_move_bp'], 1, sign=True)} pb" in html
-    assert f"{ad.fr(facts['strategy_bp'], 1, sign=True)} pb" in html
+    assert en(-facts["r2_coupons"] * 100, 0, sign=True, suffix="%") in html
+    assert en(-facts["r2_bills"] * 100, 0, sign=True, suffix="%") in html
+    assert f"{en(facts['weak_move_bp'], 1, sign=True)} bp" in html
+    assert f"{en(facts['strategy_bp'], 1, sign=True)} bp" in html
 
 
 def test_the_home_page_without_upcoming_auction(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -109,7 +110,7 @@ def test_the_home_page_without_upcoming_auction(monkeypatch: pytest.MonkeyPatch)
     app = main().run()
 
     assert not app.exception, app.exception
-    assert any("Aucune enchère" in info.value for info in app.info)
+    assert any("No bill, note or bond auction" in info.value for info in app.info)
 
 
 def test_the_upcoming_table_shows_the_reference_model_from_today(today: pd.Timestamp) -> None:
@@ -121,15 +122,16 @@ def test_the_upcoming_table_shows_the_reference_model_from_today(today: pd.Times
     shown = app.dataframe[0].value
 
     assert len(shown) == len(expected) == log.loc[log["auction_date"] >= today, "cusip"].nunique()
-    assert list(shown["Demande attendue"]) == list(expected["signal"])
-    assert list(shown["Bid-to-cover prévu"]) == [ad.fr(v, 2) for v in expected["pred_btc"]]
-    assert list(shown["Part des dealers prévue"]) == [
+    assert list(shown["Expected demand"]) == list(expected["signal"])
+    assert list(shown["Bid-to-cover forecast"]) == [en(v, 2) for v in expected["pred_btc"]]
+    assert list(shown["Dealer share forecast"]) == [
         ad.format_target(v, "dealer_share") for v in expected["pred_dealer_share"]
     ]
     record = ad.signal_track_record(pd.read_parquet(OUTPUT_DIR / "backtest_predictions.parquet"))
-    weak = record.set_index("family").loc["nominal_coupon", "share_weak"]
+    row = record.set_index("family").loc["nominal_coupon"]
     text = " ".join(m.value for m in app.markdown)
-    assert f"« plus faible » sur {ad.fr(weak * 100, 0)} % des enchères" in text
+    assert f"{en(row['weak_then_below'] * 100, 0)}% of the time" in text
+    assert f"versus {en(row['base_rate_below'] * 100, 0)}% for all auctions" in text
 
 
 def test_the_live_page_shows_realised_results(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -157,7 +159,9 @@ def test_the_live_page_shows_realised_results(monkeypatch: pytest.MonkeyPatch) -
     table = app.dataframe[0].value
     realised = tracking[(tracking["model"] == "moyenne_5") & (tracking["target"] == "dealer_share")]
     realised = realised[realised["status"] == "realisee"].sort_values(["auction_date", "cusip"])
-    assert list(table["Prévu"]) == [ad.format_target(v, "dealer_share") for v in realised["pred"]]
+    assert list(table["Forecast"]) == [
+        ad.format_target(v, "dealer_share") for v in realised["pred"]
+    ]
 
 
 def test_the_explorer_follows_the_selection_without_rescaling_the_bid_to_cover() -> None:
@@ -184,7 +188,7 @@ def test_the_backtest_page_defaults_and_tabs() -> None:
 
     assert app.selectbox[1].value == "moyenne_5"  # modèle de référence par défaut
     strategy = app.dataframe[-1].value
-    assert strategy["Trades"].iloc[0] == "1 004"  # période 2014-2026
+    assert strategy["Trades"].iloc[0] == "1,004"  # période 2014-2026
     app.selectbox[0].set_value("tail_bp").run()
     app.selectbox[1].set_value("lightgbm").run()
     app.selectbox[2].set_value("dealer_share").run()
@@ -201,10 +205,10 @@ def test_the_quality_page_survives_a_failing_check(monkeypatch: pytest.MonkeyPat
     app = page("qualite").run()
 
     assert not app.exception, app.exception
-    sources = table_with(app, "État").set_index("Source")
-    assert sources.loc["CBOE : VIX", "État"] == "🔴 problème"
-    checks = table_with(app, "Contrôle").set_index("Contrôle")
-    assert checks.loc["Marché : taux hors bornes", "Cas trouvés"] == 2
+    sources = table_with(app, "Status").set_index("Source")
+    assert sources.loc["Cboe: VIX", "Status"] == "🔴 problem"
+    checks = table_with(app, "Check").set_index("Check")
+    assert checks.loc["Market: rates out of bounds", "Cases found"] == 2
 
 
 def table_with(app: AppTest, column: str) -> pd.DataFrame:
@@ -243,31 +247,33 @@ def test_a_source_outage_is_shown_not_hidden(monkeypatch: pytest.MonkeyPatch) ->
     main_app = main().run()
 
     assert not app.exception, app.exception
-    assert any("2 source(s) en échec" in w.value and "Fiscal Data : adjudications" in w.value
+    assert any("2 source(s) failed" in w.value and "Fiscal Data: auction results" in w.value
                for w in app.warning)  # fmt: skip
-    downloads = table_with(app, "Résultat")
-    assert list(downloads["Résultat"]) == ["🔴 échec", "🔴 échec", "🟢 reçue"]  # échecs d'abord
-    assert list(downloads["Dernière réussite"][:2]) == [
-        "ven. 13/11/2026 à 18:20 (New York)",
-        "inconnue",  # jamais réussie : la page ne doit pas planter
+    downloads = table_with(app, "Result")
+    assert list(downloads["Result"]) == ["🔴 failed", "🔴 failed", "🟢 received"]  # échecs d'abord
+    assert list(downloads["Last success"][:2]) == [
+        "Fri, Nov 13, 2026, 6:20 PM ET",
+        "unknown",  # jamais réussie : la page ne doit pas planter
     ]
-    assert downloads["Erreur"][0] == "FetchError : HTTP 503"
-    assert any("2 source(s) en échec" in c.value for c in main_app.sidebar.caption)
+    assert downloads["Error"][0] == "FetchError : HTTP 503"
+    assert any("2 source(s) failed to update" in c.value for c in main_app.sidebar.caption)
 
 
 @pytest.mark.parametrize(
     ("text", "shown"),
     [
-        ("2026-11-14T20:31:56+00:00", "sam. 14/11/2026 à 15:31 (New York)"),
-        (None, "inconnue"),
-        (float("nan"), "inconnue"),
-        ("", "inconnue"),
-        ("2026-11-14", "inconnue"),  # sans fuseau
-        ("pas une date", "inconnue"),
+        ("2026-11-14T20:31:56+00:00", "Sat, Nov 14, 2026, 3:31 PM ET"),
+        ("2026-11-14T14:05:00+00:00", "Sat, Nov 14, 2026, 9:05 AM ET"),
+        ("2026-07-06T03:00:00+00:00", "Sun, Jul 5, 2026, 11:00 PM ET"),  # heure d'été
+        (None, "unknown"),
+        (float("nan"), "unknown"),
+        ("", "unknown"),
+        ("2026-11-14", "unknown"),  # sans fuseau
+        ("pas une date", "unknown"),
     ],
 )
 def test_moments_are_shown_in_new_york_time(text: object, shown: str) -> None:
-    assert app_ui.moment_fr(text) == shown
+    assert app_ui.moment_en(text) == shown
 
 
 def test_a_complete_download_is_said_and_a_missing_report_too(
@@ -280,13 +286,13 @@ def test_a_complete_download_is_said_and_a_missing_report_too(
     }
     replace_json(monkeypatch, "fetch_status.json", complete)
     app = main().run()
-    assert any("toutes les sources reçues" in c.value for c in app.sidebar.caption)
+    assert all("failed" not in c.value for c in app.sidebar.caption)  # rien à signaler
 
     replace_json(monkeypatch, "fetch_status.json", {})
     quality = page("qualite").run()
     assert not quality.exception, quality.exception
-    assert not quality.warning or all("en échec" not in w.value for w in quality.warning)
-    assert any("Rapport de téléchargement absent" in c.value for c in quality.caption)
+    assert not quality.warning or all("failed" not in w.value for w in quality.warning)
+    assert any("Download report missing" in c.value for c in quality.caption)
 
 
 def test_a_broken_status_file_does_not_break_the_app(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -295,11 +301,11 @@ def test_a_broken_status_file_does_not_break_the_app(monkeypatch: pytest.MonkeyP
     app = main().run()
 
     assert not app.exception, app.exception
-    assert any("inconnue" in c.value for c in app.sidebar.caption)
+    assert any("Updated unknown" in c.value for c in app.sidebar.caption)
 
 
 def click_update(app: AppTest) -> AppTest:
-    next(b for b in app.button if b.label == "Mettre à jour maintenant").click().run()
+    next(b for b in app.button if b.label == "Refresh now").click().run()
     return app
 
 
@@ -313,26 +319,26 @@ def test_the_update_button_shows_a_provisional_prediction(
     monkeypatch.setattr(refresh, "light_refresh", lambda: (provisional, None))
 
     app = click_update(main().run())
-    assert any("Prévision provisoire calculée" in s.value for s in app.sidebar.success)
+    assert any("Provisional forecast ready" in s.value for s in app.sidebar.success)
     app.switch_page("vues/prochaines.py").run()  # la prévision provisoire est sur cette page
 
     assert not app.exception, app.exception
     assert "provisional" in app.session_state
-    assert any("provisoire" in expander.label for expander in app.expander)
+    assert any("Provisional forecast" in expander.label for expander in app.expander)
     fresh = app.dataframe[1].value  # le tableau provisoire, pas le journal figé
     expected = ad.upcoming_table(
         provisional.assign(predicted_at=provisional["computed_at"]),
         pd.read_parquet(CLEAN_DIR / "auctions.parquet"),
         today,
     )
-    assert list(fresh["Bid-to-cover prévu"]) == [ad.fr(v, 2) for v in expected["pred_btc"]]
+    assert list(fresh["Bid-to-cover forecast"]) == [en(v, 2) for v in expected["pred_btc"]]
 
 
 @pytest.mark.parametrize(
     ("error", "kind", "text"),
     [
-        (refresh.ModelsUnavailable("absents"), "warning", "Modèles indisponibles"),
-        (refresh.RefreshBusy("occupé"), "info", "déjà en cours"),
+        (refresh.ModelsUnavailable("absents"), "warning", "Models are not available"),
+        (refresh.RefreshBusy("occupé"), "info", "already running"),
         (ValueError("format imprévu"), "error", "format imprévu"),
     ],
 )
@@ -358,7 +364,7 @@ def test_a_partial_update_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
 
     app = click_update(main().run())
 
-    assert any("partielle" in w.value for w in app.sidebar.warning)
+    assert any("Partial refresh" in w.value for w in app.sidebar.warning)
 
 
 def test_a_rewritten_file_is_read_again(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -374,11 +380,13 @@ def test_a_rewritten_file_is_read_again(tmp_path: Path, monkeypatch: pytest.Monk
     assert app_ui.json_file("etat.json") == {}
 
 
-def test_the_method_page_links_the_code_and_gives_the_versions() -> None:
+def test_the_method_page_quotes_the_files() -> None:
+    r2 = ad.backtest_r2(pd.read_csv(OUTPUT_DIR / "backtest_metrics.csv"))
+    coupons = r2.set_index(["family", "target"]).loc[("nominal_coupon", "btc"), "r2_vs_mean3"]
+
     app = page("methodologie").run()
 
     assert not app.exception, app.exception
-    links = " ".join(m.value for m in app.markdown)
-    assert "https://github.com/make4this/tresor-auctions/blob/main/journal_llm.md" in links
-    python = f"python {platform.python_version()}"
-    assert any(python in c.value and "lightgbm 4.7.0" in c.value for c in app.caption)
+    text = " ".join(m.value for m in app.markdown)
+    assert f"{en(coupons * 100, 1, sign=True)}% R²" in text
+    assert "LLM" not in text and not app.caption  # ni mention des LLM ni versions sur le site

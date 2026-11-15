@@ -1,4 +1,4 @@
-"""Page 3 : backtest walk-forward, importance des variables et stratégie."""
+"""Page « Model performance » : backtest walk-forward, importance des variables et stratégie."""
 
 from __future__ import annotations
 
@@ -8,45 +8,44 @@ import streamlit as st
 
 from tresor import app_data as ad
 from tresor import app_ui as ui
-from tresor import plots
-from tresor.strategy import RULES
+from tresor.formats import en
 
-st.title("Backtest")
+st.title("Model performance")
 st.caption(
-    "Validation walk-forward : chaque trimestre depuis 2014, les modèles sont entraînés sur tout"
-    " le passé puis testés sur le trimestre suivant. R² hors échantillon contre la moyenne des 3"
-    " dernières enchères (1 − erreur quadratique du modèle / erreur quadratique de cette"
-    " moyenne) : au-dessus de 0, le modèle fait mieux que ce benchmark."
+    "Walk-forward test: every quarter since 2014, the models are trained on all past auctions"
+    " and tested on the next quarter, never on data they have seen. The score is the"
+    " out-of-sample R² against the average of the last 3 auctions: above 0, the model beats that"
+    " simple rule."
 )
 
 metrics = ui.csv("backtest_metrics.csv")
 backtest = ui.parquet("backtest_predictions.parquet")
 family = st.segmented_control(
-    "Famille", list(ad.FAMILY_LABELS), default="nominal_coupon",
+    "Securities", list(ad.FAMILY_LABELS), default="nominal_coupon",
     format_func=ad.FAMILY_LABELS.get, required=True,
 ) or "nominal_coupon"  # fmt: skip
-tabs = st.tabs(["Métriques", "Gain cumulé", "Variables", "Stratégie"])
+tabs = st.tabs(["Scores", "Cumulative gain", "What drives the forecast", "Trading test"])
 
 
 def interval(value: float, low: float, high: float) -> str:
-    return f"{ad.fr(value * 100, 1, sign=True)} %  [{ad.fr(low * 100, 0)} ; {ad.fr(high * 100, 0)}]"
+    return f"{en(value * 100, 1, sign=True)}%  [{en(low * 100, 0)}, {en(high * 100, 0)}]"
 
 
 with tabs[0]:
     period = st.segmented_control(
-        "Période", ["2014-2026", "2014-2019", "2020-2026"], default="2020-2026", required=True,
-        help="Le modèle « choisi » l'est sur 2014-2019 et jugé sur 2020-2026.",
+        "Period", ["2014-2026", "2014-2019", "2020-2026"], default="2020-2026", required=True,
+        help="The best single model is picked on 2014-2019 and judged on 2020-2026.",
     ) or "2020-2026"  # fmt: skip
     data = metrics[
         (metrics["family"] == family)
         & (metrics["period"] == period)
         & (metrics["feature_set"] == "toutes")
     ]
-    order = [name for name in plots.MODEL_LABELS if name in set(data["model"])]
-    table = pd.DataFrame({"Modèle": [plots.MODEL_LABELS[name] for name in order]})
+    order = [name for name in ad.MODEL_LABELS if name in set(data["model"])]
+    table = pd.DataFrame({"Model": [ad.MODEL_LABELS[name] for name in order]})
     for target, label in ad.TARGET_LABELS.items():
         part = data[data["target"] == target].set_index("model").reindex(order)
-        table[label.split(" (")[0]] = [
+        table[label] = [
             interval(r, lo, hi)
             for r, lo, hi in zip(
                 part["r2_vs_mean3"], part["r2_ci_low"], part["r2_ci_high"], strict=True
@@ -56,15 +55,13 @@ with tabs[0]:
     best = ui.csv("best_models.csv")
     chosen = best[best["family"] == family].set_index("target")["model"]
     st.caption(
-        "Entre crochets : intervalle de confiance à 90 % (bootstrap par année). Modèles"
-        " choisis sur 2014-2019 : "
-        + ", ".join(f"{plots.MODEL_LABELS[m]} ({ad.SHORT_TARGETS[t]})" for t, m in chosen.items())
-        + ". « En écart » : le modèle prévoit la surprise (réel − moyenne des 3) au lieu du"
-        " niveau ; c'est un test de robustesse, non utilisé pour les prévisions en direct."
-        " La « Constante » est la moyenne de toute la famille, toutes maturités confondues :"
-        " un benchmark très faible, sauf pour le tail."
+        "In brackets: 90% confidence interval. Best single model picked on 2014-2019: "
+        + ", ".join(f"{ad.MODEL_LABELS[m]} ({ad.SHORT_TARGETS[t]})" for t, m in chosen.items())
+        + ". *Gap* models forecast the surprise relative to the last-3 average, as a robustness"
+        " check. *Constant* is the average of the whole family, a very weak benchmark except for"
+        " the tail."
     )
-    with st.expander("Les nouvelles sources (dealers, CFTC, liquidité) aident-elles ?"):
+    with st.expander("Do the extra sources (dealers, CFTC, liquidity) help?"):
         comparison = ui.csv("new_sources_comparison.csv")
         rows = comparison[
             (comparison["family"] == family) & (comparison["model"] == "moyenne_5")
@@ -72,14 +69,13 @@ with tabs[0]:
         st.dataframe(
             pd.DataFrame(
                 {
-                    "Cible": [ad.TARGET_LABELS[t].split(" (")[0] for t in rows.index],
-                    "Avec": rows["toutes"].map(lambda v: ad.fr(v * 100, 1, sign=True, suffix=" %")),
-                    "Sans": rows["sans_nouvelles_sources"].map(
-                        lambda v: ad.fr(v * 100, 1, sign=True, suffix=" %")
+                    "Measure": [ad.TARGET_LABELS[t] for t in rows.index],
+                    "With": rows["toutes"].map(lambda v: en(v * 100, 1, sign=True, suffix="%")),
+                    "Without": rows["sans_nouvelles_sources"].map(
+                        lambda v: en(v * 100, 1, sign=True, suffix="%")
                     ),
-                    "Écart (points)": [
-                        f"{ad.fr(g * 100, 1, sign=True)}  [{ad.fr(lo * 100, 1)} ;"
-                        f" {ad.fr(hi * 100, 1)}]"
+                    "Difference (points)": [
+                        f"{en(g * 100, 1, sign=True)}  [{en(lo * 100, 1)}, {en(hi * 100, 1)}]"
                         for g, lo, hi in zip(
                             rows["gain"], rows["gain_ci_low"], rows["gain_ci_high"], strict=True
                         )  # fmt: skip
@@ -90,99 +86,94 @@ with tabs[0]:
             width="stretch",
         )
         st.caption(
-            "Moyenne des 5 modèles, R² contre la moyenne des 3 dernières, 2014-2026. Aucun écart"
-            " n'est significativement positif : ces données n'apportent rien de mesurable."
+            "5-model average, 2014-2026. None of the differences is significantly positive: these"
+            " sources do not improve the forecast, and slightly hurt some measures."
         )
 
 with tabs[1]:
-    target = st.selectbox("Cible", list(ad.TARGET_LABELS), format_func=ad.TARGET_LABELS.get)
-    models = [m for m in plots.MODEL_LABELS if m in set(backtest["model"])]
+    target = st.selectbox("Measure", list(ad.TARGET_LABELS), format_func=ad.TARGET_LABELS.get)
+    models = [m for m in ad.MODEL_LABELS if m in set(backtest["model"])]
     model = st.selectbox(
-        "Modèle", models, format_func=plots.MODEL_LABELS.get,
+        "Model", models, format_func=ad.MODEL_LABELS.get,
         index=models.index("moyenne_5") if "moyenne_5" in models else 0,
     )  # fmt: skip
     gain = ad.cumulative_gain(backtest, family, target, model)
     figure = go.Figure()
     figure.add_scatter(x=gain["auction_date"], y=gain["gain"] * 100, mode="lines",
-                       name=plots.MODEL_LABELS[model],
+                       name=ad.MODEL_LABELS[model],
                        line={"color": ui.SERIES[0], "width": 2})  # fmt: skip
     if family == "bill":
-        for label, day in plots.DEBT_CEILING.items():
+        for label, day in ad.DEBT_CEILING.items():
             figure.add_vline(x=pd.Timestamp(day), line={"color": ui.MUTED, "dash": "dash"})
-            figure.add_annotation(x=pd.Timestamp(day), y=1, yref="paper", text=f"plafond {label}",
-                                  showarrow=False, xanchor="left", font={"size": 11})  # fmt: skip
-    figure.update_layout(
-        title="Gain cumulé, en % de l'erreur totale de la moyenne des 3 (finit au R² de 2014-2026)",
-        showlegend=False,
-    )
-    figure.update_yaxes(ticksuffix=" %")
+            figure.add_annotation(x=pd.Timestamp(day), y=1, yref="paper",
+                                  text=f"debt ceiling {label}", showarrow=False,
+                                  xanchor="left", font={"size": 11})  # fmt: skip
+    figure.update_layout(title="Cumulative gain versus the last-3 average (ends at the R²)",
+                         showlegend=False)  # fmt: skip
+    figure.update_yaxes(ticksuffix="%")
     ui.chart(figure)
     note = (
-        "Somme cumulée de (réel − moyenne des 3)² − (réel − prévu)², divisée par la somme des"
-        " (réel − moyenne des 3)². Au-dessus de 0, le modèle fait mieux."
+        "Running total of how much smaller the model's squared errors are than those of the"
+        " last-3 average, as a share of the latter. Above 0, the model does better."
     )
     if family == "bill":
-        note += (
-            " Pour les bills, une part du gain vient des crises du plafond de la dette"
-            " (pointillés : octobre 2015, fin 2021, mai 2023) ; selon la cible, le saut principal"
-            " n'est pas le même."
-        )
+        note += " For bills, part of the gain comes from the debt-ceiling episodes (dashed lines)."
     st.caption(note)
 
 with tabs[2]:
     importance = ui.csv("feature_importance.csv")
     target = st.selectbox(
-        "Cible", list(ad.TARGET_LABELS), format_func=ad.TARGET_LABELS.get, key="imp_target"
+        "Measure", list(ad.TARGET_LABELS), format_func=ad.TARGET_LABELS.get, key="imp_target"
     )
     part = importance[(importance["family"] == family) & (importance["target"] == target)]
     if part.empty:
-        st.info("Pas d'importance calculée pour cette cible.")
+        st.info("No importance computed for this measure.")
     else:
         st.caption(
-            f"Modèle choisi sur 2014-2019 : {plots.MODEL_LABELS[part['model'].iloc[0]]},"
-            " entraîné avant 2022 et expliqué sur 2022-2026. La permutation mesure ce qu'une"
-            " variable apporte vraiment hors échantillon ; SHAP mesure combien elle pèse dans la"
-            " formule du modèle. Les deux peuvent diverger."
+            f"Model picked on 2014-2019: {ad.MODEL_LABELS[part['model'].iloc[0]]}, trained before"
+            " 2022 and explained on 2022-2026. *Permutation* shows what a variable really adds"
+            " out of sample; *SHAP* shows how much it weighs in the model's formula. The two can"
+            " differ."
         )
         left, right = st.columns(2)
         top = part.nlargest(12, "permutation_mean").iloc[::-1]
         figure = go.Figure(
             go.Bar(
                 x=top["permutation_mean"],
-                y=[plots.feature_label(name) for name in top["feature"]],
+                y=[ad.feature_label(name) for name in top["feature"]],
                 orientation="h",
                 marker_color=ui.SERIES[0],
                 error_x={"type": "data", "array": top["permutation_std"], "color": ui.MUTED},
             )
         )
-        figure.update_layout(title="Permutation : ce qui aide vraiment")
-        figure.update_xaxes(title="Hausse de l'erreur quadratique si la variable est brouillée")
+        figure.update_layout(title="Permutation: what really helps")
+        figure.update_xaxes(title="Increase in squared error when the variable is shuffled")
         ui.chart(figure, height=480, container=left)
         top = part.nlargest(12, "shap_share").iloc[::-1]
         figure = go.Figure(
             go.Bar(
                 x=top["shap_share"] * 100,
-                y=[plots.feature_label(name) for name in top["feature"]],
+                y=[ad.feature_label(name) for name in top["feature"]],
                 orientation="h",
                 marker_color=ui.MUTED,
             )
         )
-        figure.update_layout(title="SHAP : ce qui pèse dans la formule")
-        figure.update_xaxes(title="Part du total des contributions", ticksuffix=" %")
+        figure.update_layout(title="SHAP: what weighs in the formula")
+        figure.update_xaxes(title="Share of total contributions", ticksuffix="%")
         ui.chart(figure, height=480, container=right)
 
 with tabs[3]:
     st.caption(
-        "Notes et bonds seulement (quelle que soit la famille choisie plus haut). Vendeur de"
-        " duration (on gagne si le taux monte) de la clôture de la veille à celle du jour si le"
-        " bid-to-cover prévu est sous la moyenne des 3 dernières, acheteur sinon ; 0,5 pb de coût"
-        " par trade. P&L en points de base (pb) de taux."
+        "Notes and bonds only. The strategy is short duration (it gains if the yield rises) from"
+        " the previous close to the auction-day close when the bid-to-cover forecast is below the"
+        " last-3 average, and long otherwise; 0.5 bp of cost per trade. Results in basis points"
+        " (bp) of yield."
     )
     quintiles = ui.csv("quintiles.csv")
     full = quintiles[quintiles["period"] == "2009-2026"]
     y_range = [full["ci_low"].min() - 0.4, full["ci_high"].max() + 0.4]
     columns = st.columns(2)
-    for column, (name, label) in zip(columns, plots.SURPRISE_LABELS.items(), strict=True):
+    for column, (name, label) in zip(columns, ad.SURPRISE_LABELS.items(), strict=True):
         rows = full[full["surprise"] == name].sort_values("quintile")
         figure = go.Figure(
             go.Bar(
@@ -199,34 +190,31 @@ with tabs[3]:
             )
         )
         figure.update_layout(title=label.replace(" (", "<br>("))
-        figure.update_xaxes(title="Quintile de surprise (1 = demande la plus forte)")
-        figure.update_yaxes(title="Variation du taux (pb)", range=y_range)
+        figure.update_xaxes(title="Surprise quintile (1 = strongest demand)")
+        figure.update_yaxes(title="Yield change (bp)", range=y_range)
         ui.chart(figure, height=360, container=column)
     count = int(full.loc[full["surprise"] == "part_des_dealers", "n"].sum())
     st.caption(
-        f"Notes et bonds, 2009-2026 ({ad.fr(count, 0)} enchères) : variation moyenne du taux de"
-        " la maturité de la clôture de la veille à celle du jour de l'enchère ; trait : intervalle"
-        " à 90 % (bootstrap par année). Les enchères les plus faibles s'accompagnent d'une hausse"
-        " du taux le jour même."
+        f"Notes and bonds, 2009-2026 ({en(count, 0)} auctions): average change in the yield of"
+        " the auction's maturity from the previous close to the auction-day close, with a 90%"
+        " interval. The weakest auctions come with a rise in yields that day."
     )
     summary = ui.csv("strategy_summary.csv")
     rows = summary[summary["period"] == "2014-2026"].set_index("rule")
     st.dataframe(
         pd.DataFrame(
             {
-                "Règle": [RULES[rule] for rule in rows.index],
-                "Trades": rows["trades"].map(lambda v: ad.fr(v, 0)),
-                "P&L moyen par trade (pb)": [
-                    f"{ad.fr(m, 2, sign=True)}  [{ad.fr(lo, 2)} ; {ad.fr(hi, 2)}]"
+                "Rule": [ad.RULE_LABELS[rule] for rule in rows.index],
+                "Trades": rows["trades"].map(lambda v: en(v, 0)),
+                "Average P&L per trade (bp)": [
+                    f"{en(m, 2, sign=True)}  [{en(lo, 2)}, {en(hi, 2)}]"
                     for m, lo, hi in zip(
                         rows["mean_bp"], rows["mean_ci_low"], rows["mean_ci_high"], strict=True
                     )  # fmt: skip
                 ],
-                "Avant coût (pb)": rows["mean_gross_bp"].map(lambda v: ad.fr(v, 2, sign=True)),
-                "Écart avec « toujours vendeur » (pb)": [
-                    "–"
-                    if pd.isna(g)
-                    else f"{ad.fr(g, 2, sign=True)}  [{ad.fr(lo, 2)} ; {ad.fr(hi, 2)}]"
+                "Before cost (bp)": rows["mean_gross_bp"].map(lambda v: en(v, 2, sign=True)),
+                "Versus always short (bp)": [
+                    "–" if pd.isna(g) else f"{en(g, 2, sign=True)}  [{en(lo, 2)}, {en(hi, 2)}]"
                     for g, lo, hi in zip(
                         rows["vs_vendeur_bp"],
                         rows["vs_vendeur_ci_low"],
@@ -234,17 +222,13 @@ with tabs[3]:
                         strict=True,
                     )  # fmt: skip
                 ],
-                "Réussite": rows["hit_rate"].map(lambda v: ad.fr(v * 100, 1, suffix=" %")),
-                "Total (pb)": rows["total_bp"].map(lambda v: ad.fr(v, 0, sign=True)),
-                "Sharpe": rows["sharpe"].map(lambda v: ad.fr(v, 2, sign=True)),
+                "Hit rate": rows["hit_rate"].map(lambda v: en(v * 100, 1, suffix="%")),
+                "Total (bp)": rows["total_bp"].map(lambda v: en(v, 0, sign=True)),
+                "Sharpe": rows["sharpe"].map(lambda v: en(v, 2, sign=True)),
             }
         ),
         hide_index=True,
         width="stretch",
-    )
-    st.caption(
-        "2014-2026. Entre crochets : intervalle à 90 % (bootstrap par année). Réussite : part des"
-        " trades gagnants après coût (un taux inchangé compte comme une perte). Sharpe annualisé."
     )
     trades = ui.parquet("strategy_trades.parquet").sort_values("auction_date")
     figure = go.Figure()
@@ -253,16 +237,15 @@ with tabs[3]:
     for rule, (color, dash) in styles.items():
         line = {"color": color, "dash": dash, "width": 2}
         figure.add_scatter(x=trades["auction_date"], y=trades[rule].cumsum(), mode="lines",
-                           name=RULES[rule], line=line)  # fmt: skip
-    figure.update_layout(title="P&L cumulé après coûts (pb de taux)")
+                           name=ad.RULE_LABELS[rule], line=line)  # fmt: skip
+    figure.update_layout(title="Cumulative P&L after costs (bp of yield)")
     ui.chart(figure, height=440)
     loss = -rows.loc["strategie", "mean_bp"]
     perfect = rows.loc["information_parfaite", "mean_bp"]
     st.caption(
-        f"La stratégie perd {ad.fr(loss, 1)} pb par trade après coûts et ne fait pas mieux que"
-        " « toujours vendeur » (écart non significatif). Même en connaissant le résultat de"
-        f" l'enchère à l'avance, on ne gagnerait que {ad.fr(perfect, 1, sign=True)} pb par trade"
-        " après coût : la surprise de l'enchère n'explique qu'une petite partie du mouvement du"
-        " taux du jour. Par ailleurs, la partie prévisible de la demande n'a pas d'effet"
-        " mesurable sur le taux."
+        f"2014-2026. The strategy loses {en(loss, 1)} bp per trade after costs and does not beat"
+        " always being short. Even knowing the auction result in advance would only earn"
+        f" {en(perfect, 1, sign=True)} bp per trade after costs: the auction surprise explains"
+        " only a small part of the day's yield move. Separately, the predictable part of demand"
+        " has no measurable effect on yields."
     )

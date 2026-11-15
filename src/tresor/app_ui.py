@@ -1,4 +1,4 @@
-"""Éléments communs aux pages de l'application Streamlit."""
+"""Éléments communs aux pages de l'application Streamlit (textes affichés en anglais)."""
 
 from __future__ import annotations
 
@@ -26,10 +26,7 @@ MUTED = "#8a897f"
 GRID = "#e4e3df"
 CACHE_SECONDS = 3600
 REPOSITORY_URL = f"https://github.com/{GITHUB_REPOSITORY}"
-DISCLAIMER = (
-    "Projet étudiant (cours « Machine Learning for Finance », emlyon business school, 2026)."
-    " Ces prévisions ne sont pas un conseil en investissement."
-)
+DISCLAIMER = "Academic project (emlyon business school, 2026). Not investment advice."
 
 # Lecture mise en cache une heure au plus (section 11 du plan). La date de modification et la
 # taille du fichier font partie de la clé : un fichier réécrit est relu tout de suite.
@@ -82,9 +79,9 @@ def today_new_york() -> pd.Timestamp:
 
 
 def style(figure: go.Figure, height: int = 380) -> go.Figure:
-    """Mise en forme commune : nombres à la française, fond clair, grille discrète."""
+    """Mise en forme commune : nombres à l'anglaise, fond clair, grille discrète."""
     figure.update_layout(
-        separators=", ",  # virgule décimale, espace des milliers
+        separators=".,",  # point décimal, virgule des milliers
         template="plotly_white",
         height=height,
         # Titre en haut, légende juste au-dessus du graphique : ils ne se chevauchent pas.
@@ -167,83 +164,72 @@ def chart(figure: go.Figure, height: int = 380, container: object = st) -> None:
     )
 
 
-def date_fr(value: pd.Timestamp, year: bool = True) -> str:
-    days = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
-    text = f"{days[value.day_of_week]} {value.day:02d}/{value.month:02d}"
-    return f"{text}/{value.year}" if year else text
+def date_en(value: pd.Timestamp, year: bool = True) -> str:
+    """« Mon, Nov 16, 2026 », ou « Mon, Nov 16 » sans l'année."""
+    text = f"{value:%a, %b} {value.day}"
+    return f"{text}, {value.year}" if year else text
 
 
-def day_fr(text: object) -> str:
-    """Date ISO (2026-11-12) en date française (12/11/2026) ; « – » si absente."""
+def day_en(text: object) -> str:
+    """Date ISO (2026-11-12) en « Nov 12, 2026 » ; « – » si absente."""
     try:
-        return f"{pd.Timestamp(str(text)):%d/%m/%Y}"
+        day = pd.Timestamp(str(text))
     except (ValueError, TypeError):
         return "–"
+    return "–" if pd.isna(day) else f"{day:%b} {day.day}, {day.year}"
 
 
-def moment_fr(text: object) -> str:
+def moment_en(text: object) -> str:
     """Instant ISO avec fuseau (2026-11-14T23:17:00+00:00) en jour et heure de New York."""
     try:
         moment = pd.Timestamp(str(text)).tz_convert(NEW_YORK_TZ)
     except (ValueError, TypeError):  # illisible ou sans fuseau
-        return "inconnue"
+        return "unknown"
     if pd.isna(moment):  # absent : None, NaN ou texte vide deviennent une date manquante
-        return "inconnue"
-    return f"{date_fr(moment)} à {moment:%H:%M} (New York)"
+        return "unknown"
+    return f"{date_en(moment)}, {moment:%I:%M %p} ET".replace(" 0", " ", 1)
 
 
 def sidebar() -> None:
-    """Fraîcheur des données et bouton de mise à jour, sur toutes les pages."""
+    """Fraîcheur des données et bouton de mise à jour, sur toutes les pages : court et sobre."""
     status = json_file(live.STATUS_FILE)
     quality = json_file("data_quality.json")
     fetch = json_file(FETCH_STATUS_FILE)
     with st.sidebar:
-        st.markdown("**Données**")
-        st.caption(f"Dernière prévision : {moment_fr(status.get('run_at'))}")
-        market = status.get("market_last_dates", {})
-        if isinstance(market, dict) and market.get("yield_10y"):
-            st.caption(f"Derniers taux de marché : {day_fr(market['yield_10y'])}")
-        if quality:
-            label = {"vert": "bon", "orange": "à surveiller", "rouge": "problème"}
-            st.caption(f"Contrôle qualité : {label.get(str(quality.get('status')), '?')}")
-        if fetch:
-            failed = ad.failed_sources(fetch)
-            st.caption(
-                f"⚠️ Dernier téléchargement : {len(failed)} source(s) en échec (page Qualité)"
-                if failed
-                else "Dernier téléchargement : toutes les sources reçues"
-            )
-        if st.button("Mettre à jour maintenant", width="stretch"):
-            _refresh()
-        st.caption(
-            "Recharge les sources légères et prévoit sans réentraîner, sur une copie des"
-            " données. La prévision obtenue est provisoire : seul le passage du soir l'inscrit"
-            " au journal figé."
+        st.caption(f"Updated {moment_en(status.get('run_at'))}")
+        problems = []
+        if fetch and ad.failed_sources(fetch):
+            problems.append(f"{len(ad.failed_sources(fetch))} source(s) failed to update")
+        if quality and quality.get("status") == "rouge":
+            problems.append("data check failed")
+        if problems:
+            st.caption("⚠️ " + "; ".join(problems) + " (see Data quality)")
+        help_text = (
+            "Reloads the auction calendar and today's yields, then recomputes provisional"
+            " forecasts with the existing models. Official forecasts are recorded each evening."
         )
-        st.caption(f"{DISCLAIMER} [Code et journal du projet]({REPOSITORY_URL}).")
+        if st.button("Refresh now", width="stretch", help=help_text):
+            _refresh()
 
 
 def _refresh() -> None:
     from tresor import refresh
 
-    with st.spinner("Téléchargement et calcul…"):
+    with st.spinner("Downloading and computing…"):
         try:
             predictions, failure = refresh.light_refresh()
         except refresh.RefreshBusy:
-            st.sidebar.info("Une mise à jour est déjà en cours : réessayer dans une minute.")
+            st.sidebar.info("A refresh is already running. Try again in a minute.")
             return
         except refresh.ModelsUnavailable:
-            st.sidebar.warning(
-                "Modèles indisponibles ici pour le moment : la prévision du soir reste affichée,"
-                " réessayer plus tard."
-            )
+            st.sidebar.warning("Models are not available right now. Please try again later.")
             return
         except Exception as error:  # l'application reste utilisable
-            st.sidebar.error(f"Mise à jour impossible : {error}")
+            st.sidebar.error(f"Refresh failed: {error}")
             return
     st.session_state["provisional"] = predictions
-    message = "Prévision provisoire calculée : voir la page « Prochaines enchères »."
+    message = "Provisional forecast ready: see Upcoming auctions."
     if failure:
-        st.sidebar.warning(f"Mise à jour partielle ({failure}). {message}")
+        st.sidebar.warning(f"Partial refresh ({failure}). {message}")
     else:
         st.sidebar.success(message)
