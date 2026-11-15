@@ -36,7 +36,7 @@ MODEL_NAMES = ("ridge", "lasso", "elasticnet", "random_forest", "lightgbm")
 # Benchmark -> colonne des prévisions. « constante » : moyenne de la fenêtre d'entraînement.
 BENCHMARKS = {"naive": "naive", "mean3": "mean3", "constante": "constant"}
 REFERENCE = "mean3"  # benchmark de référence du plan
-ENSEMBLE = "moyenne_5"  # modèle de référence fixé à l'avance : moyenne des 5 modèles
+ENSEMBLE = "moyenne_5"  # modèle de référence, retenu par principe : moyenne des 5 modèles
 RESIDUAL_SUFFIX = "_ecart"  # variante : le modèle prévoit l'écart de la cible à mean3
 RESIDUAL_MODELS = ("ridge", "lasso", "elasticnet")
 # Le modèle est choisi sur 2014-2019 et jugé sur 2020-2026, pour ne pas choisir sur le test.
@@ -247,7 +247,7 @@ def add_constant_benchmark(predictions: pd.DataFrame, sample: pd.DataFrame) -> p
 
 
 def add_ensemble(predictions: pd.DataFrame) -> pd.DataFrame:
-    """Modèle de référence fixé à l'avance : la moyenne des prévisions des 5 modèles.
+    """Modèle de référence, retenu par principe : la moyenne des prévisions des 5 modèles.
 
     Il évite de choisir un modèle d'après ses résultats sur la période de test.
     """
@@ -418,7 +418,7 @@ def new_sources_comparison(predictions: pd.DataFrame) -> pd.DataFrame:
 def best_models(metrics: pd.DataFrame) -> pd.DataFrame:
     """Modèle choisi sur 2014-2019 seulement, puis jugé sur 2020-2026 (jamais vu au choix).
 
-    La moyenne des 5 modèles, fixée à l'avance, est donnée à côté comme référence.
+    La moyenne des 5 modèles, modèle de référence, est donnée à côté.
     """
     full = metrics[metrics["feature_set"] == "toutes"].set_index(
         ["period", "family", "target", "model"]

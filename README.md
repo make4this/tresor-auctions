@@ -6,30 +6,31 @@ Projet individuel du cours *Machine Learning for Finance* (emlyon business schoo
 
 > **Application en ligne : https://tresor-auctions.streamlit.app** — dépôt : https://github.com/make4this/tresor-auctions
 
-**Usage des LLM.** Le code de ce dépôt a été écrit par Claude Code (Anthropic), sous la direction de l'étudiant, phase par phase : [PLAN.md](PLAN.md) est la consigne donnée au modèle. Après chaque phase, deux agents LLM indépendants ont relu le travail, et leurs remarques ont été corrigées. Tout est consigné dans [journal_llm.md](journal_llm.md) : demandes, productions, erreurs trouvées et corrigées, écarts au plan.
+**Usage des LLM.** Le code de ce dépôt a été écrit par Claude Code (Anthropic), sous la direction de l'étudiant, phase par phase : [PLAN.md](PLAN.md) est la consigne donnée au modèle. Après chaque phase, d'autres agents Claude, lancés séparément et en lecture seule, ont relu le travail (trois pour les phases 1 à 3, deux ensuite), et leurs remarques ont été corrigées. Tout est consigné dans [journal_llm.md](journal_llm.md) : demandes, productions, erreurs trouvées et corrigées, écarts au plan.
 
 ## Résultats
 
-Le modèle de référence est la moyenne des prévisions de 5 modèles. Il a été fixé avant de voir les résultats, puis jugé sur 2020-2026 en validation walk-forward. Le R² est mesuré contre `mean3`, la moyenne des 3 dernières enchères de la même maturité. Les intervalles sont à 90 %, par bootstrap d'années entières.
+Le modèle de référence est la moyenne des prévisions de 5 modèles. Elle a été retenue par principe, pour ne pas choisir un modèle d'après ses résultats, lors de la vérification de la phase 6 ; une première version montrait déjà les résultats de chaque modèle sur 2014-2026. Elle est jugée sur 2020-2026, en validation walk-forward. Le R² est mesuré contre `mean3`, la moyenne des 3 dernières enchères de la même maturité. Les intervalles sont à 90 %, par bootstrap d'années entières.
 
-- **Bid-to-cover** : la prévision bat `mean3`, avec un R² de 0,10 [0,06 ; 0,15] pour les coupons nominaux, le résultat le plus solide. Pour les bills, le R² est de 0,21 [0,13 ; 0,26], mais ce gain est en partie dû aux crises du plafond de la dette ([backtest_metrics.csv](data/output/backtest_metrics.csv)).
-- **Tail** (coupons nominaux) : R² de 0,22 [0,16 ; 0,28] contre `mean3`, mais de 0,03 seulement contre une constante. Le tail reflète surtout le mouvement du marché du jour.
-- **Part des dealers** (coupons nominaux) : la prévision fait pire que `mean3`, avec un R² de −0,29 [−0,46 ; −0,15] (même fichier).
-- **Lien avec le marché** (coupons nominaux, 2009-2026) : après les enchères à la demande la plus faible par rapport à `mean3` (quintile 5), le taux de la maturité varie en moyenne de +2,0 pb [+1,2 ; +2,8] entre la clôture de la veille et celle du jour de l'enchère. Après les plus fortes, il varie de −1,4 pb [−1,7 ; −1,0] ([quintiles.csv](data/output/quintiles.csv)).
-- **Stratégie illustrative** : aucun gain démontré. Sur 2020-2026, elle perd 1,40 pb par trade, contre 1,27 pb pour la règle « toujours vendeur », soit un écart de −0,13 pb [−0,84 ; +0,58] ([strategy_summary.csv](data/output/strategy_summary.csv)).
+- **Bid-to-cover** : la prévision bat `mean3`, avec un R² de +9,6 % [5,7 ; 14,5] pour les notes et bonds, le résultat le plus solide. Pour les bills, il est de +21,2 % [13,3 ; 26,2], mais ce gain est en partie dû aux crises du plafond de la dette : +17,1 % sans le meilleur trimestre ([backtest_metrics.csv](data/output/backtest_metrics.csv)).
+- **Tail** (notes et bonds) : R² de +22,1 % [16,3 ; 27,8] contre `mean3`, mais de +2,8 % seulement contre une constante. Le tail reflète surtout le mouvement du marché du jour.
+- **Part des dealers** (notes et bonds) : la prévision fait pire que `mean3`, avec un R² de −28,5 % [−45,9 ; −14,7] (même fichier).
+- **Nouvelles sources** (dealers, CFTC, liquidité) : elles n'améliorent la prévision d'aucune cible ; pour 4 cibles sur 8, elles la dégradent un peu ([new_sources_comparison.csv](data/output/new_sources_comparison.csv)).
+- **Lien avec le marché** (notes et bonds, 2009-2026) : pour les 20 % d'enchères dont le bid-to-cover est le plus en dessous de `mean3`, le taux de la maturité varie en moyenne de +2,0 pb [+1,2 ; +2,8] entre la clôture de la veille et celle du jour de l'enchère ; pour les 20 % les plus au-dessus, de −1,4 pb [−1,7 ; −1,0]. C'est une association, pas une cause ([quintiles.csv](data/output/quintiles.csv)).
+- **Stratégie illustrative** : aucun gain démontré. Sur 2020-2026, elle perd 1,40 pb par trade après coût, contre 1,27 pb pour la règle « toujours vendeur », soit un écart de −0,13 pb [−0,84 ; +0,58] ([strategy_summary.csv](data/output/strategy_summary.csv)).
 - Tous les chiffres du rapport et de l'oral, avec le fichier qui produit chacun, sont dans [reports/chiffres_cles.md](reports/chiffres_cles.md). Les figures sont dans [reports/figures/](reports/figures/).
 
 Ces prévisions sont un exercice académique, pas un conseil en investissement.
 
 ## État d'avancement
 
-Les 11 phases du plan sont terminées : collecte, nettoyage, variables point-in-time, modèles, stratégie, prévisions en direct avec journal figé, application, automatisation et mise en ligne, supports pour l'oral et le rapport.
+Les 11 phases du plan sont faites : collecte, nettoyage, variables point-in-time, modèles, stratégie, prévisions en direct avec journal figé, application, automatisation et mise en ligne, supports pour l'oral et le rapport. Reste à faire par l'étudiant : ouvrir l'application depuis un autre appareil (critère de la phase 10), relire le code, écrire le rapport et préparer l'oral.
 
 ## Organisation du dépôt
 
 | Dossier | Contenu |
 |---|---|
-| `src/tresor/sources/` | téléchargement des 11 sources publiques (une par fichier) |
+| `src/tresor/sources/` | téléchargement des 11 tables publiques (un fichier par site) |
 | `src/tresor/clean/` | nettoyage et contrôles de qualité |
 | `src/tresor/features.py` | 46 variables point-in-time (seulement des données publiées avant l'enchère) |
 | `src/tresor/models.py`, `strategy.py`, `plots.py` | validation walk-forward, interprétation, stratégie, figures |

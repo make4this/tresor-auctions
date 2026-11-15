@@ -26,7 +26,7 @@ COST_BP = 0.5  # coût d'un aller-retour, en points de base de taux
 COSTS_BP = (0.0, 0.25, 0.5, 1.0)  # sensibilité au coût
 # Notes et bonds seulement : la duration d'un bill est trop courte pour ce pari sur les taux.
 FAMILY = "nominal_coupon"
-SIGNAL_MODEL = md.ENSEMBLE  # modèle de référence fixé à l'avance en phase 6
+SIGNAL_MODEL = md.ENSEMBLE  # modèle de référence retenu en phase 6 (moyenne des 5)
 MAX_GAP = ft.DAILY_MAX_AGE  # clôture précédente au plus 10 jours avant l'enchère
 QUINTILES = 5
 # Surprise : écart à la moyenne des 3 dernières enchères. Le signe est choisi pour que le

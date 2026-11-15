@@ -48,13 +48,15 @@ marché, liquidité et positionnement.
   2020-2026 ; intervalles de confiance par bootstrap d'années entières.
 
 ### Ce que disent les résultats
-- Le **bid-to-cover des notes et bonds** est le seul résultat solide : environ +10 % de R²
-  contre la moyenne des 3 dernières, positif sur chaque période.
-- Les **nouvelles sources** (dealers, CFTC, liquidité) n'apportent rien de mesurable.
+- Le **bid-to-cover des notes et bonds** est le résultat le plus solide : +9,6 % de R²
+  contre la moyenne des 3 dernières sur 2020-2026, positif sur chaque période.
+- Les **nouvelles sources** (dealers, CFTC, liquidité) n'améliorent la prévision d'aucune
+  cible ; pour 4 cibles sur 8, elles la dégradent un peu (intervalle entièrement négatif).
 - La **part des dealers** des notes et bonds est mal prévue depuis 2020 ; le **tail** reflète
   surtout le mouvement du marché du jour.
 - Une **stratégie** fondée sur le signal (vendeur de duration si le bid-to-cover prévu est sous
-  la moyenne des 3, acheteur sinon) perd 1,0 pb par trade après coûts et ne fait pas mieux que
+  la moyenne des 3, acheteur sinon) perd 1,0 pb par trade après coûts sur 2014-2026 (1,4 pb
+  sur 2020-2026) et ne fait pas mieux que
   « toujours vendeur » (écart non significatif). La partie prévisible de la demande n'a pas
   d'effet mesurable sur le taux du jour.
 
@@ -89,7 +91,8 @@ honnêtement les prévisions.
 ### Usage des LLM
 Le code a été écrit par un LLM (Claude Code, d'Anthropic) sous la direction de l'étudiant,
 phase par phase, à partir d'un plan écrit à l'avance (`PLAN.md`). Chaque phase a ensuite été
-relue par deux autres agents LLM lancés séparément ; les erreurs trouvées et corrigées sont
+relue par d'autres agents Claude, lancés séparément et en lecture seule (trois pour les phases
+1 à 3, deux ensuite) ; les erreurs trouvées et corrigées sont
 documentées, avec les demandes et les choix, dans le journal du dépôt.
 """
 )

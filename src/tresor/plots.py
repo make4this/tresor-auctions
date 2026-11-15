@@ -28,9 +28,9 @@ TARGET_LABELS = {
     "btc": "Bid-to-cover",
     "dealer_share": "Part des dealers",
     "indirect_share": "Part des indirects",
-    "tail_bp": "Tail (pb)",
+    "tail_bp": "Tail",
 }
-# Ordre d'affichage : les 5 modèles, la référence fixée à l'avance, les variantes, les benchmarks.
+# Ordre d'affichage : les 5 modèles, la référence (moyenne des 5), les variantes, les benchmarks.
 MODEL_LABELS = {
     "ridge": "Ridge",
     "lasso": "Lasso",
@@ -76,9 +76,9 @@ FEATURE_LABELS = {
     "tga_chg_4w_bn": "Solde du Trésor, var. 4 sem.",
     "rrp_chg_4w_bn": "Reverse repo, var. 4 sem.",
     "fed_assets_chg_13w": "Bilan de la Fed, var. 13 sem.",
-    "dealer_total_z52": "Dealers, total (normalisé)",
-    "dealer_net_z52": "Dealers, tranche (normalisé)",
-    "dealer_net_chg_4w_bn": "Dealers, tranche, var. 4 sem.",
+    "dealer_total_z52": "Positions des dealers, total (normalisées)",
+    "dealer_net_z52": "Positions des dealers, même maturité (normalisées)",
+    "dealer_net_chg_4w_bn": "Positions des dealers, même maturité, variation 4 sem.",
     "cftc_am_net_z52": "Asset managers (CFTC)",
     "cftc_lev_net_z52": "Leveraged funds (CFTC)",
 }
@@ -149,7 +149,7 @@ def r2_by_model(
     """R² contre mean3 sur la période d'évaluation, avec son intervalle à 90 %.
 
     En bleu, le modèle choisi sur 2014-2019 (avant d'avoir vu cette période) ; en orange, la
-    moyenne des 5 modèles, fixée à l'avance. Toutes les cibles partagent la même échelle.
+    moyenne des 5 modèles, modèle de référence. Toutes les cibles partagent la même échelle.
     """
     data = metrics[
         (metrics["family"] == family)
@@ -170,6 +170,9 @@ def r2_by_model(
             if not cut:
                 axis.plot([max(low, AXIS_FLOOR), high], [position, position],
                           color=TEXT_SECONDARY, linewidth=1)  # fmt: skip
+                if low < AXIS_FLOOR:  # intervalle coupé : une flèche le signale
+                    axis.plot(AXIS_FLOOR, position, marker="<", markersize=5,
+                              color=TEXT_SECONDARY)  # fmt: skip
             anchor = AXIS_FLOOR + 0.01 if cut else max(0.0, value, high)  # toujours à droite de 0
             axis.text(
                 anchor + 0.01,
@@ -190,7 +193,7 @@ def r2_by_model(
     figure.legend(
         handles=[
             Patch(color=PRIMARY, label="Modèle choisi sur 2014-2019"),
-            Patch(color=SECOND, label="Moyenne des 5, fixée à l'avance"),
+            Patch(color=SECOND, label="Moyenne des 5 (référence)"),
             Patch(color=MUTED, label="Autres modèles et benchmarks"),
         ],
         loc="lower left",
@@ -202,7 +205,9 @@ def r2_by_model(
     )
     figure.suptitle(
         f"{FAMILY_LABELS[family]} : R² hors échantillon contre la moyenne des 3 dernières"
-        f" enchères, {period} (trait : intervalle à 90 %, bootstrap par année)",
+        f" enchères, {period} (trait : intervalle à 90 %, bootstrap par année ; flèche :"
+        " intervalle coupé à −30 %)\n« En écart » : variante qui prévoit l'écart à la moyenne"
+        " des 3 dernières, puis l'ajoute à cette moyenne.",
         x=0.01,
         ha="left",
         fontsize=12,
@@ -215,7 +220,9 @@ def r2_by_model(
 def new_sources(comparison: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path:
     """Expérience clé : moyenne des 5 modèles, avec et sans dealers, CFTC et liquidité."""
     rows = comparison[comparison["model"] == "moyenne_5"].reset_index(drop=True)
-    labels = [f"{FAMILY_LABELS[r.family]} - {TARGET_LABELS[r.target]}" for r in rows.itertuples()]
+    labels = [
+        f"{FAMILY_LABELS[r.family]}, {TARGET_LABELS[r.target].lower()}" for r in rows.itertuples()
+    ]
     figure, axis = plt.subplots(figsize=(10.5, 5.2), facecolor=SURFACE)
     positions = list(range(len(rows)))
     axis.barh([p - 0.18 for p in positions], rows["toutes"], height=0.34, color=PRIMARY,
@@ -224,8 +231,8 @@ def new_sources(comparison: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path
               color=SECOND, label="Sans")  # fmt: skip
     right = rows[["toutes", "sans_nouvelles_sources"]].max().max()
     for position, row in zip(positions, rows.itertuples(), strict=True):
-        low, high = row.gain_ci_low * 100, row.gain_ci_high * 100
-        text = f"{row.gain * 100:+.1f} pt  [{low:+.1f} ; {high:+.1f}]".replace(".", ",")
+        low, high = _fr(row.gain_ci_low * 100, sign=True), _fr(row.gain_ci_high * 100, sign=True)
+        text = f"{_fr(row.gain * 100, sign=True)} point  [{low} ; {high}]"
         axis.text(right + 0.02, position, text, va="center", fontsize=9, color=TEXT_SECONDARY)
     axis.axvline(0, color=TEXT_SECONDARY, linewidth=1)
     axis.set_yticks(positions, labels)
@@ -236,9 +243,9 @@ def new_sources(comparison: pd.DataFrame, directory: Path = FIGURES_DIR) -> Path
     axis.legend(frameon=False, fontsize=10, loc="upper center", bbox_to_anchor=(0.5, -0.07),
                 ncol=2, labelcolor=TEXT_SECONDARY)  # fmt: skip
     axis.set_title(
-        "Les nouvelles sources aident-elles ? Moyenne des 5 modèles, R² contre mean3,"
-        " 2014-2026.\nÀ droite : écart avec - sans, et son intervalle à 90 %"
-        " (s'il contient 0, pas d'effet net).",
+        "Les nouvelles sources aident-elles ? Moyenne des 5 modèles, R² contre la moyenne des"
+        " 3 dernières, 2014-2026.\nÀ droite : R² avec moins R² sans, en points de"
+        " pourcentage, et son intervalle à 90 % (s'il contient 0, pas d'effet démontré).",
         fontsize=11,
         color=TEXT,
         loc="left",
@@ -286,7 +293,8 @@ def cumulative_gain(
     axis.yaxis.set_major_formatter(_whole_percent)
     axis.set_title(
         f"{FAMILY_LABELS[family]}, {TARGET_LABELS[target].lower()} : gain cumulé de la"
-        f" {MODEL_LABELS[model].lower()} contre mean3, en part de l'erreur totale de mean3\n"
+        f" {MODEL_LABELS[model].lower()} contre la moyenne des 3 dernières, en part de son"
+        " erreur totale\n"
         "(au-dessus de 0 : le modèle fait mieux ; la courbe finit au R² de 2014-2026)"
         + ("\nPointillés : crises du plafond de la dette." if family == "bill" else ""),
         fontsize=11,
@@ -357,8 +365,8 @@ def all_figures(
 # --- Phase 7 : lien avec le marché et stratégie ---------------------------------------------
 
 SURPRISE_LABELS = {
-    "part_des_dealers": "Surprise de la part des dealers (réelle − moyenne des 3)",
-    "bid_to_cover": "Surprise du bid-to-cover (réel − moyenne des 3)",
+    "part_des_dealers": "Surprise de la part des dealers (réelle − moyenne des 3 dernières)",
+    "bid_to_cover": "Surprise du bid-to-cover (réel − moyenne des 3 dernières)",
 }
 REGIME_CHANGE = pd.Timestamp("2022-01-01")
 
@@ -425,7 +433,7 @@ def strategy_pnl(trades: pd.DataFrame, cost_bp: float = 0.5, directory: Path = F
     axis.axhline(0, color=TEXT_SECONDARY, linewidth=1)
     if first < REGIME_CHANGE < last:
         axis.axvline(REGIME_CHANGE, color=MUTED, linewidth=1, linestyle="--")
-        axis.annotate("2022 : les taux baissent en moyenne\nles jours d'enchère",
+        axis.annotate("Depuis 2022 : les taux baissent en moyenne\nle jour de l'enchère",
                       (REGIME_CHANGE, 1), xycoords=("data", "axes fraction"), xytext=(4, -4),
                       textcoords="offset points", va="top", fontsize=8,
                       color=TEXT_SECONDARY)  # fmt: skip
@@ -483,12 +491,15 @@ def source_coverage(
                   xycoords=("data", "axes fraction"), xytext=(4, 4),
                   textcoords="offset points", va="bottom", fontsize=8,
                   color=TEXT_SECONDARY)  # fmt: skip
-    axis.set_xlim(pd.Timestamp("1989-01-01"), pd.Timestamp("2031-06-30"))
+    first = min(row[1] for row in rows)
+    last = max(row[2] for row in rows)
+    axis.set_xlim(first - pd.Timedelta(days=365), last + pd.Timedelta(days=4 * 365))
     today = pd.Timestamp(str(quality.get("today_new_york")))
     axis.set_title(
-        f"Les {len(rows)} sources publiques et gratuites : période couverte et nombre de lignes"
-        f" au {today:%d/%m/%Y}\nL'historique des enchères vient de Fiscal Data ; TreasuryDirect"
-        " ajoute les résultats récents et le calendrier.",
+        f"Les {len(rows)} tables publiques et gratuites (Trésor américain, Fed de New York, FRED,"
+        f" CFTC, CBOE) : période couverte et nombre de lignes au {today:%d/%m/%Y}\nL'historique"
+        " des enchères vient de Fiscal Data ; TreasuryDirect ajoute les résultats récents et le"
+        " calendrier.",
         fontsize=11,
         color=TEXT,
         loc="left",
@@ -498,8 +509,13 @@ def source_coverage(
     return _save(figure, directory / "donnees_sources.png")
 
 
-def auctions_by_year(table: pd.DataFrame, today: str, directory: Path = FIGURES_DIR) -> Path:
-    """Nombre d'enchères gardées après nettoyage, par année et par famille."""
+def auctions_by_year(
+    table: pd.DataFrame, overview: dict[str, object], directory: Path = FIGURES_DIR
+) -> Path:
+    """Nombre d'enchères gardées après nettoyage, par année et par famille.
+
+    `overview` : chiffres du titre (voir `key_figures.auctions_overview`).
+    """
     data = table.set_index("annee")
     others = data.drop(columns=list(FAMILY_LABELS)).sum(axis=1)
     layers = [
@@ -515,18 +531,19 @@ def auctions_by_year(table: pd.DataFrame, today: str, directory: Path = FIGURES_
                  edgecolor=SURFACE, linewidth=1)  # fmt: skip
         bottom = bottom + values
     axis.axvline(MODEL_START.year - 0.5, color=TEXT_SECONDARY, linewidth=1, linestyle="--")
-    axis.annotate("échantillon des modèles →", (MODEL_START.year - 0.4, 1),
+    axis.annotate("échantillon des modèles : bills, notes et bonds depuis 2009 →",
+                  (MODEL_START.year - 0.4, 1),
                   xycoords=("data", "axes fraction"), va="top", fontsize=8,
                   color=TEXT_SECONDARY)  # fmt: skip
-    modeled = int(data.loc[data.index >= MODEL_START.year, list(FAMILY_LABELS)].sum().sum())
     axis.set_ylabel("Enchères par an", color=TEXT_SECONDARY)
     axis.yaxis.set_major_formatter(lambda y, _: _fr(y, 0))
     axis.legend(frameon=False, fontsize=9, loc="upper left", bbox_to_anchor=(0, -0.08), ncol=3,
                 labelcolor=TEXT_SECONDARY)  # fmt: skip
     axis.set_title(
-        f"{_fr(int(bottom.sum()), 0)} enchères gardées après nettoyage, dont"
-        f" {_fr(modeled, 0)} bills, notes et bonds depuis 2009\nPar année ; 2026 jusqu'au"
-        f" {pd.Timestamp(today):%d/%m/%Y}, enchères annoncées comprises.",
+        f"{_fr(overview['kept'], 0)} enchères gardées après nettoyage ; échantillon des modèles :"
+        f" {_fr(overview['sample'], 0)} bills, notes et bonds réalisés depuis 2009\nPar année."
+        f" 2026 : enchères réalisées jusqu'au {overview['last_completed']:%d/%m/%Y}, et"
+        f" annoncées jusqu'au {overview['last_upcoming']:%d/%m/%Y}.",
         fontsize=11,
         color=TEXT,
         loc="left",
@@ -534,3 +551,38 @@ def auctions_by_year(table: pd.DataFrame, today: str, directory: Path = FIGURES_
     _style(axis, grid_axis="y")
     figure.tight_layout()
     return _save(figure, directory / "donnees_encheres_par_an.png")
+
+
+def publication_delays(table: pd.DataFrame, since: str, directory: Path = FIGURES_DIR) -> Path:
+    """Délai médian entre la date d'une donnée et sa publication, par source (point-in-time).
+
+    `table` : une ligne par source, colonnes `label`, `median`, `p90` (jours calendaires) et
+    `note` (texte, éventuellement vide). Un 9e décile de plus de 60 jours n'est pas écrit : il
+    vient de valeurs publiées des années plus tard, expliquées par la note.
+    """
+    data = table.iloc[::-1]  # le premier en haut
+    positions = range(len(data))
+    figure, axis = plt.subplots(figsize=(10.5, 0.45 * len(data) + 1.6), facecolor=SURFACE)
+    axis.barh(positions, data["median"], height=0.5, color=PRIMARY)
+    for position, row in zip(positions, data.itertuples(), strict=True):
+        text = "le soir même" if row.median == 0 else f"{_fr(row.median, 0)} j"
+        if row.median < row.p90 <= 60:
+            text += f" ; 9 valeurs sur 10 avant {_fr(row.p90, 0)} j"
+        if row.note:
+            text += f" ; {row.note}"
+        axis.text(row.median + 0.15, position, text, va="center", fontsize=9,
+                  color=TEXT_SECONDARY)  # fmt: skip
+    axis.set_yticks(list(positions), list(data["label"]))
+    axis.set_xlim(0, max(12.0, float(data["median"].max()) + 6))
+    axis.xaxis.set_major_formatter(lambda x, _: f"{_fr(x, 0)} j")
+    axis.set_title(
+        f"Délai médian entre la date d'une donnée et sa publication, depuis {since[:4]}"
+        "\nUne variable n'utilise que ce qui était publié strictement avant le jour de"
+        " l'enchère.",
+        fontsize=11,
+        color=TEXT,
+        loc="left",
+    )
+    _style(axis, grid_axis="x")
+    figure.tight_layout()
+    return _save(figure, directory / "donnees_delais_publication.png")

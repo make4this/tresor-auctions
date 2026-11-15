@@ -6,9 +6,18 @@
 
 ## Synthèse (15 novembre 2026)
 
-**Comment le LLM a été utilisé.** J'ai écrit le plan du projet (`PLAN.md`) et je l'ai donné à Claude Code avec la consigne « Lis PLAN.md et exécute-le phase par phase ». Pour chacune des 11 phases, le LLM a écrit le code et les tests, l'a lancé et m'a montré les sorties réelles. Il a attendu mon accord avant la phase suivante.
+Dans ce journal, « je » désigne l'étudiant. Ce que font le LLM et les agents est écrit à la troisième personne.
 
-Après chaque phase jusqu'à la 10, à ma demande (« Vérifie la phase N »), deux agents LLM indépendants ont relu le travail sans le modifier (trois agents pour les phases 1 à 3, vérifiées ensemble). Le LLM principal a ensuite corrigé ce qu'ils avaient trouvé, a injecté des erreurs volontaires dans une copie du code pour éprouver les tests, puis a tout consigné ici.
+**Comment le LLM a été utilisé.** J'ai écrit le plan du projet (`PLAN.md`) et je l'ai donné à Claude Code avec la consigne « Lis PLAN.md et exécute-le phase par phase ».
+
+Pour chacune des 11 phases, le LLM a écrit le code et les tests, les a lancés et m'a montré les sorties réelles. Il a attendu mon accord avant la phase suivante. Seule exception : le code de la phase 4 a été préparé pendant la vérification des phases 1 à 3, puis installé après mon accord.
+
+Après chaque phase, à ma demande (« Vérifie la phase N »), d'autres agents Claude ont relu le travail en lecture seule. Ils étaient lancés séparément par le LLM principal :
+
+- trois agents pour les phases 1 à 3, vérifiées ensemble ;
+- deux agents pour chacune des phases suivantes.
+
+Le LLM principal a ensuite corrigé ce qu'ils avaient trouvé. Il a aussi introduit exprès des erreurs dans une copie du code, pour vérifier que les tests les détectent, puis il a tout consigné ici.
 
 **Mes demandes (prompts).** Le plan et la consigne de départ. Ensuite « OK, phase N » et « Vérifie la phase N » à chaque phase. Enfin quelques décisions :
 
@@ -24,15 +33,21 @@ Après chaque phase jusqu'à la 10, à ma demande (« Vérifie la phase N »), d
 
 **À faire par moi :**
 
-- relire le code ;
-- ouvrir l'application depuis mon téléphone ;
-- écrire la partie « ma contribution » du rapport ;
-- répéter l'oral.
+- relire le code, en commençant par les listes « À relire moi-même » de chaque phase ;
+- écrire le rapport (2 à 5 pages), dont la partie « ma contribution », et préparer les 3 slides de l'oral, puis le répéter ;
+- ouvrir l'application depuis mon téléphone (second critère de la phase 10) ;
+- valider le remplacement du spread *high yield* par le spread Baa (`BAA10Y`), laissé « à valider » en phase 3 ;
+- vérifier l'onglet Actions après le passage du lundi 16 novembre, et que `market_last_dates.yield_10y` de `live_status.json` est bien la date du passage ;
+- relancer `python reports/make_figures.py` la veille de l'oral, pour des chiffres « du jour » à jour ;
+- décider s'il faut protéger la branche `main` dans les réglages de GitHub ;
+- dire ici si un LLM m'a aidé à écrire `PLAN.md` ou la première version du projet en R qu'il cite.
 
-**Ce que montre ce journal.** Le LLM s'est souvent trompé, et la plupart de ses erreurs ont été trouvées par les agents de vérification ou par les erreurs injectées, pas par le LLM qui avait écrit le code. Ces erreurs étaient de plusieurs sortes :
+**Ce que montre ce journal.** Le LLM s'est souvent trompé. La plupart de ses erreurs ont été trouvées par les agents de vérification, pas par le LLM qui avait écrit le code. Les erreurs introduites exprès dans des copies du code ont montré que beaucoup de tests étaient trop faibles : en phase 8, 25 des 40 erreurs introduites par un agent passaient les tests.
 
-- un nom de colonne supposé au lieu d'être lu (phase 11) ;
-- des dates de publication trop optimistes ;
+Les erreurs du LLM étaient de plusieurs sortes :
+
+- des règles de publication qui auraient créé une fuite d'information (indice dollar, phase 3) ;
+- des dates de publication trop optimistes (CFTC) ;
 - des tests trop étroits ;
 - des conclusions présentées plus favorablement que les chiffres ne le permettaient.
 
@@ -42,15 +57,27 @@ Les principaux problèmes et leurs solutions :
 |---|---|---|
 | 1 | Python 3.9 sur la machine ; LightGBM ne se chargeait pas (`libomp`) | environnement Python 3.11 séparé, avec `llvm-openmp` |
 | 2 | des types de titres et des noms de champs de mon plan ne correspondaient pas à l'API TreasuryDirect (TIPS et FRN absents, `highDiscountRate` inexistant) | appel de test avant chaque parseur ; types `TIPS`, `FRN` et `CMB` ajoutés |
+| 3 | la règle du plan « date + 1 jour ouvré » aurait créé une fuite : l'indice dollar est publié 3 à 10 jours après sa date, et ses valeurs 2006-2019 n'ont été publiées qu'en 2019 | vraies dates de première publication (archive ALFRED de FRED) |
+| 3 | clé FRED collée par erreur à l'invite du terminal | écrite dans `.env`, jamais commitée, vérifiée absente de tout l'historique |
 | 1 à 3 (vérification) | CFTC : dates de publication fausses les semaines de jour férié et pendant les pannes ; TreasuryDirect oublie les titres échus | calendrier officiel et 30 rapports retardés datés un par un ; table TreasuryDirect cumulative |
 | 4 (vérification) | des CMB de quelques jours classés « 4 semaines » ; « . » de FRED (reverse repo) lu comme une valeur manquante | identifiant de série famille + maturité ; « . » = 0 les jours ouvrés |
 | 5 (vérification) | les tests ne pouvaient pas voir une date de publication fausse (contrôle circulaire) | contrôle bloquant des délais minimaux de publication par source |
-| 6 (vérification) | le *tail* présenté comme un succès, alors qu'une constante fait presque aussi bien ; gains des bills gonflés par les crises du plafond de la dette | benchmark constante, R² sans le meilleur trimestre, modèle de référence fixé à l'avance |
+| 6 (vérification) | le meilleur modèle était choisi sur la période même où on le jugeait ; le *tail* présenté comme un succès, alors qu'une constante fait presque aussi bien ; gains des bills gonflés par les crises du plafond de la dette | choix sur 2014-2019, jugement sur 2020-2026 ; benchmark constante ; R² sans le meilleur trimestre ; moyenne des 5 comme référence, retenue par principe (après une première version qui montrait déjà les résultats de chaque modèle) |
 | 7 (vérification) | interprétations trop fortes de la stratégie (effet de période pris pour un effet de la demande) | conclusions réécrites avec les chiffres qui les limitent |
 | 8 (vérification) | une ligne figée pouvait être réécrite en relançant avec une heure plus ancienne | heure qui doit avancer, garde-fou sur toutes les colonnes |
 | 9 (vérification) | le bouton « Mettre à jour » modifiait 11 fichiers du dépôt | travail sur une copie temporaire, testé |
-| 10 (vérification et mise en ligne) | erreur bloquante confondue avec une panne de source ; versions figées en partie ; application en ligne sous Python 3.14 et pas 3.11 ; ancien code gardé en mémoire en ligne | code de sortie distinct, 60 versions figées, tests sous 3.11 et 3.14, code relu automatiquement quand il change |
-| 11 | figures du rapport en retard sur le code (anciens libellés) | toutes les figures et tous les chiffres régénérés par un seul script, vérifié par un test |
+| 10 (vérification et mise en ligne) | erreur bloquante confondue avec une panne de source ; versions figées en partie ; application en ligne sous Python 3.14 et pas 3.11 ; ancien code gardé en mémoire en ligne | code de sortie distinct, versions exactes de 60 bibliothèques, tests sous 3.11 et 3.14, code relu automatiquement quand il change |
+| 11 | figures du rapport en retard sur le code (anciens libellés) ; journal qui m'attribuait du travail du LLM ; « modèle fixé avant de voir les résultats », faux | figures et chiffres régénérés par un seul script, vérifié par un test ; attributions et affirmations corrigées (voir la vérification de la phase 11) |
+
+**Écarts au plan**, tous expliqués dans la phase concernée :
+
+- le passage du soir ne lance pas `--all`, car il ne refait pas le backtest de 2 heures (phase 10) ;
+- le spread Baa (`BAA10Y`) remplace le spread *high yield*, dont FRED ne garde que 3 ans (phase 3) ;
+- les clôtures (taux, VIX) sont connues le soir même, et non à « date + 1 jour ouvré » (phase 4) ;
+- la Random Forest a des réglages fixes, non choisis par validation croisée (phase 6) ;
+- le bouton « Mettre à jour maintenant » n'écrit rien dans le dépôt ; sa prévision est provisoire (phase 9) ;
+- aucun secret Streamlit, car l'application ne contacte jamais FRED (phase 10) ;
+- les modèles sont dans une release GitHub, et non dans git (phase 10).
 
 Le détail de chaque phase suit.
 
@@ -443,7 +470,7 @@ La première version de cette section exagérait plusieurs résultats. Elle a é
 - Deux familles modélisées séparément (notes et bonds, bills), 4 cibles, 5 modèles (Ridge, Lasso, ElasticNet, Random Forest, LightGBM), 2 jeux de variables (avec ou sans les nouvelles sources).
 - Hyperparamètres choisis dans la fenêtre d'entraînement par validation croisée temporelle (`TimeSeriesSplit`). `random_state=42` partout.
 - **Trois benchmarks** : `naive` (dernière enchère), `mean3` (moyenne des 3 dernières, la référence du plan) et `constante` (moyenne de la cible sur la fenêtre d'entraînement, c'est-à-dire un modèle sans aucune variable).
-- **Modèle de référence fixé à l'avance** : la moyenne des prévisions des 5 modèles (`moyenne_5`). Elle évite de choisir le modèle d'après ses résultats sur la période de test.
+- **Modèle de référence fixé à l'avance** : la moyenne des prévisions des 5 modèles (`moyenne_5`). Elle évite de choisir le modèle d'après ses résultats sur la période de test. *(Corrigé en phase 11 : « à l'avance » est faux. La moyenne des 5 a été ajoutée lors des corrections de cette phase, alors que la première version montrait déjà les résultats de chaque modèle sur 2014-2026. Elle a été retenue par principe, pas d'après ses résultats, mais pas avant de les voir.)*
 - **Choix et jugement séparés** : le « meilleur » modèle est choisi sur 2014-2019 seulement, puis jugé sur 2020-2026.
 - **Intervalles de confiance à 90 %** : bootstrap par années entières (2 000 tirages), pour respecter la dépendance dans le temps. On donne aussi le R² sans le trimestre le plus favorable, pour voir si un résultat tient à un seul épisode.
 - **Variante « en écart à `mean3` »** (Ridge, Lasso, ElasticNet) : le modèle prévoit la surprise (cible − `mean3`) au lieu du niveau.
@@ -513,7 +540,7 @@ La moyenne des 5 fait aussi bien ou mieux que le modèle choisi dans 7 cas sur 8
 | LightGBM | grille de 9 combinaisons (7, 15 ou 31 feuilles ; 150, 400 ou 800 arbres) choisie à chaque trimestre par `TimeSeriesSplit(3)` | la première grille de 4 combinaisons butait sur un coin ; l'élargir change peu les résultats (bid-to-cover des notes et bonds : 7,2 → 7,0 %) |
 | Cible d'entraînement | écrêtée à 1 % et 99 % (évaluation sur la cible réelle) | les *tails* de crise (+143 pb) ne doivent pas dicter le modèle |
 | Validation croisée interne | prétraitement appris sur toute la fenêtre d'entraînement avant la validation interne | pratique courante ; cela ne touche que le choix des hyperparamètres, jamais la période de test |
-| Modèle de référence | moyenne des 5, fixée avant de voir les résultats de 2020-2026 | évite de choisir sur le test |
+| Modèle de référence | moyenne des 5, retenue par principe (corrigé en phase 11 : pas « avant de voir les résultats », qui étaient déjà visibles sur 2014-2026) | évite de choisir sur le test |
 | Variante en écart à `mean3` | seulement pour les 3 modèles linéaires, toutes variables | test de robustesse rapide ; elle n'existe pas quand `mean3` manque (57 prévisions sur 234 840, en début de série, exclues de tous les scores) |
 | Figures | Matplotlib ajouté aux dépendances | figures statiques pour l'oral et le rapport (Plotly reste pour l'application) |
 
@@ -569,7 +596,7 @@ La moyenne des 5 fait aussi bien ou mieux que le modèle choisi dans 7 cas sur 8
   - une valeur extrême de la cible dans le trimestre testé ne change pas l'écrêtage ;
   - une valeur extrême d'une variable ne change que sa propre prévision ;
   - variante en écart, benchmark constant, moyenne des 5, bootstrap, R² sans le meilleur trimestre, choix du modèle sur 2014-2019, égalités exclues de la direction.
-- J'ai ensuite injecté 13 erreurs volontaires dans une copie du code (par exemple entraîner jusqu'au jour même, écrêter avec tout l'historique, choisir le modèle sur 2020-2026). Les 13 sont détectées, et la copie sans erreur passe tous les tests.
+- Le LLM a ensuite injecté 13 erreurs volontaires dans une copie du code (par exemple entraîner jusqu'au jour même, écrêter avec tout l'historique, choisir le modèle sur 2020-2026). Les 13 sont détectées, et la copie sans erreur passe tous les tests.
 - La corrélation entre prévision et réalité était peu informative (le niveau varie surtout avec la maturité) : ajout de la corrélation des surprises (réel − `mean3` contre prévu − `mean3`).
 - Figures refaites (voir la section Phase 6).
 
@@ -609,7 +636,7 @@ La première version de cette section contenait deux explications fausses. Elle 
 - **Notes et bonds seulement** : la duration d'un bill est trop courte pour un pari sur les taux.
 - **Variation du taux** : taux de la maturité de l'enchère (courbe du Trésor), de la dernière clôture publiée strictement avant l'enchère (au plus 10 jours avant) à la clôture du jour de l'enchère, en points de base. Le résultat de l'enchère tombe à 13 h, donc avant la clôture du jour.
 - **Surprise** : valeur réelle moins moyenne des 3 dernières enchères de la même maturité. Quintile 1 = demande la plus forte, quintile 5 = la plus faible, pour les deux mesures.
-- **Signal** : la moyenne des 5 modèles, fixée à l'avance en phase 6 (prévisions hors échantillon 2014-2026).
+- **Signal** : la moyenne des 5 modèles, modèle de référence retenu en phase 6 (prévisions hors échantillon 2014-2026).
 - **P&L** = position × variation du taux − 0,5 pb, avec position +1 si vendeur (on gagne quand le taux monte) et -1 si acheteur.
 - **Deux références** :
   - « toujours vendeur », demandée par le plan ;
@@ -696,7 +723,7 @@ La première version de cette section contenait deux explications fausses. Elle 
 | Affirmation de la première version | Ce que la vérification a montré | Correction |
 |---|---|---|
 | La stratégie fait pire que « toujours vendeur » parce qu'elle était surtout vendeuse en 2022-2024 | être surtout vendeur rapproche de « toujours vendeur », sans pouvoir faire pire. Le retard vient de 2014-2021 (-448 pb) ; depuis 2022, la stratégie fait mieux (+146 pb). Et l'écart n'est pas significatif | explication réécrite ; écart et intervalle ajoutés à la synthèse |
-| « Conclusion du plan confirmée : la partie prévisible de la demande est déjà dans les prix » | la corrélation +0,10 vient d'un effet de période (+0,05 à l'intérieur de chaque année) ; aucune hausse plus forte avant les enchères prévues faibles ; le test n'a pas la puissance de trancher (gain maximal ≈ 0,4 pb < coût) | formulation prudente : « pas d'effet mesurable » |
+| « Conclusion du plan confirmée : la partie prévisible de la demande est déjà dans les prix » | la corrélation +0,10 vient d'un effet de période (+0,04 à l'intérieur de chaque année) ; aucune hausse plus forte avant les enchères prévues faibles ; le test n'a pas la puissance de trancher (gain maximal ≈ 0,4 pb < coût) | formulation prudente : « pas d'effet mesurable » |
 | « La stratégie inverse rapporte 0,0 pb » | vrai après coût, par coïncidence : avant coût elle gagne +0,5 pb, à cause du biais vendeur | chiffre avant coût et explication ajoutés |
 | « +1,8 pb » présenté comme une constante | +3,1 pb sur 2009-2013, +1,4 pb ensuite | quintiles par période |
 | « Les enchères faibles font monter le taux » | la fenêtre inclut la matinée : cause non démontrée | « s'accompagnent d'une hausse » |
@@ -727,7 +754,7 @@ La première version de cette section contenait deux explications fausses. Elle 
 - l'étude d'événement et la sensibilité au coût ;
 - un test de bout en bout et le contrôle de désynchronisation.
 
-J'ai ensuite injecté 26 erreurs dans une copie de `strategy.py`, dont les 13 qui échappaient aux tests : les 26 sont détectées, et la copie sans erreur passe tous les tests.
+Le LLM a ensuite injecté 26 erreurs dans une copie de `strategy.py`, dont les 13 qui échappaient aux tests : les 26 sont détectées, et la copie sans erreur passe tous les tests.
 
 **Limites connues, non corrigées :**
 
@@ -836,7 +863,7 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 
 **Affirmations corrigées :** « hyperparamètres choisis par validation croisée » (faux pour la Random Forest) ; « environ 2 Go par an » (1,6 mesuré) ; « −0,08 » pour deux enchères dont une seule déclenche le signal ; le test des 6 745 enchères identiques, juste mais faible.
 
-**Tests :** 35 tests pour la phase 8. J'ai injecté 32 erreurs dans une copie de `live.py`, dont les 25 qui échappaient : 31 sont détectées. La dernière (le garde-fou appelé avec la date de la veille) ne peut pas être détectée sans une seconde erreur : la construction empêche déjà de toucher une ligne figée, et le garde-fou n'est qu'une seconde sécurité. La copie sans erreur passe tous les tests.
+**Tests :** 35 tests pour la phase 8. Le LLM a injecté 32 erreurs dans une copie de `live.py`, dont les 25 qui échappaient : 31 sont détectées. La dernière (le garde-fou appelé avec la date de la veille) ne peut pas être détectée sans une seconde erreur : la construction empêche déjà de toucher une ligne figée, et le garde-fou n'est qu'une seconde sécurité. La copie sans erreur passe tous les tests.
 
 **Notes pour la phase 9 (application), tirées de la vérification :**
 
@@ -908,7 +935,7 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 - **Le vrai bouton** a été essayé :
   - Il a téléchargé les 4 sources légères et a fait apparaître 10 enchères annoncées le jour même, dont le montant n'était pas encore connu (affiché « estimé »).
   - Le journal figé n'a pas été modifié.
-  - J'ai ensuite lancé `--train --predict`, comme le fera le passage de nuit. L'entraînement a été sauté (données d'entraînement inchangées). Le journal compte maintenant 14 enchères (336 lignes), et les 96 lignes d'origine sont restées identiques.
+  - Le LLM a ensuite lancé `--train --predict`, comme le fera le passage de nuit. L'entraînement a été sauté (données d'entraînement inchangées). Le journal compte maintenant 14 enchères (336 lignes), et les 96 lignes d'origine sont restées identiques.
 
 **Correction de la phase 8 :** la phrase « le cas montant pas encore annoncé n'arrive pas en pratique » était fausse. Elle venait d'une observation faite à midi ; le soir même, le calendrier listait 10 enchères sans montant, jusqu'au 25 novembre.
 
@@ -920,7 +947,7 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 
 ## Vérification de la phase 9 par deux agents indépendants (13 novembre 2026)
 
-**Ma demande :** « Vérifie la phase 9 ». Deux agents ont relu le travail sans rien modifier (copies dans leur dossier de travail, sans réseau, sans cliquer sur le vrai bouton) : l'un le code, le bouton et les tests, l'autre tout ce qui est affiché (chiffres, phrases, français). J'ai moi-même vérifié l'affichage sur téléphone.
+**Ma demande :** « Vérifie la phase 9 ». Deux agents ont relu le travail sans rien modifier (copies dans leur dossier de travail, sans réseau, sans cliquer sur le vrai bouton) : l'un le code, le bouton et les tests, l'autre tout ce qui est affiché (chiffres, phrases, français). Le LLM a vérifié l'affichage à la taille d'un téléphone, dans le navigateur intégré à l'application Claude (pas sur un vrai téléphone).
 
 **Ce qui était juste :**
 
@@ -954,9 +981,9 @@ Le signal de l'application (demande plus faible si l'écart est inférieur ou é
 | Explorer : « depuis 2000 » faux pour les parts (2008) et vieilles réouvertures mal classées en 2008 | historique depuis 2009, l'échantillon des modèles |
 | Version minimale de Streamlit (1.37) trop basse pour le code | `streamlit>=1.67`, la version testée |
 
-**Sur téléphone** (vérifié par moi) : les colonnes essentielles (demande attendue, écart, prévision) sont maintenant en premier, et la barre d'outils des graphiques, qui cachait les titres, est masquée.
+**À la taille d'un téléphone** (vérifié par le LLM dans un navigateur, pas sur un vrai téléphone) : les colonnes essentielles (demande attendue, écart, prévision) sont maintenant en premier, et la barre d'outils des graphiques, qui cachait les titres, est masquée.
 
-**Tests :** 44 tests pour l'application (25 avant), dont 4 qui font tourner le vrai bouton sans réseau sur une copie des données. J'ai injecté 43 erreurs dans une copie complète du dépôt, reprenant la plupart des 40 qui échappaient aux tests de l'agent. 41 sont détectées. Les 2 autres sont équivalentes en pratique : le tableau est de toute façon complété ensuite, et le fichier de synthèse commence par la bonne période. Au premier essai, mon outil d'injection restaurait le code mais pas les données de la copie : une erreur qui écrivait le journal faussait les essais suivants. Je l'ai corrigé, puis j'ai tout relancé ; la copie sans erreur passe tous les tests.
+**Tests :** 44 tests pour l'application (25 avant), dont 4 qui font tourner le vrai bouton sans réseau sur une copie des données. Le LLM a injecté 43 erreurs dans une copie complète du dépôt, reprenant la plupart des 40 qui échappaient aux tests de l'agent. 41 sont détectées. Les 2 autres sont équivalentes en pratique : le tableau est de toute façon complété ensuite, et le fichier de synthèse commence par la bonne période. Au premier essai, l'outil d'injection du LLM restaurait le code mais pas les données de la copie : une erreur qui écrivait le journal faussait les essais suivants. Le LLM l'a corrigé, puis a tout relancé ; la copie sans erreur passe tous les tests.
 
 **Limites connues :** si les serveurs du Trésor ne répondent pas, le bouton peut attendre plusieurs minutes (délai réduit à 20 secondes par requête, mais avec des nouvelles tentatives). Le fonctionnement sur Streamlit Cloud reste à vérifier en phase 10.
 
@@ -1011,7 +1038,7 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
   - toutes les étapes ont tourné, dans cet ordre : journal figé vérifié, données enregistrées par le robot (commit « Données du 2026-11-14 »), modèles publiés (8,6 Mo) ;
   - le workflow a fini en échec, comme prévu, parce que l'API Fiscal Data du Trésor répondait « 503, service indisponible » pour deux sources (adjudications, trésorerie), après 5 essais chacune ; une troisième (dette) n'a répondu qu'au 5e essai. Le même essai depuis mon ordinateur donnait aussi 503 : c'était une panne du Trésor, pas un blocage de GitHub ;
   - le premier critère de la phase (« le workflow lancé à la main réussit ») n'est donc pas encore rempli. Le second (« l'adresse publique s'ouvre depuis un autre appareil ») reste à vérifier par moi.
-- **Application en ligne** (https://tresor-auctions.streamlit.app), déployée par moi sur Streamlit Community Cloud. Je pensais avoir choisi Python 3.11 ; elle tourne en réalité sous Python 3.14 (voir la vérification ci-dessous) :
+- **Application en ligne** (https://tresor-auctions.streamlit.app), déployée par moi sur Streamlit Community Cloud, en suivant les indications du LLM, qui demandaient Python 3.11 ; elle tourne en réalité sous Python 3.14 (voir la vérification ci-dessous) :
   - les 6 pages s'affichent avec les données du passage du soir (vérifié par le LLM dans le navigateur) ;
   - le bouton « Mettre à jour maintenant » fonctionne en ligne : il télécharge les modèles depuis la release et les sources légères, puis affiche une prévision provisoire.
 
@@ -1063,11 +1090,11 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 | La release apparaît comme la dernière version du dépôt, avec des archives « Source code » d'un vieux commit | ses notes l'expliquent (mises à jour par le passage du soir) |
 | Version de Python de l'application jamais vérifiée (le réglage n'est visible que dans Streamlit) | versions affichées en méthodologie : l'application tourne sous **Python 3.14.10**, pas 3.11. Les 60 versions figées existent pour 3.14 et s'y résolvent à l'identique ; les tests tournent maintenant sous 3.11 et 3.14 ; les modèles entraînés sous 3.11 se relisent, car numpy, scikit-learn et LightGBM ont les mêmes versions. Redéployer l'application en 3.11 reste possible |
 
-**Tests :** 338 tests (295 avant). J'ai injecté 24 erreurs dans une copie du dépôt, sur le code nouveau ou modifié. 21 ont été détectées au premier essai. Pour les 3 autres, j'ai ajouté un test chacune : un statut daté du futur accepté, un rapport de téléchargement jamais écrit par le pipeline, et la limite de téléchargement retirée (le test confondait deux messages). Les 24 erreurs sont maintenant détectées, et la copie sans erreur passe tous les tests.
+**Tests :** 338 tests (295 avant). Le LLM a injecté 24 erreurs dans une copie du dépôt, sur le code nouveau ou modifié. 21 ont été détectées au premier essai. Pour les 3 autres, il a ajouté un test chacune : un statut daté du futur accepté, un rapport de téléchargement jamais écrit par le pipeline, et la limite de téléchargement retirée (le test confondait deux messages). Les 24 erreurs sont maintenant détectées, et la copie sans erreur passe tous les tests.
 
 **Limites connues :**
 
-- Le contrôle d'un envoi fait à la main signale le problème, il ne l'empêche pas. Seule une protection de la branche dans les réglages de GitHub l'empêcherait ; je ne l'ai pas activée.
+- Le contrôle d'un envoi fait à la main signale le problème, il ne l'empêche pas. Seule une protection de la branche dans les réglages de GitHub l'empêcherait ; elle n'est pas activée (décision à prendre par moi).
 - Les modèles sont réentraînés chaque soir. Si les fichiers diffèrent d'un soir à l'autre, l'application les retélécharge une fois par soir (et non plus à chaque clic).
 - Le contrôle des envois faits à la main (`journal.yml`) n'a pas encore tourné pour de vrai : aucun envoi n'a touché au journal depuis sa création. Sa commande est la même que celle du passage du soir, testée.
 - À vérifier après quelques passages : la courbe des taux du jour doit être publiée avant 18 h 17 à New York, c'est-à-dire `market_last_dates.yield_10y` égal à la date du passage dans `live_status.json`. Sinon, la prévision utilise la courbe de la veille : c'est un retard, pas une fuite.
@@ -1089,12 +1116,12 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
   - la page Qualité et la barre latérale signalent les 3 sources en échec ;
   - le bouton « Mettre à jour maintenant » a téléchargé l'archive annoncée et l'a vérifiée par empreinte, puis a donné une prévision provisoire sous Python 3.14 ;
   - après deux clics, GitHub compte un seul téléchargement de l'archive : les modèles sont bien gardés entre deux clics.
-- **Bogue trouvé grâce aux vraies données du passage** : les trois sources de Fiscal Data n'avaient encore jamais réussi depuis la création du rapport de téléchargement. Leur date de dernière réussite était donc vide, et cette date vide faisait planter le tableau des téléchargements de la page Qualité, en ligne comme sur mon ordinateur. Mes tests ne prévoyaient que des dates remplies. Correction : une date absente s'affiche « inconnue ». J'ai ajouté le cas aux tests ; sans la correction, 5 tests échouent. J'ai aussi retiré une double parenthèse dans l'avertissement.
+- **Bogue trouvé grâce aux vraies données du passage** : les trois sources de Fiscal Data n'avaient encore jamais réussi depuis la création du rapport de téléchargement. Leur date de dernière réussite était donc vide, et cette date vide faisait planter le tableau des téléchargements de la page Qualité, en ligne comme sur mon ordinateur. Les tests écrits par le LLM ne prévoyaient que des dates remplies. Correction : une date absente s'affiche « inconnue ». Le LLM a ajouté le cas aux tests ; sans la correction, 5 tests échouent. Il a aussi retiré une double parenthèse dans l'avertissement.
 - **Code non relu en ligne** : une fois la correction envoyée, l'application en ligne plantait encore. Streamlit relit les fichiers du dossier `app/` quand le dépôt change, mais pas les modules de `src/tresor/` déjà chargés. L'application gardait donc l'ancien code en mémoire jusqu'à un redémarrage manuel, vérifié dans le code de Streamlit. Correction :
   - le paquet note l'empreinte de ses fichiers quand il est chargé ;
   - à chaque affichage, l'application la compare aux fichiers actuels (`app/fresh_project.py`). Si un fichier a changé, tous les modules du projet sont oubliés puis relus ensemble.
   - 4 tests couvrent ce mécanisme.
-  - Je l'ai aussi vérifié sur un vrai serveur Streamlit lancé sur une copie : un texte modifié dans `src/tresor/` apparaît sans redémarrage.
+  - Le LLM l'a aussi vérifié sur un vrai serveur Streamlit lancé sur une copie : un texte modifié dans `src/tresor/` apparaît sans redémarrage.
 
 ## Phase 11 — Supports pour le rapport et l'oral (15 novembre 2026)
 
@@ -1103,7 +1130,7 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 **Ce que le LLM a produit :**
 
 - **`reports/make_figures.py`** refait les 11 figures de `reports/figures/` en 4 secondes, en relisant seulement les fichiers de `data/output/` : aucun modèle n'est recalculé.
-  - 9 figures sont identiques, à l'octet près, à celles produites par le backtest.
+  - Sur les 9 figures déjà produites par le backtest et la stratégie, 7 sont identiques à l'octet près (corrigé lors de la vérification : la première version disait 9).
   - Les 2 figures d'importance des variables avaient encore un ancien libellé (« moyenne des 3 » au lieu de « moyenne des 3 dernières »), changé dans le code en phase 9 sans que ces figures soient redessinées. Elles sont maintenant à jour ; leurs valeurs n'ont pas changé.
 - **Deux figures nouvelles sur les données**, pour un oral centré sur elles :
   - `donnees_sources.png` : la période couverte et le nombre de lignes de chacune des 11 sources ;
@@ -1119,7 +1146,7 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 |---|---|---|
 | Chiffres « figé » et « du jour » | backtest, marché et stratégie : un écart est une erreur ; données et prévisions en direct : un écart est seulement signalé | les seconds changent chaque soir avec le passage automatique, les premiers seulement si l'on relance `--backtest --strategy` |
 | Un chiffre = une seule ligne de fichier | erreur si la recherche trouve zéro ou plusieurs lignes | aucun chiffre pris au hasard dans un tableau |
-| Signe « + » | seulement pour les variations et les gains (pb), pas pour les R² | lecture plus simple ; les R² négatifs gardent leur signe moins |
+| Signe « + » | seulement pour les variations et les gains (pb), pas pour les R² (changé lors de la vérification : R² en pourcentage avec son signe, comme dans l'application et les figures) | lecture plus simple ; les R² négatifs gardent leur signe moins |
 
 **Problèmes rencontrés :**
 
@@ -1127,6 +1154,50 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 - Les intervalles mettaient un « + » à certains R² positifs et pas à d'autres : la règle du signe est maintenant explicite.
 - Sur la figure des sources, l'annotation « 2009 » chevauchait la barre du VIX : déplacée en bas, là où il n'y a pas de barre.
 
-**Tests :** j'ai injecté 8 erreurs dans une copie du code nouveau : un chiffre figé traité comme un chiffre du jour, plusieurs lignes acceptées pour un chiffre, la mauvaise période, la borne basse à la place de la valeur, une figure oubliée, une vérification toujours réussie… Les 8 sont détectées, et la copie sans erreur passe.
+**Tests :** le LLM a injecté 8 erreurs dans une copie du code nouveau : un chiffre figé traité comme un chiffre du jour, plusieurs lignes acceptées pour un chiffre, la mauvaise période, la borne basse à la place de la valeur, une figure oubliée, une vérification toujours réussie… Les 8 sont détectées, et la copie sans erreur passe.
 
 **Résultat vérifié :** 345 tests réussis, `ruff check .` et `ruff format --check .` propres. `python reports/make_figures.py --check` : 45 chiffres recalculés, 0 erreur. Les chiffres du README (R², quintiles, stratégie) sont les mêmes que ceux de `chiffres_cles.md`.
+
+## Vérification de la phase 11 par deux agents indépendants (15 novembre 2026)
+
+**Ma demande :** « Vérifie la phase 11 ». Deux agents ont relu le travail en lecture seule :
+
+- l'un a recalculé lui-même les 45 chiffres et a éprouvé le code avec 38 erreurs injectées dans une copie ;
+- l'autre a relu ce qui est publié (figures, chiffres clés, journal, README) comme le professeur et moi le lirons, et l'a comparé à l'historique git.
+
+**Ce qui était juste :**
+
+- Les 45 chiffres, recalculés sans le code du projet : aucun écart de valeur, d'arrondi ou de signe.
+- Les figures et `chiffres_cles.md` se reproduisent à l'identique, et les chiffres du README sont ceux de `chiffres_cles.md`.
+- Les tests ne cassent pas quand les données changent le soir (simulé par l'agent).
+
+**Ce qui était faux ou fragile :**
+
+| Problème | Correction |
+|---|---|
+| **Le journal m'attribuait du travail du LLM** : « J'ai injecté 32 erreurs », « je l'ai vérifié sur un vrai serveur », « mes tests », alors que la synthèse disait le contraire | toutes ces phrases sont maintenant à la troisième personne ; une règle en tête du journal : « je » désigne l'étudiant |
+| « Vérifié sur téléphone par moi » en phase 9 : en réalité, le LLM a regardé l'application à la taille d'un téléphone dans un navigateur | corrigé ; l'ouverture depuis mon vrai téléphone reste à faire |
+| **« Modèle de référence fixé avant de voir les résultats » : faux d'après git.** La première version de la phase 6 (commit `882ea66`) montrait déjà les R² de chaque modèle sur 2014-2026 ; la moyenne des 5 n'apparaît qu'avec les corrections (`dd756b5`) | « retenue par principe, pas d'après ses résultats », avec cette précision, dans le README, `chiffres_cles.md`, la légende des figures, le code et le journal de la phase 6 |
+| R² écrit en décimales (0,10) dans le README et `chiffres_cles.md`, en pourcentage (+9,6 %) dans l'application et les figures | pourcentage partout : « +9,6 % [5,7 ; 14,5] » |
+| `chiffres_cles.md` ne contenait pas « tous les chiffres » : étapes du nettoyage, échantillon des modèles (5 119 enchères), R² 2014-2026 des courbes de gain, quintiles par période, stratégie 2014-2026, nouvelles sources cible par cible, corrélation à l'intérieur de chaque année… | 79 chiffres au lieu de 45 |
+| Quintiles de la part des dealers décrits par le **niveau** de la part (« la part la plus haute »), alors qu'ils sont construits sur la **surprise** (part réelle − moyenne des 3 dernières) ; l'agent a montré que les deux classements ne partagent que 119 enchères sur 272 | « où la part des dealers dépasse le plus la moyenne des 3 dernières » |
+| Les nouvelles sources présentées comme « n'apportant rien », alors qu'elles dégradent un peu 4 cibles sur 8 (intervalle entièrement négatif) | phrase corrigée dans l'application et le README ; les comptes sont dans `chiffres_cles.md` |
+| La page Méthodologie citait la stratégie sans sa période (−1,0 pb, sur 2014-2026), le README sur 2020-2026 (−1,40 pb) | les deux périodes sont écrites |
+| **Les 11 chiffres « du jour » n'étaient jamais vérifiés**, et `--check` ne comparait que la colonne des valeurs (une ligne en double, un calcul ou une nature modifiés passaient) | le fichier note les données utilisées (date du contrôle qualité et heure de la dernière prévision) ; avec ces mêmes données, tout écart est une erreur ; toutes les colonnes et tout le texte hors des tableaux sont comparés ; les doublons sont refusés ; un fichier de données absent donne un message, pas un plantage |
+| Deux comptes de variables classés « figé » alors que leur fichier est réécrit chaque soir | lus dans `feature_importance.csv`, écrit seulement par `--backtest` ; un test vérifie la nature de chaque chiffre d'après le fichier qui le produit |
+| « 11 sources » : en réalité 11 tables de 5 organismes | « 11 tables publiques (Trésor américain, Fed de New York, FRED, CFTC, CBOE) » |
+| Figure des enchères par an : « 5 133 » comptait 14 enchères annoncées ; « 2026 jusqu'au 14/11 » faux (annonces jusqu'au 25/11) | 5 119 enchères réalisées ; dates exactes des dernières enchères réalisées et annoncées, testées |
+| Pas de figure sur le point le plus important du plan : n'utiliser que ce qui était publié avant l'enchère | nouvelle figure `donnees_delais_publication.png` : délai médian de publication de chaque source (0 jour pour les taux et le VIX, 8 jours pour les dealers ; valeurs de l'indice dollar publiées jusqu'à 5 ans après leur date) ; les délais sont aussi dans `chiffres_cles.md` |
+| Figures : « Tail (pb) » sur un graphique de R² ; intervalles coupés à −30 % sans signe ; « en écart » jamais expliqué ; tirets au lieu de signes moins et « pt » sur la figure des nouvelles sources ; « mean3 » dans des titres ; « 2022 : … » au lieu de « Depuis 2022 » ; libellés des positions des dealers abrégés | corrigés ; flèche sur les intervalles coupés |
+| Synthèse du journal : liste « à faire » incomplète, pas de liste des écarts au plan, problèmes centrés sur les données absents (fuite évitée sur l'indice dollar, clé FRED collée par erreur), « trouvées par les erreurs injectées » illogique | synthèse réécrite |
+| Coût de la stratégie écrit en dur dans le script des figures | lu dans le code de la stratégie |
+
+**Tests :** 353 tests (345 avant), dont 15 pour la phase 11.
+
+- Le LLM a réinjecté dans une copie 11 des 22 erreurs que les tests de l'agent ne voyaient pas (celles du calcul des chiffres et du script), plus 10 nouvelles sur le code corrigé. Toutes sont détectées, sauf une, sans effet : garder le premier de deux chiffres en double au lieu du dernier, ce qui est de toute façon signalé comme doublon.
+- Deux de ces erreurs n'étaient détectées qu'avec des données qui n'existent pas encore, car aucune enchère du journal n'est encore figée. Un petit journal construit pour le test les couvre.
+- Les erreurs dans le dessin des figures (mauvaise période, mauvais découpage par année…) ne sont pas testées. Les nombres écrits dans le titre de la figure des enchères le sont ; le reste du dessin est vérifié à l'œil.
+
+**À décider par moi :** `PLAN.md` cite « une première version en R » et des appels d'API faits le 3 novembre. Si un LLM m'a aidé pour cela, il faut le dire dans la synthèse.
+
+**Résultat vérifié :** 353 tests réussis, `ruff check .` et `ruff format --check .` propres. `python reports/make_figures.py --check` : 79 chiffres recalculés, 0 erreur.
