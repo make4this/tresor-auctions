@@ -183,6 +183,11 @@ FETCH_FAILED = {
             "error": "FetchError : HTTP 503",
             "last_success_at": "2026-11-13T23:20:00+00:00",
         },  # fmt: skip
+        "fiscaldata_debt": {
+            "ok": False,
+            "error": "FetchError : HTTP 503",
+            "last_success_at": None,  # jamais réussie
+        },
     },
 }
 
@@ -194,13 +199,31 @@ def test_a_source_outage_is_shown_not_hidden(monkeypatch: pytest.MonkeyPatch) ->
     main_app = main().run()
 
     assert not app.exception, app.exception
-    assert any("1 source(s) en échec" in w.value and "Fiscal Data : adjudications" in w.value
+    assert any("2 source(s) en échec" in w.value and "Fiscal Data : adjudications" in w.value
                for w in app.warning)  # fmt: skip
     downloads = table_with(app, "Résultat")
-    assert list(downloads["Résultat"]) == ["🔴 échec", "🟢 reçue"]  # les échecs d'abord
-    assert downloads["Dernière réussite"][0] == "ven. 13/11/2026 à 18:20 (New York)"
+    assert list(downloads["Résultat"]) == ["🔴 échec", "🔴 échec", "🟢 reçue"]  # échecs d'abord
+    assert list(downloads["Dernière réussite"][:2]) == [
+        "ven. 13/11/2026 à 18:20 (New York)",
+        "inconnue",  # jamais réussie : la page ne doit pas planter
+    ]
     assert downloads["Erreur"][0] == "FetchError : HTTP 503"
-    assert any("1 source(s) en échec" in c.value for c in main_app.sidebar.caption)
+    assert any("2 source(s) en échec" in c.value for c in main_app.sidebar.caption)
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        ("2026-11-14T20:31:56+00:00", "sam. 14/11/2026 à 15:31 (New York)"),
+        (None, "inconnue"),
+        (float("nan"), "inconnue"),
+        ("", "inconnue"),
+        ("2026-11-14", "inconnue"),  # sans fuseau
+        ("pas une date", "inconnue"),
+    ],
+)
+def test_moments_are_shown_in_new_york_time(text: object, shown: str) -> None:
+    assert app_ui.moment_fr(text) == shown
 
 
 def test_a_complete_download_is_said_and_a_missing_report_too(

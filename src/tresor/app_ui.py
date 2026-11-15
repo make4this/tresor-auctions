@@ -122,7 +122,9 @@ def moment_fr(text: object) -> str:
     """Instant ISO avec fuseau (2026-11-14T23:17:00+00:00) en jour et heure de New York."""
     try:
         moment = pd.Timestamp(str(text)).tz_convert(NEW_YORK_TZ)
-    except (ValueError, TypeError):  # absent, illisible ou sans fuseau
+    except (ValueError, TypeError):  # illisible ou sans fuseau
+        return "inconnue"
+    if pd.isna(moment):  # absent : None, NaN ou texte vide deviennent une date manquante
         return "inconnue"
     return f"{date_fr(moment)} à {moment:%H:%M} (New York)"
 

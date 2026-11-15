@@ -1013,10 +1013,28 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
 | La release apparaît comme la dernière version du dépôt, avec des archives « Source code » d'un vieux commit | ses notes l'expliquent (mises à jour par le passage du soir) |
 | Version de Python de l'application jamais vérifiée (le réglage n'est visible que dans Streamlit) | versions affichées en méthodologie : l'application tourne sous **Python 3.14.10**, pas 3.11. Les 60 versions figées existent pour 3.14 et s'y résolvent à l'identique ; les tests tournent maintenant sous 3.11 et 3.14 ; les modèles entraînés sous 3.11 se relisent, car numpy, scikit-learn et LightGBM ont les mêmes versions. Redéployer l'application en 3.11 reste possible |
 
-**Tests :** 328 tests (295 avant). J'ai injecté 24 erreurs dans une copie du dépôt, sur le code nouveau ou modifié. 21 ont été détectées au premier essai. Pour les 3 autres, j'ai ajouté un test chacune : un statut daté du futur accepté, un rapport de téléchargement jamais écrit par le pipeline, et la limite de téléchargement retirée (le test confondait deux messages). Les 24 erreurs sont maintenant détectées, et la copie sans erreur passe tous les tests.
+**Tests :** 334 tests (295 avant). J'ai injecté 24 erreurs dans une copie du dépôt, sur le code nouveau ou modifié. 21 ont été détectées au premier essai. Pour les 3 autres, j'ai ajouté un test chacune : un statut daté du futur accepté, un rapport de téléchargement jamais écrit par le pipeline, et la limite de téléchargement retirée (le test confondait deux messages). Les 24 erreurs sont maintenant détectées, et la copie sans erreur passe tous les tests.
 
 **Limites connues :**
 
 - Le contrôle d'un envoi fait à la main signale le problème, il ne l'empêche pas. Seule une protection de la branche dans les réglages de GitHub l'empêcherait ; je ne l'ai pas activée.
 - Les modèles sont réentraînés chaque soir. Si les fichiers diffèrent d'un soir à l'autre, l'application les retélécharge une fois par soir (et non plus à chaque clic).
 - À vérifier après quelques passages : la courbe des taux du jour doit être publiée avant 18 h 17 à New York, c'est-à-dire `market_last_dates.yield_10y` égal à la date du passage dans `live_status.json`. Sinon, la prévision utilise la courbe de la veille : c'est un retard, pas une fuite.
+
+**Après les corrections :**
+
+- Tests sur GitHub : verts sous Python 3.11 et 3.14 (versions installées sans résolution, `pip check` sans erreur).
+- **Passage du soir relancé à la main** le 14 novembre (run 43636440925, de 20 h 14 à 20 h 32 UTC) : **réussi**. Fiscal Data répondait toujours 503 pour ses trois sources (adjudications, dette, trésorerie). Le pipeline a donc renvoyé le code 3. Il a réessayé 10 minutes plus tard, sans succès, puis a continué avec un avertissement « Source en panne ». Les étapes suivantes ont tourné :
+  - prévision avec les dernières données ;
+  - journal figé vérifié ;
+  - archive `modeles-29b84aeb70ffbf98.tar.gz` déposée, dont l'empreinte calculée par GitHub est celle de `models_release.json` ;
+  - ancienne archive retirée ;
+  - données enregistrées par le robot (4 fichiers de `data/`) ;
+  - contrôle qualité « vert ».
+  - Aucune clé n'apparaît dans le journal du passage.
+- Le premier critère de la phase (« le workflow lancé à la main réussit ») est rempli. Le second (« l'adresse publique s'ouvre depuis un autre appareil ») reste à vérifier par moi, depuis mon téléphone.
+- **Application en ligne** (vérifiée par le LLM dans le navigateur) :
+  - elle se redéploie d'elle-même à chaque envoi sur GitHub ;
+  - la page Qualité et la barre latérale signalent les 3 sources en échec ;
+  - le bouton « Mettre à jour maintenant » a téléchargé l'archive annoncée et l'a vérifiée par empreinte, puis a donné une prévision provisoire sous Python 3.14.
+- **Bogue trouvé grâce aux vraies données du passage** : les trois sources de Fiscal Data n'avaient encore jamais réussi depuis la création du rapport de téléchargement. Leur date de dernière réussite était donc vide, et cette date vide faisait planter le tableau des téléchargements de la page Qualité, en ligne comme sur mon ordinateur. Mes tests ne prévoyaient que des dates remplies. Correction : une date absente s'affiche « inconnue ». J'ai ajouté le cas aux tests ; sans la correction, 5 tests échouent. J'ai aussi retiré une double parenthèse dans l'avertissement.

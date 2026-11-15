@@ -38,7 +38,7 @@ st.markdown(
 failed = ad.failed_sources(fetch)
 if failed:
     st.warning(
-        f"Dernier téléchargement ({ui.moment_fr(fetch.get('run_at'))}) : {len(failed)}"
+        f"Dernier téléchargement, {ui.moment_fr(fetch.get('run_at'))} : {len(failed)}"
         f" source(s) en échec — {', '.join(failed)}. Les calculs utilisent leurs dernières"
         " données enregistrées ; leur fraîcheur est contrôlée dans le tableau ci-dessous."
     )
