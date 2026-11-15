@@ -1339,3 +1339,54 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
 
 **Résultat vérifié :** 370 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
 
+## Les pages détaillées dans le style du tableau de bord (15 novembre 2026)
+
+**Ma demande :** refaire les 5 autres pages dans le même style, et faire en sorte qu'il n'y ait aucune erreur et que tout fonctionne bien.
+
+**Ce que le LLM a produit :**
+
+- **Des briques communes** (`app_ui.py`) :
+  - un en-tête de page (titre plus sobre et une phrase d'introduction) ;
+  - un panneau qui peut contenir des graphiques et des menus ;
+  - des tuiles de chiffres ;
+  - des cellules de tableau colorées ;
+  - des tableaux longs qui défilent sous leur en-tête.
+
+  Chaque panneau a son aide « How to read ».
+- **Live track record :**
+  - des tuiles (enchères suivies, résultats publiés, en attente, sans résultat) ;
+  - les deux graphiques dans des panneaux ;
+  - un tableau des résultats, les plus récents d'abord, avec une colonne « Closer » qui dit qui est tombé le plus près du résultat : la prévision ou la moyenne des 3 dernières.
+- **History :** trois tuiles comparent l'erreur moyenne de la prévision à celle de la moyenne des 3 dernières, sur les mêmes enchères, hors échantillon depuis 2014. Pour le 10 ans, bid-to-cover : 0,10 contre 0,11.
+- **Model performance :**
+  - le tableau des scores colore chaque cellule selon son intervalle à 90 % (vert, rouge ou gris, comme la grille de l'accueil) ;
+  - les sources supplémentaires et la stratégie sont en tableaux du même style ;
+  - chaque graphique a son panneau et son aide.
+- **Data quality :**
+  - une vue d'ensemble en tuiles ;
+  - des pastilles de couleur à la place des émojis ;
+  - les messages d'échec de téléchargement traduits en anglais, sans l'URL.
+- **Methodology :** des panneaux sur deux colonnes, puis le glossaire. Le contenu ne change pas.
+
+**Corrigé par le LLM en vérifiant :**
+
+- **Couleurs de qualité.** L'aide des sources disait « orange = en retard ». Le code des contrôles dit autre chose : une source en retard ou des lignes manquantes déclenchent une alerte, donc du rouge ; l'orange ne signale que des valeurs extrêmes à vérifier. L'aide a été corrigée sur cette page et sur l'accueil.
+- **Textes d'aide sur la stratégie.** Ils ont été relus contre `strategy.py` : le Sharpe est annualisé à partir des gains journaliers, le taux de réussite compte les opérations gagnantes après coûts.
+- **Fausse égalité dans « Closer ».** Deux erreurs affichées « +0.05 » pouvaient désigner un gagnant à 0,0002 près. Elles sont maintenant comparées telles qu'affichées, et l'égalité s'écrit « Tie ».
+- **En-têtes trop longs.** Ceux de la page Data quality faisaient déborder la colonne « Alerts » : ils ont été raccourcis.
+
+**Tests :**
+
+- les tests des pages lisent désormais les tableaux HTML ;
+- nouveaux tests : le gagnant « Closer » (y compris l'égalité à l'affichage), le verdict d'un intervalle, l'erreur moyenne de la page History, la traduction des erreurs de téléchargement, les cellules colorées et les tableaux qui défilent.
+
+**Vérifié par le LLM :**
+
+- les 7 pages à 1 280 px de large, sans tableau qui déborde ;
+- les 6 pages détaillées à la taille d'un téléphone, sans défilement horizontal ;
+- les 4 onglets de Model performance ;
+- les résultats du suivi en direct sur des données simulées : il n'y en a pas encore de réels, la première enchère suivie a lieu le 16 novembre ;
+- un balayage de 197 combinaisons de menus (toutes les maturités et mesures de History, chaque famille, période et modèle de Model performance, chaque enchère et période de l'accueil, chaque mesure du suivi en direct), sans aucune erreur.
+
+**Résultat vérifié :** 373 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
+

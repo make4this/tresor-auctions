@@ -6,6 +6,8 @@ affichés sont en anglais (application en ligne) ; les commentaires restent en f
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 
@@ -372,6 +374,37 @@ def live_results(tracking: pd.DataFrame, target: str, model: str = md.ENSEMBLE) 
     return done
 
 
+FORECAST, LAST3, TIE = "forecast", "last 3", "tie"
+
+
+def closer(error: float, bench_error: float, decimals: int | None = None) -> str:
+    """Qui est tombé le plus près du résultat : la prévision ou la moyenne des 3 dernières.
+
+    Avec `decimals`, les erreurs sont comparées telles qu'affichées : deux erreurs écrites
+    « +0.05 » donnent « tie », même si elles diffèrent de 0,0002.
+    """
+    mine, theirs = abs(error), abs(bench_error)
+    if decimals is not None:
+        mine, theirs = round(mine, decimals), round(theirs, decimals)
+    if mine < theirs:
+        return FORECAST
+    if mine > theirs:
+        return LAST3
+    return TIE
+
+
+def error_summary(series: pd.DataFrame) -> dict[str, float]:
+    """Erreur absolue moyenne de la prévision et de mean3, sur les mêmes enchères (celles qui ont
+    les deux), pour une série de `explorer_series`."""
+    both = series.dropna(subset=["actual", "mean3", "prediction"])
+    return {
+        "auctions": len(series),
+        "compared": len(both),
+        "forecast": float((both["actual"] - both["prediction"]).abs().mean()),
+        "last3": float((both["actual"] - both["mean3"]).abs().mean()),
+    }
+
+
 def cumulative_gain(
     backtest: pd.DataFrame, family: str, target: str, model: str = md.ENSEMBLE
 ) -> pd.DataFrame:
@@ -457,6 +490,19 @@ def fetch_table(status: dict[str, object]) -> pd.DataFrame:
     return table.sort_values(["ok", "source"], kind="stable").reset_index(drop=True)
 
 
+_FETCH_FAILURE = re.compile(r"Échec du téléchargement de \S+ après (\d+) essai\(s\) : (.+)")
+
+
+def error_en(text: str) -> str:
+    """Message d'échec de téléchargement en anglais, sans l'URL (la source est déjà nommée) ;
+    les autres messages restent tels quels."""
+    found = _FETCH_FAILURE.search(text)
+    if not found:
+        return text
+    attempts, reason = found.groups()
+    return f"Download failed after {attempts} attempt{'s' if attempts != '1' else ''}: {reason}"
+
+
 def failed_sources(status: dict[str, object]) -> list[str]:
     """Noms lisibles des sources en échec au dernier téléchargement."""
     table = fetch_table(status)
@@ -515,6 +561,16 @@ def demand_counts(table: pd.DataFrame) -> dict[str, int]:
     """Nombre d'enchères annoncées pour chaque signal (demande plus faible, normale, plus forte)."""
     signals = table["signal"] if "signal" in table else pd.Series(dtype=str)
     return {name: int((signals == name).sum()) for name in (WEAK, NORMAL, STRONG)}
+
+
+def verdict(low: float, high: float) -> str:
+    """Lecture d'un intervalle à 90 % du R² contre mean3 : « better » s'il est au-dessus de 0,
+    « worse » s'il est en dessous, « unclear » s'il contient 0 (ou manque)."""
+    if pd.notna(low) and low > 0:
+        return "better"
+    if pd.notna(high) and high < 0:
+        return "worse"
+    return "unclear"
 
 
 def scorecard(metrics: pd.DataFrame, period: str = "2020-2026") -> pd.DataFrame:

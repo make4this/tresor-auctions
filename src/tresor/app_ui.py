@@ -111,6 +111,7 @@ p, li, label, td, th, input, textarea, summary, small, .stCaption, h1, h2, h3, h
 [data-testid="stSidebarNavItems"] a > span:not([data-testid="stIconMaterial"]),
 [data-testid="stNavSectionHeader"] {{ font-family: Inter, sans-serif !important; }}
 h1, h2, h3, h4 {{ font-weight: 600 !important; letter-spacing: -0.01em; }}
+h1 {{ font-size: 1.85rem !important; padding: 0.2rem 0 0.3rem 0 !important; }}
 .block-container {{ padding-top: 2.2rem; padding-left: 2rem; padding-right: 2rem; }}
 [data-testid="stSidebar"] {{ background-color: {NAVY}; }}
 [data-testid="stSidebar"] * {{ color: #CBD5E1; }}
@@ -146,6 +147,10 @@ details.tr-help[open] .tr-how {{ color: #6B7280; }}
 .tr-reading {{ font-size: 0.9rem; color: #1F2937; line-height: 1.5; margin-bottom: 0.5rem; }}
 .tr-reading .tr-tag {{ margin-right: 0.35rem; }}
 .tr-small {{ color: #6B7280; font-size: 0.8rem; line-height: 1.45; }}
+.tr-body {{ padding: 0 0.9rem 0.7rem 0.9rem; color: #1F2937; }}
+.tr-body p, .tr-body li {{ font-size: 0.9rem !important; line-height: 1.55; }}
+.tr-body p {{ margin: 0 0 0.3rem 0; }}
+.tr-body ul {{ margin: 0; padding-left: 1.2rem; }}
 table.tr-table {{ width: 100%; border-collapse: collapse; font-size: 0.88rem;
   font-variant-numeric: tabular-nums; }}
 table.tr-table th {{ background: #F3F5F8; color: #374151; font-weight: 600; font-size: 0.8rem;
@@ -154,6 +159,8 @@ table.tr-table th {{ background: #F3F5F8; color: #374151; font-weight: 600; font
 table.tr-table td {{ padding: 0.42rem 0.55rem; border-bottom: 1px solid #F1F3F6;
   white-space: nowrap; }}
 table.tr-table td.tr-wrap {{ white-space: normal; }}
+.tr-scroll {{ max-height: 30rem; overflow-y: auto; }}
+.tr-scroll table.tr-table th {{ position: sticky; top: 0; z-index: 1; }}
 table.tr-table tr:last-child td {{ border-bottom: none; }}
 .tr-right {{ text-align: right; }}
 .tr-up {{ color: {UP}; }}
@@ -235,18 +242,22 @@ def panel(title: str, body: str, note: str = "", guide: list[str] | None = None)
 
 def table(
     headers: list[str],
-    rows: list[list[str]],
+    rows: list[list[str | tuple[str, str]]],
     right: set[int] | None = None,
     wrap: set[int] | None = None,
+    scroll: bool = False,
 ) -> str:
     """Tableau compact ; `right` : colonnes alignées à droite (nombres), `wrap` : colonnes dont
-    le texte peut passer à la ligne (les autres restent sur une ligne)."""
+    le texte peut passer à la ligne (les autres restent sur une ligne), `scroll` : tableau long
+    qui défile sous son en-tête. Une cellule peut être un couple (texte, classe CSS)."""
     right, wrap = right or set(), wrap or set()
 
-    def cell(tag: str, index: int, content: str) -> str:
-        classes = " ".join(
-            name for name, on in (("tr-right", index in right), ("tr-wrap", index in wrap)) if on
-        )
+    def cell(tag: str, index: int, content: str | tuple[str, str]) -> str:
+        extra = ""
+        if isinstance(content, tuple):  # (texte, classe CSS en plus)
+            content, extra = content
+        flags = (("tr-right", index in right), ("tr-wrap", index in wrap), (extra, bool(extra)))
+        classes = " ".join(name for name, on in flags if on)
         return (
             f'<{tag} class="{classes}">{content}</{tag}>'
             if classes
@@ -257,7 +268,8 @@ def table(
     body = "".join(
         "<tr>" + "".join(cell("td", i, c) for i, c in enumerate(row)) + "</tr>" for row in rows
     )
-    return f'<table class="tr-table"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+    html = f'<table class="tr-table"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+    return f'<div class="tr-scroll">{html}</div>' if scroll else html
 
 
 def signed(value: float, text: str) -> str:
@@ -280,6 +292,35 @@ def demand_tag(signal: str) -> str:
     label, css = {ad.WEAK: ("Weaker", "tr-weak"), ad.STRONG: ("Stronger", "tr-strong"),
                   ad.NORMAL: ("Normal", "tr-normal")}.get(signal, ("n/a", "tr-normal"))  # fmt: skip
     return f'<span class="tr-tag {css}">{label}</span>'
+
+
+def page_header(title: str, intro: str) -> None:
+    """Titre de la page et une phrase d'introduction (HTML déjà échappé par l'appelant)."""
+    st.title(title)
+    st.markdown(f'<p class="tr-intro">{intro}</p>', unsafe_allow_html=True)
+
+
+def box(name: str, title: str, guide: list[str] | None = None) -> object:
+    """Panneau blanc qui peut contenir des éléments Streamlit (graphiques, menus) : son titre et
+    son aide « How to read » sont écrits, le conteneur est rendu pour la suite (`with`)."""
+    container = st.container(border=True, key=f"panel_{name}")
+    container.markdown(panel_head(title, guide), unsafe_allow_html=True)
+    return container
+
+
+def stats(items: list[tuple[str, str]], three: bool = False) -> str:
+    """Tuiles de chiffres : (valeur, texte) ; textes déjà échappés par l'appelant."""
+    tiles = "".join(
+        f'<div class="tr-stat"><div class="tr-value">{value}</div>'
+        f'<div class="tr-text">{text}</div></div>'
+        for value, text in items
+    )
+    return f'<div class="tr-stats{" tr-three" if three else ""}">{tiles}</div>'
+
+
+def small(text: str) -> None:
+    """Petite note grise sous un graphique (HTML déjà échappé par l'appelant)."""
+    st.markdown(f'<div class="tr-small">{text}</div>', unsafe_allow_html=True)
 
 
 def upcoming_guide(more: bool = False) -> list[str]:

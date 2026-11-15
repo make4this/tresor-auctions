@@ -50,7 +50,7 @@ GUIDES = {
         "The tail mostly follows the market move of the day, which no model sees in advance.",
     ],
     "sources": [
-        "<b>Green</b>: up to date. <b>Orange</b>: late, to watch. <b>Red</b>: problem.",
+        "<b>Green</b>: up to date. <b>Red</b>: an alert, such as a late source or missing rows.",
         "<b>Latest data</b>: date of the most recent value received.",
         "If a source fails, the forecasts use its latest saved data.",
     ],

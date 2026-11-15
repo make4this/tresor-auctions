@@ -191,6 +191,40 @@ def test_signal_record_table_and_sentence() -> None:
     assert ad.signal_record_sentence(record, "nominal_coupon", ad.WEAK) == ""  # pas de données
 
 
+def test_closer_verdict_and_error_summary() -> None:
+    assert ad.closer(0.01, -0.05) == ad.FORECAST
+    assert ad.closer(-0.08, 0.02) == ad.LAST3
+    assert ad.closer(0.03, -0.03) == ad.TIE
+    assert ad.closer(0.0502, 0.05) == ad.LAST3
+    assert ad.closer(0.0502, 0.05, decimals=2) == ad.TIE  # « +0.05 » contre « +0.05 »
+    assert [ad.verdict(0.01, 0.2), ad.verdict(-0.3, -0.1), ad.verdict(-0.1, 0.2)] == [
+        "better", "worse", "unclear",
+    ]  # fmt: skip
+    assert ad.verdict(np.nan, np.nan) == "unclear"
+    series = pd.DataFrame(
+        {
+            "actual": [2.0, 2.4, 2.2, 2.6],
+            "mean3": [np.nan, 2.0, 2.0, 2.4],
+            "prediction": [2.1, 2.3, np.nan, 2.5],
+        }
+    )
+
+    summary = ad.error_summary(series)
+
+    assert summary["auctions"] == 4 and summary["compared"] == 2  # mêmes enchères pour les deux
+    assert summary["forecast"] == pytest.approx(0.1)
+    assert summary["last3"] == pytest.approx(0.3)
+
+
+def test_download_errors_are_shown_in_english() -> None:
+    raw = (
+        "FetchError : Échec du téléchargement de https://api.example/v1/auctions"
+        " après 5 essai(s) : HTTP 503"
+    )
+    assert ad.error_en(raw) == "Download failed after 5 attempts: HTTP 503"
+    assert ad.error_en("FetchError : HTTP 503") == "FetchError : HTTP 503"  # inconnu : tel quel
+
+
 def reading(pred: float, mean3: float) -> str:
     row = pd.Series({"maturity_bucket": "10Y", "pred_btc": pred, "bench_mean3_btc": mean3})
     return ad.auction_reading(row)

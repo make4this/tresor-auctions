@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
-from html import escape
+from html import escape, unescape
 from pathlib import Path
 
 import numpy as np
@@ -75,6 +75,19 @@ def home_html(app: AppTest) -> str:
     return "\n".join(m.value for m in app.markdown)
 
 
+def html_table(app: AppTest, title: str) -> pd.DataFrame:
+    """Le premier tableau HTML qui suit le titre de panneau `title`, en texte brut."""
+    part = home_html(app).split(f">{title}<", 1)[1].split("</table>", 1)[0]
+    rows = [
+        [
+            unescape(re.sub(r"<[^>]+>", "", cell)).strip()
+            for cell in re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", row)
+        ]
+        for row in re.findall(r"<tr>(.*?)</tr>", part)
+    ]
+    return pd.DataFrame(rows[1:], columns=rows[0])
+
+
 def test_the_home_page_lists_the_next_upcoming_auctions(today: pd.Timestamp) -> None:
     log = pd.read_parquet(OUTPUT_DIR / "predictions_log.parquet")
     auctions = pd.read_parquet(CLEAN_DIR / "auctions.parquet")
@@ -121,6 +134,13 @@ def test_signed_numbers_are_rounded_before_their_colour() -> None:
     assert app_ui.signed_number(-0.0004, 3) == '<span class="tr-flat">0.000</span>'  # pas de −0
     assert app_ui.signed_number(-0.085, 3) == '<span class="tr-down">−0.085</span>'
     assert app_ui.signed_number(4.6, 0, " bp") == '<span class="tr-up">+5 bp</span>'
+
+
+def test_table_cells_can_carry_a_colour_and_long_tables_scroll() -> None:
+    html = app_ui.table(["Model", "R²"], [["Ridge", ("+9.6%", "tr-better")]], right={1})
+
+    assert '<td class="tr-right tr-better">+9.6%</td>' in html
+    assert app_ui.table(["A"], [["x"]], scroll=True).startswith('<div class="tr-scroll">')
 
 
 def test_a_panel_title_opens_its_guide() -> None:
@@ -214,15 +234,25 @@ def test_the_live_page_shows_realised_results(monkeypatch: pytest.MonkeyPatch) -
     auctions = tracking.drop_duplicates(["cusip", "auction_date"])
 
     assert not app.exception, app.exception
-    assert app.metric[1].value == str(len(auctions) - 1)  # toutes réalisées sauf une
+    results_in = en(len(auctions) - 1, 0)  # toutes réalisées sauf une
+    assert f'<div class="tr-value">{results_in}</div><div class="tr-text">results in' in home_html(
+        app
+    )
     assert len(app.get("plotly_chart")) == 2  # prévu contre réalisé, gain cumulé
     app.segmented_control[0].set_value("dealer_share").run()
-    table = app.dataframe[0].value
+    table = html_table(app, "Results")
     realised = tracking[(tracking["model"] == "moyenne_5") & (tracking["target"] == "dealer_share")]
     realised = realised[realised["status"] == "realisee"].sort_values(["auction_date", "cusip"])
-    assert list(table["Forecast"]) == [
-        ad.format_target(v, "dealer_share") for v in realised["pred"]
+    expected = [ad.format_target(v, "dealer_share") for v in realised["pred"]]
+    assert list(table["Forecast"]) == expected[::-1]  # les plus récentes d'abord
+    winners = [  # parts : comparées en %, à 1 décimale, comme à l'écran
+        ad.closer(e * 100, b * 100, 1)
+        for e, b in zip(realised["error"], realised["bench_error"], strict=True)
     ]
+    labels = {ad.FORECAST: "Forecast", ad.LAST3: "Last 3", ad.TIE: "Tie"}
+    assert list(table["Closer"]) == [labels[w] for w in winners[::-1]]
+    wins = en(winners.count(ad.FORECAST), 0)
+    assert f"last-3 average for {wins} of {en(len(winners), 0)} auctions" in home_html(app)
 
 
 def test_the_explorer_follows_the_selection_without_rescaling_the_bid_to_cover() -> None:
@@ -238,18 +268,39 @@ def test_the_explorer_follows_the_selection_without_rescaling_the_bid_to_cover()
     ].dropna(subset=["btc"])
     assert np.allclose(sorted(trace), sorted(history["btc"]))
 
+    summary = ad.error_summary(
+        ad.explorer_series(
+            features, pd.read_parquet(OUTPUT_DIR / "backtest_predictions.parquet"),
+            "nominal_coupon", "10Y", "btc",
+        )
+    )  # fmt: skip
+    html = home_html(app)
+    assert f'<div class="tr-value">{en(summary["forecast"], 2)}</div>' in html
+    assert f'<div class="tr-value">{en(summary["last3"], 2)}</div>' in html
+
     app.selectbox[0].set_value("bill").run()
     app.selectbox[1].set_value("26W").run()
     app.selectbox[2].set_value("dealer_share").run()
     assert not app.exception, app.exception
+    assert "\xa0pts</div>" in home_html(app)  # erreur des parts en points de %
 
 
 def test_the_backtest_page_defaults_and_tabs() -> None:
     app = page("backtest").run()
 
     assert app.selectbox[1].value == "moyenne_5"  # modèle de référence par défaut
-    strategy = app.dataframe[-1].value
+    strategy = html_table(app, "Strategy results, 2014-2026")
     assert strategy["Trades"].iloc[0] == "1,004"  # période 2014-2026
+    scores = html_table(app, "Scores by model").set_index("Model")
+    metrics = pd.read_csv(OUTPUT_DIR / "backtest_metrics.csv")
+    row = metrics[
+        (metrics["family"] == "nominal_coupon") & (metrics["period"] == "2020-2026")
+        & (metrics["feature_set"] == "toutes") & (metrics["model"] == "moyenne_5")
+        & (metrics["target"] == "btc")
+    ].iloc[0]  # fmt: skip
+    assert scores.loc["5-model average", "Bid-to-cover"].startswith(
+        en(row["r2_vs_mean3"] * 100, 1, sign=True)
+    )
     app.selectbox[0].set_value("tail_bp").run()
     app.selectbox[1].set_value("lightgbm").run()
     app.selectbox[2].set_value("dealer_share").run()
@@ -266,15 +317,10 @@ def test_the_quality_page_survives_a_failing_check(monkeypatch: pytest.MonkeyPat
     app = page("qualite").run()
 
     assert not app.exception, app.exception
-    sources = table_with(app, "Status").set_index("Source")
-    assert sources.loc["Cboe: VIX", "Status"] == "🔴 problem"
-    checks = table_with(app, "Check").set_index("Check")
-    assert checks.loc["Market: rates out of bounds", "Cases found"] == 2
-
-
-def table_with(app: AppTest, column: str) -> pd.DataFrame:
-    """Le tableau de la page qui a cette colonne (l'ordre des tableaux peut changer)."""
-    return next(frame.value for frame in app.dataframe if column in frame.value.columns)
+    sources = html_table(app, "Sources").set_index("Source")
+    assert sources.loc["Cboe: VIX", "Status"] == "Problem"
+    checks = html_table(app, "Checks").set_index("Check")
+    assert checks.loc["Market: rates out of bounds", "Cases found"] == "2"
 
 
 FETCH_FAILED = {
@@ -310,8 +356,8 @@ def test_a_source_outage_is_shown_not_hidden(monkeypatch: pytest.MonkeyPatch) ->
     assert not app.exception, app.exception
     assert any("2 source(s) failed" in w.value and "Fiscal Data: auction results" in w.value
                for w in app.warning)  # fmt: skip
-    downloads = table_with(app, "Result")
-    assert list(downloads["Result"]) == ["🔴 failed", "🔴 failed", "🟢 received"]  # échecs d'abord
+    downloads = html_table(app, "Last download")
+    assert list(downloads["Result"]) == ["Failed", "Failed", "Received"]  # échecs d'abord
     assert list(downloads["Last success"][:2]) == [
         "Fri, Nov 13, 2026, 6:20 PM ET",
         "unknown",  # jamais réussie : la page ne doit pas planter
@@ -353,7 +399,7 @@ def test_a_complete_download_is_said_and_a_missing_report_too(
     quality = page("qualite").run()
     assert not quality.exception, quality.exception
     assert not quality.warning or all("failed" not in w.value for w in quality.warning)
-    assert any("Download report missing" in c.value for c in quality.caption)
+    assert "Download report missing" in home_html(quality)
 
 
 def test_a_broken_status_file_does_not_break_the_app(monkeypatch: pytest.MonkeyPatch) -> None:
