@@ -63,7 +63,8 @@ def test_the_main_app_opens_on_the_home_page() -> None:
     app = main().run()
 
     assert not app.exception, app.exception
-    assert any("US Treasury auctions" in m.value for m in app.markdown)
+    html = home_html(app)
+    assert "US Treasury Auctions" in html and "Upcoming auctions" in html  # bandeau, panneau
     assert any(button.label == "Refresh now" for button in app.button)
     assert all("Academic project" not in c.value for c in [*app.caption, *app.sidebar.caption])
 
@@ -72,20 +73,35 @@ def home_html(app: AppTest) -> str:
     return "\n".join(m.value for m in app.markdown)
 
 
-def test_the_home_page_shows_one_card_per_upcoming_auction(today: pd.Timestamp) -> None:
+def test_the_home_page_lists_the_next_upcoming_auctions(today: pd.Timestamp) -> None:
     log = pd.read_parquet(OUTPUT_DIR / "predictions_log.parquet")
     auctions = pd.read_parquet(CLEAN_DIR / "auctions.parquet")
-    cards = ad.home_cards(ad.upcoming_table(log, auctions, today))
+    upcoming = ad.upcoming_table(log, auctions, today)
 
-    app = main().run()  # l'accueil a besoin de la navigation (liens vers les autres pages)
+    app = main().run()
     html = home_html(app)
+    panel = html.split("Upcoming auctions", 1)[1].split("</table>", 1)[0]
 
     assert not app.exception, app.exception
-    assert html.count('class="tr-card"') == len(cards) > 0  # les 6 premières et les autres
-    for card in cards:
-        assert card["sentence"] in html and card["badge"] in html
-    if len(cards) > 6:
-        assert any(f"Show {len(cards) - 6} more" in e.label for e in app.expander)
+    assert panel.count("<tr>") == min(10, len(upcoming)) + 1  # en-tête et 10 enchères au plus
+    for row in upcoming.head(10).itertuples():
+        assert f"<b>{row.title}</b>" in panel
+        assert en(row.gap_btc, 2, sign=True) in panel
+    counts = ad.demand_counts(upcoming)
+    assert f'<div class="tr-value">{counts[ad.WEAK]}</div>' in html
+
+
+def test_the_home_page_panels_come_from_the_files() -> None:
+    market = ad.market_snapshot(pd.read_parquet(CLEAN_DIR / "market.parquet"))
+    card = ad.scorecard(pd.read_csv(OUTPUT_DIR / "backtest_metrics.csv"))
+
+    html = home_html(main().run())
+
+    ten_year = market.set_index("series").loc["yield_10y"]
+    assert f"{en(ten_year['value'], 2)}%" in html
+    for row in card.itertuples():
+        value = en(row.r2_vs_mean3 * 100, 0, sign=True) + "%"
+        assert f'tr-cell tr-{row.verdict}">{value}</div>' in html
 
 
 def test_the_home_page_numbers_come_from_the_files() -> None:
@@ -109,7 +125,7 @@ def test_the_home_page_without_upcoming_auction(monkeypatch: pytest.MonkeyPatch)
     app = main().run()
 
     assert not app.exception, app.exception
-    assert any("No bill, note or bond auction" in info.value for info in app.info)
+    assert "No bill, note or bond auction has been announced yet." in home_html(app)
 
 
 def test_the_upcoming_table_shows_the_reference_model_from_today(today: pd.Timestamp) -> None:
@@ -300,7 +316,7 @@ def test_a_broken_status_file_does_not_break_the_app(monkeypatch: pytest.MonkeyP
     app = main().run()
 
     assert not app.exception, app.exception
-    assert any("Updated unknown" in c.value for c in app.sidebar.caption)
+    assert "Data updated unknown" in home_html(app)
 
 
 def click_update(app: AppTest) -> AppTest:

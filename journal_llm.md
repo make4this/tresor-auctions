@@ -1262,3 +1262,38 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
 **Vérifié par le LLM dans le navigateur :** les 7 pages à la taille d'un ordinateur, et l'accueil à la taille d'un téléphone.
 
 **Résultat vérifié :** 361 tests réussis, `ruff check .` et `ruff format --check .` propres.
+
+## Design en tableau de bord (15 novembre 2026)
+
+**Ma demande :** le design ne me plaisait pas. J'ai montré la capture d'un tableau de bord financier : barre latérale sombre, panneaux blancs, tableaux compacts avec les variations en vert et en rouge, graphique avec choix de la période, grille de couleurs. J'ai demandé de s'en inspirer pour le design, la compréhension et la simplicité.
+
+**Ce que le LLM a produit :**
+
+- **Un nouveau thème :** barre latérale bleu nuit, fond gris clair, panneaux blancs à titre en gras, police Inter, et un bandeau en haut avec le nom du site et la date de mise à jour.
+- **Un accueil en tableau de bord**, en deux colonnes, dont tous les chiffres sont lus dans les fichiers de `data/` :
+  - *Upcoming auctions* : les 10 prochaines enchères en tableau (date, durée, montant, prévision du bid-to-cover, moyenne des 3 dernières, écart en vert ou en rouge, étiquette « Weaker / Normal / Stronger ») ;
+  - *Demand outlook* : le nombre d'enchères annoncées à demande plus faible, normale ou plus forte ;
+  - *Market today* : les taux à 3 mois, 2, 5, 10 et 30 ans et le VIX, avec la variation depuis la clôture précédente ;
+  - *Bid-to-cover history* : un graphique avec le choix de la période (1 an à tout l'historique) et des durées, 4 courbes au plus ;
+  - *Model scorecard* : une grille mesure × famille avec le R² contre la moyenne des 3 dernières (2020-2026), en vert si l'intervalle de confiance est au-dessus de 0, en rouge s'il est en dessous, en gris sinon ;
+  - *Data sources* : l'état de chaque source et la date de sa dernière donnée ;
+  - *Key findings* : les trois chiffres clés de l'accueil précédent.
+- **Les cartes et les trois étapes** de l'accueil précédent ont été retirées. Les 6 pages détaillées n'ont pas changé, mais elles prennent le nouveau thème.
+
+**Corrigé par le LLM après l'avoir vu dans le navigateur :**
+
+- le tableau des enchères débordait : colonne « Type » retirée, marges réduites ;
+- un vide apparaissait entre deux rangées de panneaux : la page est passée en deux colonnes continues ;
+- les en-têtes de la grille passaient à la ligne : la grille a été transposée ;
+- trop de durées à choisir : seules les 8 principales restent ;
+- les noms en bout de courbe se chevauchaient : ils ont été remplacés par une légende ;
+- les dates des sources étaient coupées : elles sont affichées sans l'année ;
+- le titre « Key findings since 2014 » était faux pour un chiffre calculé sur 2009-2026 : il est devenu « Key findings ».
+
+**Choix gardé :** la police et les arrondis restent dans le CSS de `app_ui.py`, pas dans `config.toml`, car ces options avaient cassé le site en ligne (voir la section précédente).
+
+**Tests :** le tableau des prochaines enchères comparé à `upcoming_table`, les taux et la grille des modèles comparés aux fichiers, l'accueil sans enchère annoncée, et les nouvelles fonctions `market_snapshot`, `demand_counts`, `scorecard` et `btc_history`.
+
+**Vérifié par le LLM dans le navigateur :** l'accueil à la taille d'un ordinateur et d'un téléphone.
+
+**Résultat vérifié :** 365 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.

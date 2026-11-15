@@ -408,42 +408,74 @@ def backtest_r2(metrics: pd.DataFrame, period: str = "2020-2026") -> pd.DataFram
     return data[["family", "target", *columns]]
 
 
-# --- Page d'accueil : les mêmes informations, en mots simples ---------------------------------
+# --- Tableau de bord (page d'accueil) ---------------------------------------------------------
 
-BADGES = {WEAK: ("Weaker demand", "tr-weak"), STRONG: ("Stronger demand", "tr-strong"),
-          NORMAL: ("Normal demand", "tr-normal")}  # fmt: skip
+MARKET_SERIES = {
+    "yield_3m": "3-month bill",
+    "yield_2y": "2-year note",
+    "yield_5y": "5-year note",
+    "yield_10y": "10-year note",
+    "yield_30y": "30-year bond",
+    "vix_close": "VIX (volatility)",
+}
 
 
-def home_cards(table: pd.DataFrame) -> list[dict[str, str]]:
-    """Une carte par enchère à venir : date, titre, montant, signal et une phrase simple.
-
-    `table` : le résultat de `upcoming_table`. Les dates restent des Timestamp : la page les
-    met en forme.
-    """
-    cards = []
-    for row in table.itertuples():
-        badge, css = BADGES.get(row.signal, ("No comparison yet", "tr-normal"))
-        predicted = en(row.pred_btc, 2)
-        if pd.isna(row.bench_mean3_btc):
-            sentence = f"Expected bid-to-cover: {predicted}. First auction of its series, so no"
-            sentence += " recent average to compare with."
-        else:
-            sentence = (
-                f"Expected bid-to-cover: {predicted}, versus {en(row.bench_mean3_btc, 2)} on"
-                " average over the last 3 auctions of the same maturity."
-            )
-        cards.append(
+def market_snapshot(market: pd.DataFrame) -> pd.DataFrame:
+    """Dernière valeur de chaque série du panneau « Market today » et sa variation depuis la
+    valeur précédente : en points de base pour les taux, en points pour le VIX."""
+    rows = []
+    for series, label in MARKET_SERIES.items():
+        data = market[market["series"] == series].sort_values("date")
+        if data.empty:
+            continue
+        last = data.iloc[-1]
+        previous = data["value"].iloc[-2] if len(data) > 1 else np.nan
+        is_rate = series.startswith("yield_")
+        change = (last["value"] - previous) * (100 if is_rate else 1)
+        rows.append(
             {
-                "date": row.auction_date,
-                "title": row.title,
-                "family": FAMILY_LABELS.get(row.family, row.family),
-                "amount": amount(row.offering_amt, bool(row.offering_estimated)),
-                "badge": badge,
-                "css": css,
-                "sentence": sentence,
+                "series": series,
+                "label": label,
+                "value": float(last["value"]),
+                "change": float(change),
+                "unit": "bp" if is_rate else "pts",
+                "date": last["date"],
             }
         )
-    return cards
+    return pd.DataFrame(rows, columns=["series", "label", "value", "change", "unit", "date"])
+
+
+def demand_counts(table: pd.DataFrame) -> dict[str, int]:
+    """Nombre d'enchères annoncées pour chaque signal (demande plus faible, normale, plus forte)."""
+    signals = table["signal"] if "signal" in table else pd.Series(dtype=str)
+    return {name: int((signals == name).sum()) for name in (WEAK, NORMAL, STRONG)}
+
+
+def scorecard(metrics: pd.DataFrame, period: str = "2020-2026") -> pd.DataFrame:
+    """Grille de fiabilité : R² de la moyenne des 5 contre mean3, pour chaque famille et cible,
+    avec un verdict lu dans l'intervalle à 90 % (« better » s'il est au-dessus de 0, « worse »
+    s'il est en dessous, « unclear » s'il contient 0)."""
+    data = backtest_r2(metrics, period).copy()
+    data["verdict"] = np.where(
+        data["r2_ci_low"] > 0, "better", np.where(data["r2_ci_high"] < 0, "worse", "unclear")
+    )
+    return data[["family", "target", "r2_vs_mean3", "r2_ci_low", "r2_ci_high", "verdict"]]
+
+
+def btc_history(
+    features: pd.DataFrame, buckets: list[str], start: pd.Timestamp | None = None
+) -> pd.DataFrame:
+    """Bid-to-cover des enchères réalisées, pour les maturités choisies, depuis `start`."""
+    data = features[
+        features["status"].eq("completed")
+        & features["maturity_bucket"].isin(buckets)
+        & features["btc"].notna()
+    ]
+    if start is not None:
+        data = data[data["auction_date"] >= start]
+    return data[["auction_date", "maturity_bucket", "btc"]].sort_values(
+        ["maturity_bucket", "auction_date"], ignore_index=True
+    )
 
 
 def key_facts(

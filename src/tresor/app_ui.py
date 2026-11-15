@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -14,14 +15,14 @@ from tresor import live
 from tresor.config import CLEAN_DIR, GITHUB_REPOSITORY, NEW_YORK_TZ, OUTPUT_DIR
 from tresor.sources.collect import FETCH_STATUS_FILE
 
-# Couleurs : bleu marine d'Imoframe (proche du #1F4E79 du plan) et alerte du plan. Les
-# graphiques à plusieurs séries reprennent la palette validée des figures du rapport (lisible
-# par les daltoniens).
-PRIMARY = "#172A45"
-ALERT = "#C8553D"
-SOFT_TEXT = "rgba(17, 17, 17, 0.55)"
-CARD = "#F0F0EF"
-SERIES = ("#2a78d6", "#eb6834")
+# Couleurs du tableau de bord : barres foncées, panneaux blancs, hausse en vert, baisse en
+# rouge. Les courbes reprennent la palette validée des figures du rapport (bleu, orange), plus
+# un violet et un vert pour une 3e et une 4e maturité.
+NAVY = "#0F172A"
+PRIMARY = "#2563EB"
+ALERT = "#DC2626"
+UP = "#15803D"
+SERIES = ("#2a78d6", "#eb6834", "#7C3AED", "#059669")
 MUTED = "#8a897f"
 GRID = "#e4e3df"
 CACHE_SECONDS = 3600
@@ -82,9 +83,11 @@ def style(figure: go.Figure, height: int = 380) -> go.Figure:
     figure.update_layout(
         separators=".,",  # point décimal, virgule des milliers
         template="plotly_white",
+        paper_bgcolor="rgba(0, 0, 0, 0)",  # le fond du panneau
+        plot_bgcolor="#FFFFFF",
         height=height,
         # Titre en haut, légende juste au-dessus du graphique : ils ne se chevauchent pas.
-        margin={"l": 10, "r": 10, "t": 90, "b": 10},
+        margin={"l": 10, "r": 10, "t": 90 if figure.layout.title.text else 40, "b": 10},
         title={"x": 0, "xanchor": "left", "y": 0.98, "yanchor": "top", "font": {"size": 15}},
         font={"size": 13},
         hoverlabel={"font_size": 13},
@@ -95,64 +98,134 @@ def style(figure: go.Figure, height: int = 380) -> go.Figure:
     return figure
 
 
-# Polices et coins carrés d'Imoframe, en CSS : mis dans .streamlit/config.toml (font,
-# headingFont, baseRadius...), ces réglages empêchaient l'application de démarrer sur Streamlit
-# Community Cloud, alors qu'ils marchaient en local. Les icônes gardent leur propre police.
-FONTS = (
-    "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600"
-    "&family=Inter:wght@500;600&display=swap"
-)
+# Style du tableau de bord, en CSS : mis dans .streamlit/config.toml (polices, coins), ces
+# réglages empêchaient l'application de démarrer sur Streamlit Community Cloud. Les icônes
+# gardent leur propre police.
+FONT = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
 PAGE_CSS = f"""
 <style>
-@import url('{FONTS}');
-p, li, label, td, th, input, textarea, summary, small, .stCaption,
-[data-testid="stMarkdownContainer"],
+@import url('{FONT}');
+p, li, label, td, th, input, textarea, summary, small, .stCaption, h1, h2, h3, h4,
+[data-testid="stMarkdownContainer"], button p,
 [data-testid="stSidebarNavItems"] a > span:not([data-testid="stIconMaterial"]),
-button p {{ font-family: "DM Sans", sans-serif !important; }}
-h1, h2, h3, h4, [data-testid="stMetricValue"] {{ font-family: Inter, sans-serif !important;
-  font-weight: 500 !important; }}
-h1, h2, h3 {{ letter-spacing: -0.02em; }}
-button, input, textarea, [data-baseweb="select"] > div, [data-testid="stExpander"] details,
-[data-testid="stAlert"] > div, [data-testid="stAlertContainer"] {{ border-radius: 0 !important; }}
-.tr-hero h1 {{ font-size: clamp(2.1rem, 5vw, 3.4rem); line-height: 1.05; letter-spacing: -0.045em;
-  margin: 0 0 0.9rem 0; padding: 0; font-weight: 500; }}
-.tr-hero h1 .tr-soft {{ color: rgba(17, 17, 17, 0.38); }}
-.tr-hero p {{ font-size: 1.1rem; color: {SOFT_TEXT}; max-width: 46rem; margin: 0; }}
-.tr-steps {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 0.75rem; margin: 0.5rem 0 0.5rem 0; }}
-.tr-step {{ background: {CARD}; padding: 1.1rem 1.2rem; }}
-.tr-step .tr-number {{ color: rgba(17, 17, 17, 0.32); font-size: 0.85rem; }}
-.tr-step h4, .tr-card h4 {{ margin: 0.15rem 0 0.35rem 0; padding: 0; font-weight: 500;
-  font-size: 1.2rem; letter-spacing: -0.01em; }}
-.tr-step p, .tr-card p {{ margin: 0; color: {SOFT_TEXT}; font-size: 0.95rem; line-height: 1.45; }}
-.tr-cards {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 0.75rem; margin: 0.5rem 0 0.5rem 0; }}
-.tr-card {{ background: {CARD}; padding: 1rem 1.1rem 1.1rem 1.1rem; }}
-.tr-card .tr-date {{ color: {SOFT_TEXT}; font-size: 0.85rem; }}
-.tr-badge {{ display: inline-block; padding: 0.2rem 0.55rem; margin: 0.15rem 0 0.55rem 0;
-  font-size: 0.85rem; font-weight: 600; }}
-.tr-weak {{ background: {ALERT}; color: #FFFFFF; }}
-.tr-strong {{ background: {PRIMARY}; color: #FFFFFF; }}
-.tr-normal {{ background: #E4E3DF; color: #111111; }}
-.tr-panel {{ background-color: {PRIMARY}; color: #FFFFFF; padding: 1.4rem 1.5rem;
-  background-image: radial-gradient(120% 150% at 0% 0%, rgba(120, 150, 205, 0.42) 0%,
-  rgba(60, 90, 150, 0.16) 38%, rgba(23, 42, 69, 0) 68%); }}
-.tr-panel h4 {{ color: #FFFFFF; margin: 0 0 0.4rem 0; padding: 0; font-weight: 500; }}
-.tr-panel p {{ color: rgba(255, 255, 255, 0.85); margin: 0 0 0.3rem 0; }}
-.tr-facts {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 0.75rem; }}
-.tr-fact {{ border-top: 1px solid #D9D8D3; padding-top: 0.8rem; }}
-.tr-fact .tr-value {{ font-family: Inter, sans-serif; font-size: 2rem; font-weight: 500;
-  letter-spacing: -0.03em; line-height: 1.1; }}
-.tr-fact p {{ color: {SOFT_TEXT}; margin: 0.3rem 0 0 0; font-size: 0.95rem; }}
+[data-testid="stNavSectionHeader"] {{ font-family: Inter, sans-serif !important; }}
+h1, h2, h3, h4 {{ font-weight: 600 !important; letter-spacing: -0.01em; }}
+.block-container {{ padding-top: 2.2rem; }}
+[data-testid="stSidebar"] {{ background-color: {NAVY}; }}
+[data-testid="stSidebar"] * {{ color: #CBD5E1; }}
+[data-testid="stSidebar"] [aria-current="page"] {{ background-color: #1E293B; }}
+[data-testid="stSidebar"] [aria-current="page"] span {{ color: #FFFFFF; }}
+[data-testid="stSidebar"] [data-testid="stNavSectionHeader"],
+[data-testid="stSidebar"] [data-testid="stNavSectionHeader"] * {{ color: #64748B; }}
+[data-testid="stSidebar"] button {{ background-color: transparent; border-color: #334155; }}
+[data-testid="stSidebar"] button:hover {{ border-color: {PRIMARY}; }}
+.tr-topbar {{ background-color: {NAVY}; color: #FFFFFF; padding: 0.8rem 1.1rem;
+  border-radius: 6px; display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.9rem; }}
+.tr-topbar .tr-brand {{ font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }}
+.tr-topbar .tr-meta {{ color: #94A3B8; font-size: 0.85rem; }}
+.tr-intro {{ color: #4B5563; font-size: 0.95rem; margin: 0 0 0.9rem 0; }}
+.tr-panel {{ background: #FFFFFF; border: 1px solid #E2E6EC; border-radius: 6px;
+  margin-bottom: 0.9rem; overflow-x: auto; }}
+.tr-panel-head {{ font-weight: 600; font-size: 1.05rem; padding: 0.7rem 0.9rem 0.5rem 0.9rem;
+  color: #111827; }}
+.tr-panel-note {{ color: #6B7280; font-size: 0.8rem; padding: 0.5rem 0.9rem 0.7rem 0.9rem; }}
+table.tr-table {{ width: 100%; border-collapse: collapse; font-size: 0.88rem;
+  font-variant-numeric: tabular-nums; }}
+table.tr-table th {{ background: #F3F5F8; color: #374151; font-weight: 600; font-size: 0.8rem;
+  padding: 0.45rem 0.75rem; border-top: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB;
+  white-space: nowrap; }}
+table.tr-table td {{ padding: 0.42rem 0.75rem; border-bottom: 1px solid #F1F3F6;
+  white-space: nowrap; }}
+table.tr-table tr:last-child td {{ border-bottom: none; }}
+.tr-right {{ text-align: right; }}
+.tr-up {{ color: {UP}; }}
+.tr-down {{ color: {ALERT}; }}
+.tr-flat {{ color: #6B7280; }}
+.tr-tag {{ display: inline-block; padding: 0.1rem 0.45rem; border-radius: 3px;
+  font-size: 0.78rem; font-weight: 600; }}
+.tr-weak {{ background: #FDECEC; color: #B91C1C; }}
+.tr-strong {{ background: #E7F6EC; color: #166534; }}
+.tr-normal {{ background: #F1F3F5; color: #374151; }}
+.tr-grid {{ display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 4px;
+  padding: 0 0.9rem 0.2rem 0.9rem; font-size: 0.82rem; font-variant-numeric: tabular-nums; }}
+.tr-grid .tr-cell {{ padding: 0.55rem 0.2rem; text-align: center; border-radius: 3px; }}
+.tr-grid .tr-label {{ padding: 0.55rem 0.2rem; color: #374151; font-weight: 500; }}
+.tr-grid .tr-colhead {{ text-align: center; color: #374151; font-weight: 600;
+  padding: 0.2rem 0; }}
+.tr-better {{ background: #DCF2E3; color: #14532D; }}
+.tr-worse {{ background: #FBE3E3; color: #7F1D1D; }}
+.tr-unclear {{ background: #F1F3F5; color: #374151; }}
+.tr-stats {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }}
+.tr-stats.tr-three {{ grid-template-columns: repeat(3, 1fr); }}
+.tr-stats.tr-three .tr-stat {{ padding-right: 0.3rem; }}
+.tr-stat {{ padding: 0.3rem 0.9rem 0.8rem 0.9rem; }}
+.tr-stat .tr-value {{ font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; }}
+.tr-stat .tr-text {{ color: #6B7280; font-size: 0.82rem; line-height: 1.35; }}
+.tr-dot {{ display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%;
+  margin-right: 0.45rem; }}
+[class*="st-key-panel"] {{ background: #FFFFFF; border: 1px solid #E2E6EC !important;
+  border-radius: 6px; }}
+@media (max-width: 640px) {{
+  table.tr-table td, table.tr-table th {{ padding: 0.4rem 0.5rem; }}
+}}
 </style>
 """
 
 
 def page_style() -> None:
-    """Style d'Imoframe pour toutes les pages : polices, coins carrés, et classes des blocs de
-    la page d'accueil (cartes, étapes, chiffres)."""
+    """Style du tableau de bord pour toutes les pages."""
     st.markdown(PAGE_CSS, unsafe_allow_html=True)
+
+
+def top_bar() -> None:
+    """Bandeau foncé en haut de chaque page : nom du site et heure de la dernière mise à jour."""
+    status = json_file(live.STATUS_FILE)
+    st.markdown(
+        f"""<div class="tr-topbar"><span class="tr-brand">US Treasury Auctions</span>
+<span class="tr-meta">Data updated {escape(moment_en(status.get("run_at")))}</span></div>""",
+        unsafe_allow_html=True,
+    )
+
+
+# --- Petits morceaux de HTML pour les panneaux (textes déjà échappés par l'appelant) --------
+
+
+def panel(title: str, body: str, note: str = "") -> str:
+    """Un panneau blanc : titre, contenu, note grise facultative."""
+    foot = f'<div class="tr-panel-note">{note}</div>' if note else ""
+    return (
+        f'<div class="tr-panel"><div class="tr-panel-head">{escape(title)}</div>{body}{foot}</div>'
+    )
+
+
+def table(headers: list[str], rows: list[list[str]], right: set[int] | None = None) -> str:
+    """Tableau compact ; `right` : indices des colonnes alignées à droite (nombres)."""
+    right = right or set()
+
+    def cell(tag: str, index: int, content: str) -> str:
+        align = ' class="tr-right"' if index in right else ""
+        return f"<{tag}{align}>{content}</{tag}>"
+
+    head = "".join(cell("th", i, escape(h)) for i, h in enumerate(headers))
+    body = "".join(
+        "<tr>" + "".join(cell("td", i, c) for i, c in enumerate(row)) + "</tr>" for row in rows
+    )
+    return f'<table class="tr-table"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+
+
+def signed(value: float, text: str) -> str:
+    """Texte coloré selon le signe de la valeur : vert si elle monte, rouge si elle baisse."""
+    css = "tr-up" if value > 0 else "tr-down" if value < 0 else "tr-flat"
+    return f'<span class="{css}">{escape(text)}</span>'
+
+
+def demand_tag(signal: str) -> str:
+    """Étiquette colorée du signal de demande."""
+    label, css = {ad.WEAK: ("Weaker", "tr-weak"), ad.STRONG: ("Stronger", "tr-strong"),
+                  ad.NORMAL: ("Normal", "tr-normal")}.get(signal, ("n/a", "tr-normal"))  # fmt: skip
+    return f'<span class="tr-tag {css}">{label}</span>'
 
 
 def chart(figure: go.Figure, height: int = 380, container: object = st) -> None:
@@ -169,13 +242,15 @@ def date_en(value: pd.Timestamp, year: bool = True) -> str:
     return f"{text}, {value.year}" if year else text
 
 
-def day_en(text: object) -> str:
-    """Date ISO (2026-11-12) en « Nov 12, 2026 » ; « – » si absente."""
+def day_en(text: object, year: bool = True) -> str:
+    """Date ISO (2026-11-12) en « Nov 12, 2026 » (ou « Nov 12 ») ; « – » si absente."""
     try:
         day = pd.Timestamp(str(text))
     except (ValueError, TypeError):
         return "–"
-    return "–" if pd.isna(day) else f"{day:%b} {day.day}, {day.year}"
+    if pd.isna(day):
+        return "–"
+    return f"{day:%b} {day.day}, {day.year}" if year else f"{day:%b} {day.day}"
 
 
 def moment_en(text: object) -> str:
@@ -191,11 +266,9 @@ def moment_en(text: object) -> str:
 
 def sidebar() -> None:
     """Fraîcheur des données et bouton de mise à jour, sur toutes les pages : court et sobre."""
-    status = json_file(live.STATUS_FILE)
     quality = json_file("data_quality.json")
     fetch = json_file(FETCH_STATUS_FILE)
     with st.sidebar:
-        st.caption(f"Updated {moment_en(status.get('run_at'))}")
         problems = []
         if fetch and ad.failed_sources(fetch):
             problems.append(f"{len(ad.failed_sources(fetch))} source(s) failed to update")

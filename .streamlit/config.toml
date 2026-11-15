@@ -1,11 +1,12 @@
-# Couleurs reprises d'Imoframe (imoframe.com, autre projet de l'étudiant) : fond blanc cassé,
-# cartes gris clair, bleu marine. Polices et coins carrés : voir app_ui.page_style.
+# Couleurs du tableau de bord : fond gris clair, panneaux blancs, bleu d'accent. La barre
+# latérale foncée, les polices et les panneaux sont en CSS (app_ui.page_style) : ici, seules les
+# couleurs simples, que Streamlit Community Cloud accepte.
 [theme]
 base = "light"
-primaryColor = "#172A45"
-backgroundColor = "#FAFAFA"
-secondaryBackgroundColor = "#F0F0EF"
-textColor = "#111111"
+primaryColor = "#2563EB"
+backgroundColor = "#EEF1F5"
+secondaryBackgroundColor = "#F3F5F8"
+textColor = "#111827"
 
 [server]
 headless = true

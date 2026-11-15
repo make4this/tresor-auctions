@@ -37,7 +37,7 @@ Les 11 phases du plan sont faites : collecte, nettoyage, variables point-in-time
 | `src/tresor/live.py`, `check_log.py` | modèles finaux, prévisions du soir et journal figé |
 | `src/tresor/models_store.py`, `refresh.py` | modèles déposés en ligne, bouton « Mettre à jour maintenant » |
 | `src/tresor/pipeline.py` | ligne de commande : `python -m tresor.pipeline --help` |
-| `app/` | application Streamlit, en anglais : un accueil en mots simples et 6 pages détaillées |
+| `app/` | application Streamlit, en anglais : un tableau de bord en page d'accueil et 6 pages détaillées |
 | `data/raw/`, `data/clean/`, `data/output/` | données brutes, nettoyées, et résultats, mis à jour chaque soir |
 | `reports/` | figures et chiffres clés pour le rapport et l'oral (`python reports/make_figures.py`) |
 | `tests/` | tests automatiques (sans réseau) |
@@ -131,7 +131,7 @@ python -m pytest -q
   Le passage se lance aussi à la main : onglet Actions, « Run workflow ». La clé FRED est le secret `FRED_API_KEY` du dépôt, et le résultat de chaque source est écrit dans `data/output/fetch_status.json`.
 - **Tests** (`.github/workflows/tests.yml`) : `ruff` et `pytest` à chaque envoi de code, sous Python 3.11 et 3.14.
 - **Contrôle du journal figé** (`.github/workflows/journal.yml`) : un envoi fait à la main qui touche au journal est comparé à la version d'avant. Une ligne figée modifiée, supprimée ou ajoutée après coup le fait passer en rouge.
-- **Application** : elle est hébergée sur Streamlit Community Cloud, avec le fichier principal `app/streamlit_app.py` et les versions de `requirements.txt`. Elle tourne sous Python 3.14, la version affichée en bas de la page Méthodologie. Les modèles, entraînés sous 3.11 avec les mêmes versions de numpy, scikit-learn et LightGBM, s'y relisent. Elle n'a besoin d'aucun secret : elle ne contacte jamais FRED. Le backtest ne tourne pas chaque soir : il se lance à la main avec `--backtest --strategy`.
+- **Application** : elle est hébergée sur Streamlit Community Cloud, avec le fichier principal `app/streamlit_app.py` et les versions de `requirements.txt`. Elle tourne sous Python 3.14. Les modèles, entraînés sous 3.11 avec les mêmes versions de numpy, scikit-learn et LightGBM, s'y relisent. Elle n'a besoin d'aucun secret : elle ne contacte jamais FRED. Le backtest ne tourne pas chaque soir : il se lance à la main avec `--backtest --strategy`.
 
 ## Données
 

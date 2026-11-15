@@ -330,31 +330,67 @@ def test_fetch_table_puts_failures_first_and_survives_bad_files() -> None:
         assert ad.failed_sources(broken) == []
 
 
-def test_home_cards_say_it_simply() -> None:
-    table = pd.DataFrame(
+def test_market_snapshot_gives_the_last_close_and_its_change() -> None:
+    market = pd.DataFrame(
         {
-            "auction_date": pd.to_datetime(["2026-11-16", "2026-11-18"]),
-            "title": ["13-week", "20-year"],
-            "family": ["bill", "nominal_coupon"],
-            "offering_amt": [95e9, 16e9],
-            "offering_estimated": [0, 1],
-            "signal": [ad.WEAK, "–"],
-            "pred_btc": [2.79, 2.52],
-            "bench_mean3_btc": [2.87, float("nan")],
+            "series": ["yield_10y", "yield_10y", "vix_close", "vix_close", "fred_walcl"],
+            "date": pd.to_datetime(["2026-11-12", "2026-11-13"] * 2 + ["2026-11-13"]),
+            "value": [5.10, 5.15, 18.7, 19.3, 1.0],
         }
     )
 
-    first, second = ad.home_cards(table)
+    snapshot = ad.market_snapshot(market).set_index("series")
 
-    assert first["badge"] == "Weaker demand" and first["css"] == "tr-weak"
-    assert first["sentence"] == (
-        "Expected bid-to-cover: 2.79, versus 2.87 on average over the last 3 auctions of the"
-        " same maturity."
+    assert list(snapshot.index) == ["yield_10y", "vix_close"]  # séries absentes ignorées
+    assert snapshot.loc["yield_10y", "change"] == pytest.approx(5.0)  # en points de base
+    assert snapshot.loc["yield_10y", "unit"] == "bp"
+    assert snapshot.loc["vix_close", "change"] == pytest.approx(0.6)  # en points
+    assert snapshot.loc["vix_close", "unit"] == "pts"
+
+
+def test_demand_counts() -> None:
+    table = pd.DataFrame({"signal": [ad.WEAK, ad.WEAK, ad.NORMAL, "–"]})
+
+    assert ad.demand_counts(table) == {ad.WEAK: 2, ad.NORMAL: 1, ad.STRONG: 0}
+    assert ad.demand_counts(pd.DataFrame()) == {ad.WEAK: 0, ad.NORMAL: 0, ad.STRONG: 0}
+
+
+def test_scorecard_reads_the_interval() -> None:
+    metrics = pd.DataFrame(
+        {
+            "model": "moyenne_5",
+            "feature_set": "toutes",
+            "period": "2020-2026",
+            "family": "bill",
+            "target": ["btc", "dealer_share", "tail_bp"],
+            "r2_vs_mean3": [0.2, -0.3, 0.1],
+            "r2_ci_low": [0.1, -0.5, -0.1],
+            "r2_ci_high": [0.3, -0.1, 0.3],
+            "r2_vs_constant": 0.5,
+            "direction": 0.6,
+        }
     )
-    assert first["amount"] == "$95bn" and first["family"] == "Bills"
-    assert second["badge"] == "No comparison yet"
-    assert "no recent average to compare with" in second["sentence"]
-    assert second["amount"] == "$16bn (est.)"
+
+    verdicts = ad.scorecard(metrics).set_index("target")["verdict"]
+
+    assert verdicts.to_dict() == {"btc": "better", "dealer_share": "worse", "tail_bp": "unclear"}
+
+
+def test_btc_history_keeps_completed_auctions_of_the_chosen_maturities() -> None:
+    features = pd.DataFrame(
+        {
+            "auction_date": pd.to_datetime(
+                ["2020-01-02", "2025-01-02", "2025-02-02", "2026-12-01"]
+            ),
+            "maturity_bucket": ["10Y", "10Y", "2Y", "10Y"],
+            "status": ["completed", "completed", "completed", "upcoming"],
+            "btc": [2.4, 2.5, 2.6, np.nan],
+        }
+    )
+
+    history = ad.btc_history(features, ["10Y"], pd.Timestamp("2021-01-01"))
+
+    assert history["btc"].tolist() == [2.5]
 
 
 def test_key_facts_refuse_unexpected_files() -> None:
