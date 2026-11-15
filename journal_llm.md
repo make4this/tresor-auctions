@@ -1220,7 +1220,8 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
   - coins carrés ;
   - titres Inter demi-gras et serrés, texte DM Sans gris doux.
 
-  Il est appliqué à toute l'application par `.streamlit/config.toml` (thème Streamlit) et par quelques classes CSS (`app_ui.page_style`). Le bleu marine remplace le #1F4E79 du plan, très proche ; la couleur d'alerte du plan est gardée.
+  Les couleurs sont dans `.streamlit/config.toml` (thème Streamlit) ; les polices, les coins carrés et les blocs de l'accueil sont en CSS (`app_ui.page_style`, sur toutes les pages). Le bleu marine remplace le #1F4E79 du plan, très proche ; la couleur d'alerte du plan est gardée.
+- **Panne en ligne, puis réparée :** la première version mettait aussi les polices, les coins carrés et les bordures dans `config.toml`. Cela marchait sur l'ordinateur, mais l'application ne démarrait plus sur Streamlit Community Cloud (« Error running app », vu par le LLM dans le navigateur) pendant une dizaine de minutes. Le LLM a réduit `config.toml` aux couleurs, ce qui l'a fait repartir, et a remis polices et coins carrés en CSS. Le réglage exact qui bloquait n'a pas été isolé : seuls les journaux de Streamlit Cloud, visibles par moi seul (« Manage app »), le diraient.
 - **Nouvelle page d'accueil** (`app/vues/accueil.py`), en mots simples :
   - un titre qui dit ce que fait le site ;
   - trois étapes : collecter, prévoir, vérifier ;

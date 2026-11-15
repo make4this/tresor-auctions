@@ -14,8 +14,6 @@ from tresor import app_data as ad
 from tresor import app_ui as ui
 from tresor.config import SIGNAL_THRESHOLD
 
-ui.page_style()
-
 st.markdown(
     """
 <div class="tr-hero">

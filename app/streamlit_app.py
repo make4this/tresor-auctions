@@ -20,7 +20,7 @@ from fresh_project import load_fresh  # noqa: E402
 # Après une mise à jour du dépôt, le code de src/ est relu s'il a changé (voir fresh_project).
 load_fresh("tresor", SOURCE)
 
-from tresor.app_ui import sidebar  # noqa: E402
+from tresor.app_ui import page_style, sidebar  # noqa: E402
 
 st.set_page_config(page_title="Adjudications du Trésor", page_icon="📈", layout="wide")
 
@@ -37,5 +37,6 @@ DETAILS = [
 PAGES = {"": [HOME], "Pour aller plus loin": DETAILS}
 
 page = st.navigation(PAGES)
+page_style()
 sidebar()
 page.run()

@@ -99,9 +99,25 @@ def style(figure: go.Figure, height: int = 380) -> go.Figure:
     return figure
 
 
+# Polices et coins carrés d'Imoframe, en CSS : mis dans .streamlit/config.toml (font,
+# headingFont, baseRadius...), ces réglages empêchaient l'application de démarrer sur Streamlit
+# Community Cloud, alors qu'ils marchaient en local. Les icônes gardent leur propre police.
+FONTS = (
+    "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600"
+    "&family=Inter:wght@500;600&display=swap"
+)
 PAGE_CSS = f"""
 <style>
+@import url('{FONTS}');
+p, li, label, td, th, input, textarea, summary, small, .stCaption,
+[data-testid="stMarkdownContainer"],
+[data-testid="stSidebarNavItems"] a > span:not([data-testid="stIconMaterial"]),
+button p {{ font-family: "DM Sans", sans-serif !important; }}
+h1, h2, h3, h4, [data-testid="stMetricValue"] {{ font-family: Inter, sans-serif !important;
+  font-weight: 500 !important; }}
 h1, h2, h3 {{ letter-spacing: -0.02em; }}
+button, input, textarea, [data-baseweb="select"] > div, [data-testid="stExpander"] details,
+[data-testid="stAlert"] > div, [data-testid="stAlertContainer"] {{ border-radius: 0 !important; }}
 .tr-hero h1 {{ font-size: clamp(2.1rem, 5vw, 3.4rem); line-height: 1.05; letter-spacing: -0.045em;
   margin: 0 0 0.9rem 0; padding: 0; font-weight: 500; }}
 .tr-hero h1 .tr-soft {{ color: rgba(17, 17, 17, 0.38); }}
@@ -138,7 +154,8 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
 
 
 def page_style() -> None:
-    """Classes CSS des blocs de la page d'accueil (cartes, étapes, chiffres), style Imoframe."""
+    """Style d'Imoframe pour toutes les pages : polices, coins carrés, et classes des blocs de
+    la page d'accueil (cartes, étapes, chiffres)."""
     st.markdown(PAGE_CSS, unsafe_allow_html=True)
 
 
