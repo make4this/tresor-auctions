@@ -17,13 +17,13 @@ Le modèle de référence est la moyenne des prévisions de 5 modèles. Il a ét
 - **Part des dealers** (coupons nominaux) : la prévision fait pire que `mean3`, avec un R² de −0,29 [−0,46 ; −0,15] (même fichier).
 - **Lien avec le marché** (coupons nominaux, 2009-2026) : après les enchères à la demande la plus faible par rapport à `mean3` (quintile 5), le taux de la maturité varie en moyenne de +2,0 pb [+1,2 ; +2,8] entre la clôture de la veille et celle du jour de l'enchère. Après les plus fortes, il varie de −1,4 pb [−1,7 ; −1,0] ([quintiles.csv](data/output/quintiles.csv)).
 - **Stratégie illustrative** : aucun gain démontré. Sur 2020-2026, elle perd 1,40 pb par trade, contre 1,27 pb pour la règle « toujours vendeur », soit un écart de −0,13 pb [−0,84 ; +0,58] ([strategy_summary.csv](data/output/strategy_summary.csv)).
-- Les figures sont dans [reports/figures/](reports/figures/), et le détail de chaque chiffre est dans le journal.
+- Tous les chiffres du rapport et de l'oral, avec le fichier qui produit chacun, sont dans [reports/chiffres_cles.md](reports/chiffres_cles.md). Les figures sont dans [reports/figures/](reports/figures/).
 
 Ces prévisions sont un exercice académique, pas un conseil en investissement.
 
 ## État d'avancement
 
-Phases 1 à 10 sur 11 terminées : collecte, nettoyage, variables point-in-time, modèles, stratégie, prévisions en direct avec journal figé, application, automatisation et mise en ligne. La phase 11 (supports pour l'oral et le rapport) reste à faire.
+Les 11 phases du plan sont terminées : collecte, nettoyage, variables point-in-time, modèles, stratégie, prévisions en direct avec journal figé, application, automatisation et mise en ligne, supports pour l'oral et le rapport.
 
 ## Organisation du dépôt
 
@@ -38,6 +38,7 @@ Phases 1 à 10 sur 11 terminées : collecte, nettoyage, variables point-in-time,
 | `src/tresor/pipeline.py` | ligne de commande : `python -m tresor.pipeline --help` |
 | `app/` | application Streamlit (6 pages) |
 | `data/raw/`, `data/clean/`, `data/output/` | données brutes, nettoyées, et résultats, mis à jour chaque soir |
+| `reports/` | figures et chiffres clés pour le rapport et l'oral (`python reports/make_figures.py`) |
 | `tests/` | tests automatiques (sans réseau) |
 | `.github/workflows/` | passage du soir, tests, contrôle du journal figé |
 
@@ -85,6 +86,18 @@ python -m tresor.pipeline --help
 - `--strategy` produit les quintiles et la stratégie illustrative, en quelques secondes.
 - `--train` entraîne les modèles finaux. Rien n'est refait si les données n'ont pas changé.
 - `--predict` prévoit les enchères à venir et les inscrit dans le journal `data/output/predictions_log.parquet`. Une prévision y est figée à partir du jour de l'enchère (date de New York).
+
+Pour refaire les figures et `reports/chiffres_cles.md` depuis les fichiers de `data/output/`, en quelques secondes et sans relancer les modèles :
+
+```bash
+python reports/make_figures.py
+```
+
+Pour vérifier que chaque chiffre de `reports/chiffres_cles.md` correspond toujours aux fichiers :
+
+```bash
+python reports/make_figures.py --check
+```
 
 Pour lancer l'application sur sa machine :
 

@@ -4,6 +4,56 @@
 
 **Outil utilisé :** Claude Code (modèle Claude Opus 5.5), dans l'application de bureau Claude.
 
+## Synthèse (15 novembre 2026)
+
+**Comment le LLM a été utilisé.** J'ai écrit le plan du projet (`PLAN.md`) et je l'ai donné à Claude Code avec la consigne « Lis PLAN.md et exécute-le phase par phase ». Pour chacune des 11 phases, le LLM a écrit le code et les tests, l'a lancé et m'a montré les sorties réelles. Il a attendu mon accord avant la phase suivante.
+
+Après chaque phase jusqu'à la 10, à ma demande (« Vérifie la phase N »), deux agents LLM indépendants ont relu le travail sans le modifier (trois agents pour les phases 1 à 3, vérifiées ensemble). Le LLM principal a ensuite corrigé ce qu'ils avaient trouvé, a injecté des erreurs volontaires dans une copie du code pour éprouver les tests, puis a tout consigné ici.
+
+**Mes demandes (prompts).** Le plan et la consigne de départ. Ensuite « OK, phase N » et « Vérifie la phase N » à chaque phase. Enfin quelques décisions :
+
+- le dépôt public ;
+- le téléchargement de l'outil `gh` ;
+- la réécriture de l'adresse des commits.
+
+**Ce que j'ai fait moi-même :**
+
+- le plan et les décisions ;
+- la saisie de la clé FRED dans les secrets GitHub ;
+- le déploiement sur Streamlit Community Cloud.
+
+**À faire par moi :**
+
+- relire le code ;
+- ouvrir l'application depuis mon téléphone ;
+- écrire la partie « ma contribution » du rapport ;
+- répéter l'oral.
+
+**Ce que montre ce journal.** Le LLM s'est souvent trompé, et la plupart de ses erreurs ont été trouvées par les agents de vérification ou par les erreurs injectées, pas par le LLM qui avait écrit le code. Ces erreurs étaient de plusieurs sortes :
+
+- un nom de colonne supposé au lieu d'être lu (phase 11) ;
+- des dates de publication trop optimistes ;
+- des tests trop étroits ;
+- des conclusions présentées plus favorablement que les chiffres ne le permettaient.
+
+Les principaux problèmes et leurs solutions :
+
+| Phase | Problème | Solution |
+|---|---|---|
+| 1 | Python 3.9 sur la machine ; LightGBM ne se chargeait pas (`libomp`) | environnement Python 3.11 séparé, avec `llvm-openmp` |
+| 2 | des types de titres et des noms de champs de mon plan ne correspondaient pas à l'API TreasuryDirect (TIPS et FRN absents, `highDiscountRate` inexistant) | appel de test avant chaque parseur ; types `TIPS`, `FRN` et `CMB` ajoutés |
+| 1 à 3 (vérification) | CFTC : dates de publication fausses les semaines de jour férié et pendant les pannes ; TreasuryDirect oublie les titres échus | calendrier officiel et 30 rapports retardés datés un par un ; table TreasuryDirect cumulative |
+| 4 (vérification) | des CMB de quelques jours classés « 4 semaines » ; « . » de FRED (reverse repo) lu comme une valeur manquante | identifiant de série famille + maturité ; « . » = 0 les jours ouvrés |
+| 5 (vérification) | les tests ne pouvaient pas voir une date de publication fausse (contrôle circulaire) | contrôle bloquant des délais minimaux de publication par source |
+| 6 (vérification) | le *tail* présenté comme un succès, alors qu'une constante fait presque aussi bien ; gains des bills gonflés par les crises du plafond de la dette | benchmark constante, R² sans le meilleur trimestre, modèle de référence fixé à l'avance |
+| 7 (vérification) | interprétations trop fortes de la stratégie (effet de période pris pour un effet de la demande) | conclusions réécrites avec les chiffres qui les limitent |
+| 8 (vérification) | une ligne figée pouvait être réécrite en relançant avec une heure plus ancienne | heure qui doit avancer, garde-fou sur toutes les colonnes |
+| 9 (vérification) | le bouton « Mettre à jour » modifiait 11 fichiers du dépôt | travail sur une copie temporaire, testé |
+| 10 (vérification et mise en ligne) | erreur bloquante confondue avec une panne de source ; versions figées en partie ; application en ligne sous Python 3.14 et pas 3.11 ; ancien code gardé en mémoire en ligne | code de sortie distinct, 60 versions figées, tests sous 3.11 et 3.14, code relu automatiquement quand il change |
+| 11 | figures du rapport en retard sur le code (anciens libellés) | toutes les figures et tous les chiffres régénérés par un seul script, vérifié par un test |
+
+Le détail de chaque phase suit.
+
 ## Phase 1 — Squelette du dépôt (9 novembre 2026)
 
 **Ma demande (résumé) :** j'ai donné la consigne du cours et mon plan détaillé (`PLAN.md`), avec l'instruction « Lis PLAN.md et exécute-le phase par phase ». La phase 1 demande le dépôt, sa structure, `pyproject.toml`, `config.py`, le client HTTP, `.env.example`, un README minimal et ce journal.
@@ -1045,3 +1095,38 @@ Un seul passage à la fois (`concurrency`). La clé FRED est le secret `FRED_API
   - à chaque affichage, l'application la compare aux fichiers actuels (`app/fresh_project.py`). Si un fichier a changé, tous les modules du projet sont oubliés puis relus ensemble.
   - 4 tests couvrent ce mécanisme.
   - Je l'ai aussi vérifié sur un vrai serveur Streamlit lancé sur une copie : un texte modifié dans `src/tresor/` apparaît sans redémarrage.
+
+## Phase 11 — Supports pour le rapport et l'oral (15 novembre 2026)
+
+**Ma demande :** « OK, phase 11 » : section 12 du plan. Un script `reports/make_figures.py`, un fichier `reports/chiffres_cles.md` avec tous les chiffres du rapport et de l'oral, chacun lié au fichier qui le produit, et ce journal complet.
+
+**Ce que le LLM a produit :**
+
+- **`reports/make_figures.py`** refait les 11 figures de `reports/figures/` en 4 secondes, en relisant seulement les fichiers de `data/output/` : aucun modèle n'est recalculé.
+  - 9 figures sont identiques, à l'octet près, à celles produites par le backtest.
+  - Les 2 figures d'importance des variables avaient encore un ancien libellé (« moyenne des 3 » au lieu de « moyenne des 3 dernières »), changé dans le code en phase 9 sans que ces figures soient redessinées. Elles sont maintenant à jour ; leurs valeurs n'ont pas changé.
+- **Deux figures nouvelles sur les données**, pour un oral centré sur elles :
+  - `donnees_sources.png` : la période couverte et le nombre de lignes de chacune des 11 sources ;
+  - `donnees_encheres_par_an.png` : les enchères gardées après nettoyage, par année et par famille.
+- **`src/tresor/key_figures.py` et `reports/chiffres_cles.md`** : 45 chiffres, en 5 parties (données, validation, lien avec le marché, stratégie, prévisions en direct). Pour chacun, le fichier source, la ligne et la colonne lues.
+  - Les chiffres sont écrits par le programme, jamais recopiés à la main.
+  - `python reports/make_figures.py --check` les recalcule tous et les compare au fichier.
+- **7 tests**, dont un qui applique le critère de la phase : chaque chiffre du fichier commité est recalculé depuis les fichiers de sortie.
+
+**Choix :**
+
+| Point | Décision | Raison |
+|---|---|---|
+| Chiffres « figé » et « du jour » | backtest, marché et stratégie : un écart est une erreur ; données et prévisions en direct : un écart est seulement signalé | les seconds changent chaque soir avec le passage automatique, les premiers seulement si l'on relance `--backtest --strategy` |
+| Un chiffre = une seule ligne de fichier | erreur si la recherche trouve zéro ou plusieurs lignes | aucun chiffre pris au hasard dans un tableau |
+| Signe « + » | seulement pour les variations et les gains (pb), pas pour les R² | lecture plus simple ; les R² négatifs gardent leur signe moins |
+
+**Problèmes rencontrés :**
+
+- Le premier calcul de la stratégie a planté : le LLM avait supposé une colonne `mean_bp_ci_low` qui n'existe pas (la vraie est `mean_ci_low`). Corrigé après lecture des colonnes du fichier.
+- Les intervalles mettaient un « + » à certains R² positifs et pas à d'autres : la règle du signe est maintenant explicite.
+- Sur la figure des sources, l'annotation « 2009 » chevauchait la barre du VIX : déplacée en bas, là où il n'y a pas de barre.
+
+**Tests :** j'ai injecté 8 erreurs dans une copie du code nouveau : un chiffre figé traité comme un chiffre du jour, plusieurs lignes acceptées pour un chiffre, la mauvaise période, la borne basse à la place de la valeur, une figure oubliée, une vérification toujours réussie… Les 8 sont détectées, et la copie sans erreur passe.
+
+**Résultat vérifié :** 345 tests réussis, `ruff check .` et `ruff format --check .` propres. `python reports/make_figures.py --check` : 45 chiffres recalculés, 0 erreur. Les chiffres du README (R², quintiles, stratégie) sont les mêmes que ceux de `chiffres_cles.md`.

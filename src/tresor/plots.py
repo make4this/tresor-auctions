@@ -444,3 +444,93 @@ def strategy_pnl(trades: pd.DataFrame, cost_bp: float = 0.5, directory: Path = F
     _style(axis, grid_axis="y")
     figure.tight_layout()
     return _save(figure, directory / "strategie_pnl_cumule.png")
+
+
+# --- Phase 11 : figures sur les données, pour l'oral ----------------------------------------
+
+MODEL_START = pd.Timestamp("2009-01-01")  # début de l'échantillon des modèles
+
+
+def source_coverage(
+    quality: dict[str, object], labels: dict[str, str], directory: Path = FIGURES_DIR
+) -> Path:
+    """Période couverte et nombre de lignes de chaque source brute (data_quality.json)."""
+    sources = dict(quality["sources"])  # type: ignore[call-overload]
+    rows = sorted(
+        (
+            (
+                labels.get(name, name),
+                pd.Timestamp(info["first_date"]),
+                pd.Timestamp(info["last_date"]),
+                int(info["rows"]),
+            )
+            for name, info in sources.items()
+        ),
+        key=lambda row: row[1],
+        reverse=True,  # la plus ancienne en haut
+    )
+    figure, axis = plt.subplots(figsize=(10.5, 0.42 * len(rows) + 1.3), facecolor=SURFACE)
+    for position, (_, first, last, count) in enumerate(rows):
+        # Une source très courte (calendrier) reste visible : au moins deux mois de large.
+        width = max(last - first, pd.Timedelta(days=60))
+        axis.barh(position, width, left=first, height=0.5, color=PRIMARY)
+        axis.text(first + width + pd.Timedelta(days=90), position, f"{_fr(count, 0)} lignes",
+                  va="center", fontsize=9, color=TEXT_SECONDARY)  # fmt: skip
+    axis.set_yticks(range(len(rows)), [row[0] for row in rows])
+    axis.axvline(MODEL_START, color=SECOND, linewidth=1.5, linestyle="--")
+    # En bas : à cet endroit, les deux dernières lignes (TreasuryDirect) n'ont pas de barre.
+    axis.annotate("2009 : début de l'échantillon\ndes modèles", (MODEL_START, 0),
+                  xycoords=("data", "axes fraction"), xytext=(4, 4),
+                  textcoords="offset points", va="bottom", fontsize=8,
+                  color=TEXT_SECONDARY)  # fmt: skip
+    axis.set_xlim(pd.Timestamp("1989-01-01"), pd.Timestamp("2031-06-30"))
+    today = pd.Timestamp(str(quality.get("today_new_york")))
+    axis.set_title(
+        f"Les {len(rows)} sources publiques et gratuites : période couverte et nombre de lignes"
+        f" au {today:%d/%m/%Y}\nL'historique des enchères vient de Fiscal Data ; TreasuryDirect"
+        " ajoute les résultats récents et le calendrier.",
+        fontsize=11,
+        color=TEXT,
+        loc="left",
+    )
+    _style(axis, grid_axis="x")
+    figure.tight_layout()
+    return _save(figure, directory / "donnees_sources.png")
+
+
+def auctions_by_year(table: pd.DataFrame, today: str, directory: Path = FIGURES_DIR) -> Path:
+    """Nombre d'enchères gardées après nettoyage, par année et par famille."""
+    data = table.set_index("annee")
+    others = data.drop(columns=list(FAMILY_LABELS)).sum(axis=1)
+    layers = [
+        (FAMILY_LABELS["bill"], data["bill"], PRIMARY),
+        (FAMILY_LABELS["nominal_coupon"], data["nominal_coupon"], SECOND),
+        ("Autres, non modélisées (TIPS, FRN, CMB)", others, MUTED),
+    ]
+    figure, axis = plt.subplots(figsize=(10.5, 4.4), facecolor=SURFACE)
+    bottom = pd.Series(0, index=data.index)
+    for label, values, color in layers:
+        # Un liseré de la couleur du fond sépare les segments empilés.
+        axis.bar(data.index, values, bottom=bottom, color=color, width=0.75, label=label,
+                 edgecolor=SURFACE, linewidth=1)  # fmt: skip
+        bottom = bottom + values
+    axis.axvline(MODEL_START.year - 0.5, color=TEXT_SECONDARY, linewidth=1, linestyle="--")
+    axis.annotate("échantillon des modèles →", (MODEL_START.year - 0.4, 1),
+                  xycoords=("data", "axes fraction"), va="top", fontsize=8,
+                  color=TEXT_SECONDARY)  # fmt: skip
+    modeled = int(data.loc[data.index >= MODEL_START.year, list(FAMILY_LABELS)].sum().sum())
+    axis.set_ylabel("Enchères par an", color=TEXT_SECONDARY)
+    axis.yaxis.set_major_formatter(lambda y, _: _fr(y, 0))
+    axis.legend(frameon=False, fontsize=9, loc="upper left", bbox_to_anchor=(0, -0.08), ncol=3,
+                labelcolor=TEXT_SECONDARY)  # fmt: skip
+    axis.set_title(
+        f"{_fr(int(bottom.sum()), 0)} enchères gardées après nettoyage, dont"
+        f" {_fr(modeled, 0)} bills, notes et bonds depuis 2009\nPar année ; 2026 jusqu'au"
+        f" {pd.Timestamp(today):%d/%m/%Y}, enchères annoncées comprises.",
+        fontsize=11,
+        color=TEXT,
+        loc="left",
+    )
+    _style(axis, grid_axis="y")
+    figure.tight_layout()
+    return _save(figure, directory / "donnees_encheres_par_an.png")
