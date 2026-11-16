@@ -620,3 +620,101 @@ def key_facts(
         "weak_move_bp": float(weakest["rate_change_mean_bp"].iloc[0]),
         "strategy_bp": float(strategy["mean_bp"].iloc[0]),
     }
+
+
+# --- Base téléchargeable (page « Dataset ») ----------------------------------------------------
+
+# Colonnes retirées des fichiers publics : leurs fournisseurs limitent la rediffusion.
+RESTRICTED_COLUMNS = {
+    "vix": "Cboe",
+    "vix_chg_5d": "Cboe",
+    "credit_spread_baa": "Moody's",
+}
+
+AUCTION_COLUMNS = {
+    "cusip": "CUSIP identifier of the security",
+    "auction_date": "Date of the auction",
+    "announcemt_date": "Date the auction was announced",
+    "issue_date": "Date the securities are issued",
+    "maturity_date": "Maturity date of the security",
+    "security_type": "Bill, Note or Bond",
+    "security_term": 'Remaining term as published, e.g. "13-Week" or "9-Year 10-Month"',
+    "original_security_term": "Term when the security was first issued",
+    "reopening": "True if an existing security is sold again (reopening)",
+    "family": "bill, nominal_coupon (notes and bonds), tips, frn or cmb (cash management bill)",
+    "term_years": "Remaining term in years",
+    "maturity_bucket": "Standard maturity used on the site, e.g. 13W or 10Y",
+    "bucket_years": "That standard maturity in years",
+    "series_key": "Regular series: family and standard maturity",
+    "series_run": "Same series, numbered again after a long pause in auctions",
+    "offering_amt": "Amount offered, in dollars",
+    "auction_rate": "Auction rate in %: high yield for notes and bonds, investment rate for bills",
+    "high_yield": "Highest accepted yield, in %",
+    "high_discnt_rate": "Highest accepted discount rate (bills), in %",
+    "high_investment_rate": "Bond-equivalent rate at the highest discount rate (bills), in %",
+    "btc": "Bid-to-cover ratio: amount bid / amount accepted",
+    "dealer_share": "Share of competitive bids accepted from primary dealers",
+    "direct_share": "Share of competitive bids accepted from direct bidders",
+    "indirect_share": "Share of competitive bids accepted from indirect bidders",
+    "comp_accepted": "Competitive bids accepted, in dollars",
+    "comp_tendered": "Competitive bids received, in dollars",
+    "total_accepted": "All bids accepted, in dollars",
+    "total_tendered": "All bids received, in dollars",
+    "primary_dealer_accepted": "Accepted from primary dealers, in dollars",
+    "direct_bidder_accepted": "Accepted from direct bidders, in dollars",
+    "indirect_bidder_accepted": "Accepted from indirect bidders, in dollars",
+    "soma_accepted": "Accepted for the Federal Reserve's own portfolio (SOMA), in dollars",
+    "status": "completed, or upcoming (announced, no result yet)",
+    "source": "Where the row comes from: fiscaldata, treasurydirect or treasurydirect_upcoming",
+}
+
+MODEL_ID_COLUMNS = {
+    "cusip": "CUSIP identifier of the security",
+    "auction_date": "Date of the auction",
+    "family": "bill or nominal_coupon (notes and bonds)",
+    "maturity_bucket": "Standard maturity, e.g. 13W or 10Y",
+    "series_run": "Regular series of the auction",
+    "status": "completed, or upcoming (announced, no result yet)",
+    "reopening": "True if an existing security is sold again",
+    "offering_amt": "Amount offered, in dollars",
+    "offering_estimated": "True if the amount is not announced yet (previous amount used)",
+    "btc": "Target: bid-to-cover ratio",
+    "dealer_share": "Target: primary dealer share",
+    "indirect_share": "Target: indirect bidder share",
+    "tail_bp": "Target: auction rate minus the market rate of the day before, in bp",
+}
+
+FORECAST_COLUMNS = {
+    "cusip": "CUSIP identifier of the security",
+    "auction_date": "Date of the auction",
+    "target": "Measure forecast: btc, dealer_share, indirect_share or tail_bp",
+    "model": "Model: moyenne_5 is the 5-model average used on the site",
+    "family": "bill or nominal_coupon (notes and bonds)",
+    "maturity_bucket": "Standard maturity, e.g. 13W or 10Y",
+    "predicted_at": "When the forecast was made (UTC); frozen on auction day",
+    "pred": "Forecast",
+    "bench_mean3": "Average of the last 3 auctions of the same maturity, the benchmark",
+    "offering_amt": "Amount offered, in dollars",
+    "offering_estimated": "True if the amount was not announced yet (previous amount used)",
+    "actual": "Published result, once known",
+    "status": "en_attente (waiting), realisee (result in) or sans_resultat (no result)",
+    "error": "actual − pred",
+    "bench_error": "actual − bench_mean3",
+}
+
+
+def public_table(frame: pd.DataFrame) -> pd.DataFrame:
+    """Table telle qu'elle est publiée : sans les colonnes à diffusion restreinte."""
+    return frame.drop(columns=[c for c in RESTRICTED_COLUMNS if c in frame.columns])
+
+
+def column_guide(frame: pd.DataFrame, meanings: dict[str, str]) -> pd.DataFrame:
+    """Une ligne par colonne publiée : nom et sens (les variables du modèle ont leur libellé)."""
+    rows = []
+    for column in public_table(frame).columns:
+        meaning = meanings.get(column)
+        if meaning is None:
+            label = feature_label(column)
+            meaning = f"Predictor: {label}, known before the auction" if label != column else "–"
+        rows.append({"column": column, "meaning": meaning})
+    return pd.DataFrame(rows, columns=["column", "meaning"])

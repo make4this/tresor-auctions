@@ -31,6 +31,7 @@ PAGES = [
     st.Page("vues/suivi.py", title="Live track record"),
     st.Page("vues/backtest.py", title="Model performance"),
     st.Page("vues/explorer.py", title="History"),
+    st.Page("vues/donnees.py", title="Dataset"),
     st.Page("vues/qualite.py", title="Data quality"),
     st.Page("vues/methodologie.py", title="Methodology"),
 ]

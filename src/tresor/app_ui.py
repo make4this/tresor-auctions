@@ -59,6 +59,18 @@ def parquet(name: str, folder: str = "output") -> pd.DataFrame:
     return _read_parquet(str(path), _version(path))
 
 
+@st.cache_data(ttl=CACHE_SECONDS, show_spinner=False)
+def _public_csv(path: str, version: tuple[int, int]) -> bytes:
+    return ad.public_table(pd.read_parquet(path)).to_csv(index=False).encode("utf-8")
+
+
+def public_csv(name: str, folder: str = "output") -> bytes:
+    """Fichier CSV téléchargeable d'une table, sans les colonnes à diffusion restreinte ; relu
+    seulement quand le fichier change."""
+    path = (OUTPUT_DIR if folder == "output" else CLEAN_DIR) / name
+    return _public_csv(str(path), _version(path))
+
+
 def csv(name: str) -> pd.DataFrame:
     path = OUTPUT_DIR / name
     return _read_csv(str(path), _version(path))

@@ -1424,3 +1424,25 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
 
 **Résultat vérifié :** 373 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
 
+## Base téléchargeable : page « Dataset » (16 novembre 2026)
+
+**Ma demande :** rendre la base téléchargeable, avec un bouton « Download dataset » pour les enchères et leurs variables point-in-time, et pour le journal des prévisions. La consigne parle d'une base de données propriétaire : la rendre accessible renforce ce point.
+
+**Ce que le LLM a produit :** un nouvel onglet **Dataset** avec trois fichiers CSV. Pour chacun : une phrase de description, le nombre de lignes et de colonnes, les années couvertes, la taille, un bouton de téléchargement et un tableau « What each column means ».
+
+- **`treasury_auctions.csv`** : les 7 937 enchères nettoyées depuis 2000 (bills, notes, bonds, TIPS, FRN, CMB), enchères annoncées comprises ;
+- **`model_dataset_point_in_time.csv`** : une ligne par enchère de bills, notes et bonds depuis 2000, avec les variables des modèles (chacune construite avec des valeurs publiées strictement avant le jour de l'enchère) et les 4 mesures à prévoir ;
+- **`forecast_log.csv`** : toutes les prévisions en direct, figées le jour de l'enchère, avec le résultat publié une fois connu.
+
+Les fichiers sont produits à la demande depuis les fichiers du soir et relus seulement quand ils changent. Le sens des colonnes est dans `app_data.py`, écrit à partir du code de nettoyage.
+
+**Choix du LLM, à valider :** les colonnes tirées du VIX (Cboe) et du spread de crédit Baa (Moody's, via FRED) — `vix`, `vix_chg_5d` et `credit_spread_baa` — restent utilisées par les modèles, mais sont retirées des fichiers téléchargeables : ces fournisseurs limitent la rediffusion de leurs données. La page le dit. Toutes les autres données viennent du Trésor, de la Fed et de la CFTC.
+
+**Corrigé en vérifiant :** les années « 2026–2026 » s'affichent désormais « 2026 » ; la description du fichier des modèles précise qu'il commence en 2000 alors que les modèles n'apprennent qu'à partir de 2009 (les années précédentes servent aux moyennes des dernières enchères).
+
+**Tests :** chaque fichier publié a toutes les lignes de sa source et toutes ses colonnes, sauf les trois colonnes retirées ; la page propose bien trois boutons ; le guide des colonnes reconnaît les variables du modèle.
+
+**Vérifié par le LLM dans le navigateur :** la page à 1 280 px, sans débordement, et le guide des colonnes ouvert. Les boutons n'ont pas été cliqués, pour ne pas télécharger de fichier sur l'ordinateur : le contenu des fichiers est vérifié par les tests.
+
+**Résultat vérifié :** 376 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
+

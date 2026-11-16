@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import re
 from html import escape, unescape
@@ -24,6 +25,7 @@ PAGES = {
     "suivi": "Live track record",
     "backtest": "Model performance",
     "explorer": "History",
+    "donnees": "Dataset",
     "qualite": "Data quality",
     "methodologie": "Methodology",
 }
@@ -502,6 +504,25 @@ def test_a_rewritten_file_is_read_again(tmp_path: Path, monkeypatch: pytest.Monk
     assert app_ui.json_file("etat.json") == {"version": 22}
     path.write_text("pas du json")
     assert app_ui.json_file("etat.json") == {}
+
+
+def test_the_dataset_page_offers_each_file_without_restricted_columns() -> None:
+    app = page("donnees").run()
+
+    assert not app.exception, app.exception
+    assert len(app.get("download_button")) == 3
+    for name, folder in (
+        ("auctions.parquet", "clean"),
+        ("features.parquet", "clean"),
+        ("live_tracking.parquet", "output"),
+    ):
+        source = pd.read_parquet((CLEAN_DIR if folder == "clean" else OUTPUT_DIR) / name)
+        shared = pd.read_csv(io.BytesIO(app_ui.public_csv(name, folder=folder)))
+        assert len(shared) == len(source)  # toutes les lignes
+        assert not set(ad.RESTRICTED_COLUMNS) & set(shared.columns)  # rediffusion limitée
+        assert set(shared.columns) == set(source.columns) - set(ad.RESTRICTED_COLUMNS)
+    html = home_html(app)
+    assert "Predictor: " in html and "<code>btc</code>" in html  # guide des colonnes
 
 
 def test_the_method_page_quotes_the_files() -> None:

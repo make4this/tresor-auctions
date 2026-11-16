@@ -225,6 +225,18 @@ def test_download_errors_are_shown_in_english() -> None:
     assert ad.error_en("FetchError : HTTP 503") == "FetchError : HTTP 503"  # inconnu : tel quel
 
 
+def test_public_table_and_column_guide() -> None:
+    frame = pd.DataFrame(
+        columns=["cusip", "vix", "credit_spread_baa", "rate_3m", "btc_lag1", "odd"]
+    )
+
+    assert list(ad.public_table(frame).columns) == ["cusip", "rate_3m", "btc_lag1", "odd"]
+    guide = ad.column_guide(frame, {"cusip": "CUSIP"}).set_index("column")["meaning"]
+    assert guide["cusip"] == "CUSIP"
+    assert guide["btc_lag1"].startswith("Predictor: Bid-to-cover")
+    assert guide["odd"] == "–" and "vix" not in guide.index
+
+
 def reading(pred: float, mean3: float) -> str:
     row = pd.Series({"maturity_bucket": "10Y", "pred_btc": pred, "bench_mean3_btc": mean3})
     return ad.auction_reading(row)
