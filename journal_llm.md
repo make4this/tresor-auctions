@@ -1446,3 +1446,25 @@ Les fichiers sont produits à la demande depuis les fichiers du soir et relus se
 
 **Résultat vérifié :** 376 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
 
+## Graphique de l'accueil réglable (16 novembre 2026)
+
+**Ma demande :** pouvoir changer le graphique « Expected demand, auction by auction » : l'adapter, changer sa forme, l'axe du temps.
+
+**Ce que le LLM a produit :** cinq réglages au-dessus du graphique.
+
+- **Vue** : « Gap » (prévision moins la moyenne des 3 dernières enchères) ou « Forecast vs last 3 » (les deux valeurs côte à côte).
+- **Forme** : barres, points ou ligne.
+- **Axe** : « By auction » (une place par enchère) ou « By date » (les vraies dates). Les enchères d'un même jour sont décalées de quelques heures pour rester visibles côte à côte.
+- **Période** : 7 jours, 14 jours ou toutes les enchères annoncées.
+- **Titres** : bills, notes et bonds, ou les deux.
+
+L'aide « How to read » explique ces réglages.
+
+**Choix du LLM, corrigé en vérifiant :** en vue « Forecast vs last 3 », des barres partent de 0. L'écart entre 2,79 et 2,87 y devient invisible, et couper l'axe rendrait la longueur des barres trompeuse. Cette vue s'affiche donc toujours en points, avec un trait fin qui relie chaque prévision à sa moyenne des 3 dernières, et une phrase le dit.
+
+**Tests :** le graphique par défaut (écart en barres) ; les deux séries et leurs traits de liaison ; la ligne ; le filtre des 7 jours ; le filtre des titres.
+
+**Vérifié par le LLM :** les 108 combinaisons de réglages (2 vues × 3 formes × 2 axes × 3 périodes × 3 choix de titres), sans erreur et sans lenteur ; plusieurs combinaisons regardées dans le navigateur.
+
+
+**Résultat vérifié :** 377 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur, et le balayage de 305 combinaisons de menus sur toutes les pages, sans erreur. Un test a échoué une fois, pendant que le balayage tournait en parallèle (l'ordinateur était chargé) ; relancée seule, la suite passe entièrement.

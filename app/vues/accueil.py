@@ -103,49 +103,142 @@ with hero:
             f" weaker, {counts[ad.NORMAL]} normal, {counts[ad.STRONG]} stronger.</div></div>",
             unsafe_allow_html=True,
         )
+VIEWS = {"gap": "Gap", "levels": "Forecast vs last 3"}
+STYLES = {"bars": "Bars", "dots": "Dots", "line": "Line"}
+AXES = {"auction": "By auction", "date": "By date"}
+HORIZONS = {"7": "Next 7 days", "14": "Next 14 days", "all": "All announced"}
+
+
+def expected_chart(table: pd.DataFrame, view: str, style: str, axis: str) -> go.Figure:
+    """Demande attendue des enchères annoncées, selon la vue, la forme et l'axe choisis.
+
+    view : « gap » (prévision − moyenne des 3 dernières) ou « levels » (les deux valeurs).
+    style : barres, points ou ligne. axis : une place par enchère, ou la vraie date (les
+    enchères d'un même jour sont décalées de quelques heures pour ne pas se cacher).
+    """
+    if axis == "date":
+        # Centrées sur midi : les enchères d'un même jour se placent côte à côte, à 5 h d'écart.
+        rank = table.groupby("auction_date").cumcount()
+        size = table.groupby("auction_date")["auction_date"].transform("size")
+        hours = 12 + (rank - (size - 1) / 2) * 5
+        x = list(table["auction_date"] + pd.to_timedelta(hours, unit="h"))
+    else:
+        x = list(range(len(table)))
+    colours = [FORECAST_COLOURS.get(s, "#64748B") for s in table["signal"]]
+    info = [
+        [ui.date_en(d, year=False), t, en(p, 2), en(m, 2), en(g, 3, sign=True)]
+        for d, t, p, m, g in zip(
+            table["auction_date"], table["title"], table["pred_btc"],
+            table["bench_mean3_btc"], table["gap_btc"], strict=True,
+        )
+    ]  # fmt: skip
+    hover = (
+        "%{customdata[0]}, %{customdata[1]}<br>forecast %{customdata[2]} vs last 3"
+        " %{customdata[3]}<br>gap %{customdata[4]}<extra></extra>"
+    )
+    figure = go.Figure()
+
+    def add(values: pd.Series, name: str, colour: object, symbol: str = "circle") -> None:
+        common = {"x": x, "y": values, "name": name, "customdata": info, "hovertemplate": hover}
+        if style == "bars":
+            figure.add_bar(marker_color=colour, **common)
+        elif style == "dots":
+            figure.add_scatter(mode="markers", marker={"color": colour, "size": 12,
+                               "symbol": symbol, "line": {"color": "#FFFFFF", "width": 1}},
+                               **common)  # fmt: skip
+        else:
+            figure.add_scatter(mode="lines+markers", line={"color": ui.SERIES[0], "width": 2},
+                               marker={"color": colour, "size": 9, "symbol": symbol},
+                               **common)  # fmt: skip
+
+    if view == "levels":
+        if style == "dots":  # un trait fin relie chaque prévision à sa moyenne des 3 dernières
+            pairs_x, pairs_y = [], []
+            for position, low, high in zip(
+                x, table["bench_mean3_btc"], table["pred_btc"], strict=True
+            ):
+                pairs_x += [position, position, None]
+                pairs_y += [low, high, None]
+            figure.add_scatter(x=pairs_x, y=pairs_y, mode="lines", showlegend=False,
+                               hoverinfo="skip", line={"color": "#CBD5E1", "width": 2})  # fmt: skip
+        add(table["bench_mean3_btc"], "Last-3 average", "#94A3B8")
+        add(table["pred_btc"], "Forecast", colours, "diamond")
+        figure.update_yaxes(title="Bid-to-cover")
+        figure.update_layout(showlegend=True, barmode="group")
+    else:
+        add(table["gap_btc"], "Gap", colours)
+        for level in (-SIGNAL_THRESHOLD, SIGNAL_THRESHOLD):
+            figure.add_hline(y=level, line={"color": ui.MUTED, "dash": "dot", "width": 1})
+        figure.update_yaxes(title="Gap in bid-to-cover", zeroline=True)
+        figure.update_layout(showlegend=False)
+    if axis == "date":
+        noon = table["auction_date"].min() + pd.Timedelta(hours=12)
+        figure.update_xaxes(tickformat="%b %d", dtick=86_400_000, tick0=noon)  # un trait par jour
+        if style == "bars":
+            figure.update_traces(width=4 * 3_600_000)  # 4 heures : barres fines, côte à côte
+    else:
+        labels = [
+            f"{day:%b} {day.day}<br>{escape(title)}"
+            for day, title in zip(table["auction_date"], table["title"], strict=True)
+        ]
+        figure.update_xaxes(tickvals=x, ticktext=labels, tickfont={"size": 10})
+    figure.update_layout(bargap=0.35)
+    return figure
+
+
 with (
     chart,
     ui.box(
         "gaps",
         "Expected demand, auction by auction",
         [
-            "Each bar: forecast bid-to-cover minus the average of the last 3 auctions of the same"
-            " maturity, for each announced auction.",
-            f"<b>Red</b>: −{THRESHOLD} or less, weaker demand expected. <b>Green</b>: +{THRESHOLD}"
-            " or more, stronger. <b>Grey</b>: normal. The dotted lines are the thresholds.",
+            "<b>Gap</b>: forecast bid-to-cover minus the average of the last 3 auctions of the"
+            " same maturity. <b>Forecast vs last 3</b>: the two values side by side.",
+            f"<b>Red</b>: gap of −{THRESHOLD} or less, weaker demand expected. <b>Green</b>:"
+            f" +{THRESHOLD} or more, stronger. <b>Grey</b>: normal. Dotted lines: thresholds.",
+            "Change the shape (bars, dots, line), the axis (one place per auction, or real"
+            " dates), the securities and the period with the buttons above the chart.",
         ],
     ),
 ):
     if upcoming.empty:
-        ui.small("The bars appear once auctions are announced.")
+        ui.small("The chart appears once auctions are announced.")
     else:
-        labels = [
-            f"{day:%b} {day.day}<br>{escape(title)}"
-            for day, title in zip(upcoming["auction_date"], upcoming["title"], strict=True)
-        ]
-        figure = go.Figure(
-            go.Bar(
-                x=list(range(len(upcoming))),
-                y=upcoming["gap_btc"],
-                marker_color=[FORECAST_COLOURS.get(s, "#64748B") for s in upcoming["signal"]],
-                customdata=[
-                    [ui.date_en(d, year=False), t, en(p, 2), en(m, 2), en(g, 3, sign=True)]
-                    for d, t, p, m, g in zip(
-                        upcoming["auction_date"], upcoming["title"], upcoming["pred_btc"],
-                        upcoming["bench_mean3_btc"], upcoming["gap_btc"], strict=True,
-                    )
-                ],
-                hovertemplate="%{customdata[0]}, %{customdata[1]}<br>forecast %{customdata[2]}"
-                " vs last 3 %{customdata[3]}<br>gap %{customdata[4]}<extra></extra>",
-            )
-        )  # fmt: skip
-        for level in (-SIGNAL_THRESHOLD, SIGNAL_THRESHOLD):
-            figure.add_hline(y=level, line={"color": ui.MUTED, "dash": "dot", "width": 1})
-        figure.update_xaxes(tickvals=list(range(len(upcoming))), ticktext=labels,
-                            tickfont={"size": 10})  # fmt: skip
-        figure.update_yaxes(title="Gap in bid-to-cover", zeroline=True)
-        figure.update_layout(showlegend=False, bargap=0.35)
-        ui.chart(figure, height=300)
+        top, bottom = st.columns(2), st.columns(2)
+        view = top[0].segmented_control(
+            "View", list(VIEWS), default="gap", format_func=VIEWS.get, required=True,
+            key="hero_view", label_visibility="collapsed",
+        ) or "gap"  # fmt: skip
+        style = top[1].segmented_control(
+            "Shape", list(STYLES), default="bars", format_func=STYLES.get, required=True,
+            key="hero_style", label_visibility="collapsed",
+        ) or "bars"  # fmt: skip
+        axis = bottom[0].segmented_control(
+            "Axis", list(AXES), default="auction", format_func=AXES.get, required=True,
+            key="hero_axis", label_visibility="collapsed",
+        ) or "auction"  # fmt: skip
+        horizon = bottom[1].segmented_control(
+            "Period", list(HORIZONS), default="all", format_func=HORIZONS.get, required=True,
+            key="hero_horizon", label_visibility="collapsed",
+        ) or "all"  # fmt: skip
+        families = st.pills(
+            "Securities", list(ad.FAMILY_LABELS), selection_mode="multi",
+            default=list(ad.FAMILY_LABELS), format_func=ad.FAMILY_LABELS.get,
+            key="hero_families", label_visibility="collapsed",
+        ) or list(ad.FAMILY_LABELS)  # fmt: skip
+        shown = upcoming[upcoming["family"].isin(families)]
+        if horizon != "all":
+            limit = ui.today_new_york() + pd.Timedelta(days=int(horizon))
+            shown = shown[shown["auction_date"] < limit]
+        if view == "levels" and style == "bars":
+            # Des barres partent de 0 : l'écart entre 2,79 et 2,87 y serait invisible, et couper
+            # l'axe rendrait leur longueur trompeuse. Cette vue s'affiche donc en points.
+            style = "dots"
+            ui.small("Bars would start at 0 and hide the small differences: shown as dots.")
+        if shown.empty:
+            ui.small("No announced auction for this choice.")
+        else:
+            ui.chart(expected_chart(shown.reset_index(drop=True), view, style, axis), height=300)
 
 # --- Deux colonnes : à gauche les enchères, à droite les panneaux courts ---------------------
 # Conteneur nommé : sous 1 240 px de large, le CSS empile les deux colonnes (app_ui.PAGE_CSS).

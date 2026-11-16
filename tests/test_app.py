@@ -142,7 +142,33 @@ def test_the_home_page_reads_one_auction(today: pd.Timestamp) -> None:
         assert escape(ad.auction_reading(row)) in html
         sentence = ad.signal_record_sentence(record, row["family"], row["signal"])
         assert escape(sentence) in html
-        assert app.segmented_control[0].value == ("6M" if row["family"] == "bill" else "3Y")
+        period = app.segmented_control(key=f"focus_period_{row['family']}")
+        assert period.value == ("6M" if row["family"] == "bill" else "3Y")
+
+
+def test_the_expected_demand_chart_can_be_reshaped(today: pd.Timestamp) -> None:
+    log = pd.read_parquet(OUTPUT_DIR / "predictions_log.parquet")
+    upcoming = ad.upcoming_table(log, pd.read_parquet(CLEAN_DIR / "auctions.parquet"), today)
+    app = main().run()
+
+    def traces() -> list[dict]:
+        return json.loads(app.get("plotly_chart")[0].proto.spec)["data"]
+
+    assert [t["type"] for t in traces()] == ["bar"]  # par défaut : l'écart en barres
+    app.segmented_control(key="hero_view").set_value("levels").run()
+    # Valeurs côte à côte : des barres cacheraient l'écart, la vue passe en points reliés.
+    assert [t.get("name") for t in traces()] == [None, "Last-3 average", "Forecast"]
+    assert all(t["type"] == "scatter" for t in traces())
+    app.segmented_control(key="hero_style").set_value("line").run()
+    assert all(t["mode"] == "lines+markers" for t in traces())
+    app.segmented_control(key="hero_axis").set_value("date").run()
+    app.segmented_control(key="hero_horizon").set_value("7").run()
+    week = upcoming[upcoming["auction_date"] < today + pd.Timedelta(days=7)]
+    assert len(traces()[0]["x"]) == len(week)
+    app.pills(key="hero_families").set_value(["nominal_coupon"]).run()
+    coupons = week[week["family"] == "nominal_coupon"]
+    assert len(traces()[0]["x"]) == len(coupons) if len(coupons) else True
+    assert not app.exception, app.exception
 
 
 def test_signed_numbers_are_rounded_before_their_colour() -> None:
