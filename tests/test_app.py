@@ -68,7 +68,8 @@ def test_the_main_app_opens_on_the_home_page() -> None:
     html = home_html(app)
     assert "US Treasury Auctions" in html and "Upcoming auctions" in html  # bandeau, panneau
     assert any(button.label == "Refresh now" for button in app.button)
-    assert all("Academic project" not in c.value for c in [*app.caption, *app.sidebar.caption])
+    assert all("Academic project" not in c.value for c in app.caption)
+    assert not app.sidebar.markdown and not app.sidebar.button  # navigation en onglets en haut
 
 
 def home_html(app: AppTest) -> str:
@@ -103,7 +104,20 @@ def test_the_home_page_lists_the_next_upcoming_auctions(today: pd.Timestamp) -> 
         assert f"<b>{row.title}</b>" in panel
         assert app_ui.signed_number(row.gap_btc, 3) in panel
     counts = ad.demand_counts(upcoming)
-    assert f'<div class="tr-value">{counts[ad.WEAK]}</div>' in html
+    assert (
+        f"All {len(upcoming)} announced auctions: {counts[ad.WEAK]} weaker,"
+        f" {counts[ad.NORMAL]} normal, {counts[ad.STRONG]} stronger." in html
+    )
+    first = upcoming.iloc[0]
+    hero = html.split('class="tr-hero"', 1)[1].split('class="tr-foot"', 1)[0]
+    assert escape(app_ui.date_en(first["auction_date"], year=False)) in hero
+    assert en(first["pred_btc"], 2) in hero and en(first["gap_btc"], 3, sign=True) in hero
+    ticker = html.split('class="tr-track"', 1)[1].split("</div></div>", 1)[0]
+    assert ticker.count('class="tr-tick"') == 2 * len(upcoming)  # deux fois, pour boucler
+    gaps = json.loads(app.get("plotly_chart")[0].proto.spec)["data"][0]["y"]
+    if isinstance(gaps, dict):  # Plotly encode les valeurs en binaire
+        gaps = np.frombuffer(base64.b64decode(gaps["bdata"]), dtype=gaps["dtype"])
+    assert np.allclose(gaps, upcoming["gap_btc"])  # graphique des écarts, dans l'ordre
 
 
 def test_the_home_page_reads_one_auction(today: pd.Timestamp) -> None:
@@ -363,7 +377,7 @@ def test_a_source_outage_is_shown_not_hidden(monkeypatch: pytest.MonkeyPatch) ->
         "unknown",  # jamais réussie : la page ne doit pas planter
     ]
     assert downloads["Error"][0] == "FetchError : HTTP 503"
-    assert any("2 source(s) failed to update" in c.value for c in main_app.sidebar.caption)
+    assert "2 source(s) failed to update" in home_html(main_app)  # dans le bandeau du haut
 
 
 @pytest.mark.parametrize(
@@ -393,7 +407,7 @@ def test_a_complete_download_is_said_and_a_missing_report_too(
     }
     replace_json(monkeypatch, "fetch_status.json", complete)
     app = main().run()
-    assert all("failed" not in c.value for c in app.sidebar.caption)  # rien à signaler
+    assert "failed to update" not in home_html(app)  # rien à signaler
 
     replace_json(monkeypatch, "fetch_status.json", {})
     quality = page("qualite").run()
@@ -426,7 +440,7 @@ def test_the_update_button_shows_a_provisional_prediction(
     monkeypatch.setattr(refresh, "light_refresh", lambda: (provisional, None))
 
     app = click_update(main().run())
-    assert any("Provisional forecast ready" in s.value for s in app.sidebar.success)
+    assert any("Provisional forecast ready" in s.value for s in app.success)
     app.switch_page("vues/prochaines.py").run()  # la prévision provisoire est sur cette page
 
     assert not app.exception, app.exception
@@ -463,7 +477,7 @@ def test_the_update_button_explains_each_failure(
     app = click_update(main().run())
 
     assert not app.exception, app.exception
-    assert any(text in element.value for element in getattr(app.sidebar, kind))
+    assert any(text in element.value for element in getattr(app, kind))
 
 
 def test_a_partial_update_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -474,7 +488,7 @@ def test_a_partial_update_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
 
     app = click_update(main().run())
 
-    assert any("Partial refresh" in w.value for w in app.sidebar.warning)
+    assert any("Partial refresh" in w.value for w in app.warning)
 
 
 def test_a_rewritten_file_is_read_again(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

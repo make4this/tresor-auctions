@@ -56,17 +56,96 @@ GUIDES = {
     ],
 }
 
-st.markdown(
-    '<p class="tr-intro">Forecasts of investor demand at each US Treasury auction, made the'
-    " evening before with public data only. <b>Bid-to-cover</b> = amount bid ÷ amount sold:"
-    " the higher, the stronger the demand. Start with the table, pick an auction below to see"
-    " why, and click a panel title for help.</p>",
-    unsafe_allow_html=True,
-)
-
 log = ui.parquet("predictions_log.parquet")
 auctions = ui.parquet("auctions.parquet", folder="clean")
 upcoming = ad.upcoming_table(log, auctions, ui.today_new_york())
+record = ad.signal_track_record(ui.parquet("backtest_predictions.parquet"))
+
+# --- Bandeau animé : toutes les enchères annoncées défilent (deux fois, pour boucler) ---------
+if not upcoming.empty:
+    ticks = "".join(
+        f'<span class="tr-tick"><b>{escape(ui.date_en(row.auction_date, year=False))}</b>'
+        f"{escape(row.title)} · {en(row.pred_btc, 2)} vs {en(row.bench_mean3_btc, 2)}"
+        f" {ui.demand_tag(row.signal)}</span>"
+        for row in upcoming.itertuples()
+    )
+    seconds = max(30, 5 * len(upcoming))  # vitesse de lecture constante
+    st.markdown(
+        f'<div class="tr-ticker" aria-label="Upcoming auctions"><div class="tr-track"'
+        f' style="--tr-duration: {seconds}s">{ticks}{ticks}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+# --- L'essentiel en 2 secondes : la prochaine enchère et la demande attendue ------------------
+hero, chart = st.columns([1, 1.8], gap="medium")
+with hero:
+    if upcoming.empty:
+        st.markdown(
+            '<div class="tr-hero"><div class="tr-kicker">Next auction</div>'
+            '<div class="tr-line">No bill, note or bond auction has been announced yet.'
+            "</div></div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        first = upcoming.iloc[0]
+        counts = ad.demand_counts(upcoming)
+        family = ad.FAMILY_LABELS[first["family"]].lower()
+        size = ad.amount(first["offering_amt"], bool(first["offering_estimated"]))
+        st.markdown(
+            f'<div class="tr-hero"><div class="tr-kicker">Next auction</div>'
+            f'<div class="tr-when">{escape(ui.date_en(first["auction_date"], year=False))}</div>'
+            f'<div class="tr-what">{escape(first["title"])} · {escape(family)} · {escape(size)}'
+            f"</div>{ui.demand_tag(first['signal'])}"
+            f'<div class="tr-line">Bid-to-cover expected at <b>{en(first["pred_btc"], 2)}</b>,'
+            f" against <b>{en(first['bench_mean3_btc'], 2)}</b> on average over the last 3 auctions"
+            f" (gap {en(first['gap_btc'], 3, sign=True)}).</div>"
+            f'<div class="tr-foot">All {len(upcoming)} announced auctions: {counts[ad.WEAK]}'
+            f" weaker, {counts[ad.NORMAL]} normal, {counts[ad.STRONG]} stronger.</div></div>",
+            unsafe_allow_html=True,
+        )
+with (
+    chart,
+    ui.box(
+        "gaps",
+        "Expected demand, auction by auction",
+        [
+            "Each bar: forecast bid-to-cover minus the average of the last 3 auctions of the same"
+            " maturity, for each announced auction.",
+            f"<b>Red</b>: −{THRESHOLD} or less, weaker demand expected. <b>Green</b>: +{THRESHOLD}"
+            " or more, stronger. <b>Grey</b>: normal. The dotted lines are the thresholds.",
+        ],
+    ),
+):
+    if upcoming.empty:
+        ui.small("The bars appear once auctions are announced.")
+    else:
+        labels = [
+            f"{day:%b} {day.day}<br>{escape(title)}"
+            for day, title in zip(upcoming["auction_date"], upcoming["title"], strict=True)
+        ]
+        figure = go.Figure(
+            go.Bar(
+                x=list(range(len(upcoming))),
+                y=upcoming["gap_btc"],
+                marker_color=[FORECAST_COLOURS.get(s, "#64748B") for s in upcoming["signal"]],
+                customdata=[
+                    [ui.date_en(d, year=False), t, en(p, 2), en(m, 2), en(g, 3, sign=True)]
+                    for d, t, p, m, g in zip(
+                        upcoming["auction_date"], upcoming["title"], upcoming["pred_btc"],
+                        upcoming["bench_mean3_btc"], upcoming["gap_btc"], strict=True,
+                    )
+                ],
+                hovertemplate="%{customdata[0]}, %{customdata[1]}<br>forecast %{customdata[2]}"
+                " vs last 3 %{customdata[3]}<br>gap %{customdata[4]}<extra></extra>",
+            )
+        )  # fmt: skip
+        for level in (-SIGNAL_THRESHOLD, SIGNAL_THRESHOLD):
+            figure.add_hline(y=level, line={"color": ui.MUTED, "dash": "dot", "width": 1})
+        figure.update_xaxes(tickvals=list(range(len(upcoming))), ticktext=labels,
+                            tickfont={"size": 10})  # fmt: skip
+        figure.update_yaxes(title="Gap in bid-to-cover", zeroline=True)
+        figure.update_layout(showlegend=False, bargap=0.35)
+        ui.chart(figure, height=300)
 
 # --- Deux colonnes : à gauche les enchères, à droite les panneaux courts ---------------------
 # Conteneur nommé : sous 1 240 px de large, le CSS empile les deux colonnes (app_ui.PAGE_CSS).
@@ -88,23 +167,6 @@ with left:
     )
 
 with right:
-    counts = ad.demand_counts(upcoming)
-    stats = "".join(
-        f'<div class="tr-stat"><div class="tr-value">{counts[signal]}</div>'
-        f'<div class="tr-text">{ui.demand_tag(signal)} demand</div></div>'
-        for signal in (ad.WEAK, ad.NORMAL, ad.STRONG)
-    )
-    note = ""
-    if not upcoming.empty:
-        first = upcoming.iloc[0]
-        note = (
-            f"Next: {escape(ui.date_en(first['auction_date'], year=False))},"
-            f" {escape(first['title'])} ({escape(ad.FAMILY_LABELS[first['family']].lower())})."
-        )
-    st.markdown(
-        ui.panel("Demand outlook", f'<div class="tr-stats tr-three">{stats}</div>', note),
-        unsafe_allow_html=True,
-    )
     market = ad.market_snapshot(ui.parquet("market.parquet", folder="clean"))
     rows = [
         [
@@ -199,7 +261,6 @@ with left, st.container(border=True, key="panel_focus"):
             label_visibility="collapsed", key=f"focus_period_{row['family']}",
         ) or default  # fmt: skip
         ui.chart(focus_chart(row, period), height=320)
-        record = ad.signal_track_record(ui.parquet("backtest_predictions.parquet"))
         sentence = ad.signal_record_sentence(record, row["family"], row["signal"])
         if sentence:
             st.markdown(f'<div class="tr-small">{escape(sentence)}</div>', unsafe_allow_html=True)

@@ -1390,3 +1390,37 @@ Les sources ajoutées en phase 6 n'ayant pas amélioré la prévision, une nouve
 
 **Résultat vérifié :** 373 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
 
+## Onglets en haut et accueil plus visuel (16 novembre 2026)
+
+**Ma demande :** remplacer la barre latérale par des onglets en haut, comme sur un vrai site ; mettre l'essentiel en avant sur l'accueil, pour qu'il se voie en 2 secondes ; avoir dès la première page des enchères animées ou un graphique.
+
+**Ce que le LLM a produit :**
+
+- **Navigation en onglets en haut de page** (`st.navigation(position="top")`) : Home, Upcoming auctions, Live track record, Model performance, History, Data quality, Methodology. Il n'y a plus de barre latérale. Sur téléphone, les onglets se replient dans un menu.
+- **Un bandeau foncé sous les onglets, sur chaque page.** Il réunit le nom du site, l'heure de la dernière mise à jour, l'alerte éventuelle sur les sources (un lien vers Data quality) et le bouton « Refresh now ». Les messages du bouton s'affichent sous le bandeau.
+- **Sur l'accueil :**
+  - un **bandeau animé** qui fait défiler toutes les enchères annoncées (date, durée, prévision face à la moyenne des 3 dernières, étiquette). Il s'arrête au survol de la souris et reste immobile si le système demande moins d'animations ;
+  - une **carte « Next auction »** : la date en grand, la durée, le montant, l'étiquette de demande, la prévision face à l'habitude, et le compte des signaux de toutes les enchères annoncées ;
+  - un **graphique « Expected demand, auction by auction »** : une barre par enchère annoncée pour l'écart entre la prévision et la moyenne des 3 dernières, en rouge, vert ou gris, avec les seuils de ±0,08 en pointillés.
+
+  Le panneau « Demand outlook » est retiré, puisque la carte donne déjà ces comptes.
+
+**Corrigé par le LLM en vérifiant :** l'animation d'arrivée faisait passer la carte et le graphique de transparents à visibles. Dans le navigateur de test, qui met les animations en pause quand son panneau est caché, ils restaient invisibles. L'animation ne déplace plus que la position, jamais l'opacité : même en pause, tout reste visible.
+
+**Tests :**
+
+- l'application n'a plus de barre latérale ;
+- la carte montre la première enchère ;
+- le bandeau contient chaque enchère deux fois (pour boucler) ;
+- les barres du graphique sont les écarts, dans l'ordre ;
+- l'alerte et les messages du bouton sont désormais dans la page.
+
+**Vérifié par le LLM :**
+
+- l'accueil à 1 440 et 1 280 px et sur téléphone, sans défilement horizontal ;
+- le bandeau qui défile (un tour en 70 s pour 14 enchères) ;
+- la page Model performance avec les onglets ;
+- le balayage des 197 combinaisons de menus, sans erreur.
+
+**Résultat vérifié :** 373 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur.
+

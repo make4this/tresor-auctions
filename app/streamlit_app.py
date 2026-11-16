@@ -20,24 +20,22 @@ from fresh_project import load_fresh  # noqa: E402
 # Après une mise à jour du dépôt, le code de src/ est relu s'il a changé (voir fresh_project).
 load_fresh("tresor", SOURCE)
 
-from tresor.app_ui import page_style, sidebar, top_bar  # noqa: E402
+from tresor.app_ui import page_style, top_bar  # noqa: E402
 
 st.set_page_config(page_title="US Treasury Auctions", page_icon="📈", layout="wide")
 
-# L'accueil explique l'essentiel en mots simples ; les pages détaillées sont regroupées.
-HOME = st.Page("vues/accueil.py", title="Home", icon=":material/home:", default=True)
-DETAILS = [
-    st.Page("vues/prochaines.py", title="Upcoming auctions", icon=":material/event:"),
-    st.Page("vues/suivi.py", title="Live track record", icon=":material/fact_check:"),
-    st.Page("vues/backtest.py", title="Model performance", icon=":material/query_stats:"),
-    st.Page("vues/explorer.py", title="History", icon=":material/show_chart:"),
-    st.Page("vues/qualite.py", title="Data quality", icon=":material/verified:"),
-    st.Page("vues/methodologie.py", title="Methodology", icon=":material/menu_book:"),
+# Onglets en haut de page, comme sur un site : l'accueil d'abord, puis les pages détaillées.
+PAGES = [
+    st.Page("vues/accueil.py", title="Home", default=True),
+    st.Page("vues/prochaines.py", title="Upcoming auctions"),
+    st.Page("vues/suivi.py", title="Live track record"),
+    st.Page("vues/backtest.py", title="Model performance"),
+    st.Page("vues/explorer.py", title="History"),
+    st.Page("vues/qualite.py", title="Data quality"),
+    st.Page("vues/methodologie.py", title="Methodology"),
 ]
-PAGES = {"": [HOME], "More details": DETAILS}
 
-page = st.navigation(PAGES)
+page = st.navigation(PAGES, position="top")
 page_style()
-sidebar()
 top_bar()
 page.run()

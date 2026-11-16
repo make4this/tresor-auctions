@@ -108,24 +108,57 @@ PAGE_CSS = f"""
 @import url('{FONT}');
 p, li, label, td, th, input, textarea, summary, small, .stCaption, h1, h2, h3, h4,
 [data-testid="stMarkdownContainer"], button p,
-[data-testid="stSidebarNavItems"] a > span:not([data-testid="stIconMaterial"]),
 [data-testid="stNavSectionHeader"] {{ font-family: Inter, sans-serif !important; }}
 h1, h2, h3, h4 {{ font-weight: 600 !important; letter-spacing: -0.01em; }}
 h1 {{ font-size: 1.85rem !important; padding: 0.2rem 0 0.3rem 0 !important; }}
 .block-container {{ padding-top: 2.2rem; padding-left: 2rem; padding-right: 2rem; }}
-[data-testid="stSidebar"] {{ background-color: {NAVY}; }}
-[data-testid="stSidebar"] * {{ color: #CBD5E1; }}
-[data-testid="stSidebar"] [aria-current="page"] {{ background-color: #1E293B; }}
-[data-testid="stSidebar"] [aria-current="page"] span {{ color: #FFFFFF; }}
-[data-testid="stSidebar"] [data-testid="stNavSectionHeader"],
-[data-testid="stSidebar"] [data-testid="stNavSectionHeader"] * {{ color: #64748B; }}
-[data-testid="stSidebar"] button {{ background-color: transparent; border-color: #334155; }}
-[data-testid="stSidebar"] button:hover {{ border-color: {PRIMARY}; }}
-.tr-topbar {{ background-color: {NAVY}; color: #FFFFFF; padding: 0.8rem 1.1rem;
-  border-radius: 6px; display: flex; justify-content: space-between; align-items: center;
-  flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.9rem; }}
-.tr-topbar .tr-brand {{ font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }}
-.tr-topbar .tr-meta {{ color: #94A3B8; font-size: 0.85rem; }}
+/* Onglets en haut (st.navigation position="top") : barre blanche, onglet actif souligné. */
+[data-testid="stHeader"] {{ background: #FFFFFF; border-bottom: 1px solid #E2E6EC; }}
+[data-testid="stHeader"] a, [data-testid="stHeader"] a span {{
+  font-family: Inter, sans-serif !important; font-weight: 500; color: #374151; }}
+[data-testid="stHeader"] a[aria-current="page"],
+[data-testid="stHeader"] a[aria-current="page"] span {{ color: {PRIMARY}; font-weight: 600; }}
+/* Bandeau foncé : nom du site, mise à jour, alerte et bouton. */
+.st-key-topbar {{ background-color: {NAVY}; border-radius: 6px; padding: 0.55rem 1rem;
+  margin-bottom: 0.4rem; }}
+.st-key-topbar button {{ background: transparent; border-color: #334155; }}
+.st-key-topbar button p {{ color: #E2E8F0 !important; }}
+.st-key-topbar button:hover {{ border-color: {PRIMARY}; }}
+.tr-topline {{ display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1rem; }}
+.tr-topline .tr-brand {{ color: #FFFFFF; font-weight: 700; font-size: 1.05rem;
+  letter-spacing: -0.01em; }}
+.tr-topline .tr-meta {{ color: #94A3B8; font-size: 0.85rem; }}
+.tr-topline .tr-alert {{ color: #FBBF24; font-size: 0.85rem; text-decoration: none; }}
+.tr-topline .tr-alert:hover {{ text-decoration: underline; }}
+/* Bandeau animé des enchères à venir : défile seul, s'arrête au survol. */
+.tr-ticker {{ overflow: hidden; background: #FFFFFF; border: 1px solid #E2E6EC;
+  border-radius: 6px; margin-bottom: 0.9rem; white-space: nowrap; }}
+.tr-track {{ display: inline-flex; animation: tr-scroll var(--tr-duration, 60s) linear infinite; }}
+.tr-ticker:hover .tr-track {{ animation-play-state: paused; }}
+.tr-tick {{ display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.55rem 1.1rem;
+  border-right: 1px solid #EEF1F5; font-size: 0.85rem; color: #374151;
+  font-variant-numeric: tabular-nums; }}
+.tr-tick b {{ color: #111827; }}
+@keyframes tr-scroll {{ from {{ transform: translateX(0); }}
+  to {{ transform: translateX(-50%); }} }}
+/* Carte « Next auction » : glisse à l'arrivée. Seule la position bouge, jamais l'opacité :
+   si le navigateur met l'animation en pause, la carte reste visible. */
+.tr-hero {{ background: {NAVY}; color: #FFFFFF; border-radius: 6px; padding: 1.1rem 1.2rem;
+  margin-bottom: 0.9rem; animation: tr-rise 0.6s ease-out; }}
+.tr-hero .tr-kicker {{ color: #94A3B8; font-size: 0.75rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; }}
+.tr-hero .tr-when {{ font-size: 2rem; font-weight: 700; letter-spacing: -0.02em;
+  margin: 0.2rem 0 0 0; line-height: 1.15; }}
+.tr-hero .tr-what {{ color: #CBD5E1; font-size: 1rem; margin-bottom: 0.7rem; }}
+.tr-hero .tr-tag {{ font-size: 0.95rem; padding: 0.25rem 0.6rem; }}
+.tr-hero .tr-line {{ color: #E2E8F0; font-size: 0.9rem; margin-top: 0.7rem; line-height: 1.5; }}
+.tr-hero .tr-foot {{ color: #94A3B8; font-size: 0.8rem; margin-top: 0.7rem; line-height: 1.45;
+  border-top: 1px solid #1E293B; padding-top: 0.6rem; }}
+.st-key-panel_gaps {{ animation: tr-rise 0.6s ease-out; }}
+@keyframes tr-rise {{ from {{ transform: translateY(10px); }} to {{ transform: none; }} }}
+@media (prefers-reduced-motion: reduce) {{
+  .tr-track, .tr-hero, .st-key-panel_gaps {{ animation: none; }}
+}}
 .tr-intro {{ color: #4B5563; font-size: 0.95rem; margin: 0 0 0.9rem 0; }}
 .tr-panel {{ background: #FFFFFF; border: 1px solid #E2E6EC; border-radius: 6px;
   margin-bottom: 0.9rem; overflow-x: auto; }}
@@ -208,13 +241,37 @@ def page_style() -> None:
 
 
 def top_bar() -> None:
-    """Bandeau foncé en haut de chaque page : nom du site et heure de la dernière mise à jour."""
+    """Bandeau foncé sous les onglets, sur chaque page : nom du site, heure de la dernière mise
+    à jour, alerte éventuelle sur les sources, et bouton de mise à jour."""
     status = json_file(live.STATUS_FILE)
-    st.markdown(
-        f"""<div class="tr-topbar"><span class="tr-brand">US Treasury Auctions</span>
-<span class="tr-meta">Data updated {escape(moment_en(status.get("run_at")))}</span></div>""",
-        unsafe_allow_html=True,
+    quality = json_file("data_quality.json")
+    fetch = json_file(FETCH_STATUS_FILE)
+    problems = []
+    if fetch and ad.failed_sources(fetch):
+        problems.append(f"{len(ad.failed_sources(fetch))} source(s) failed to update")
+    if quality and quality.get("status") == "rouge":
+        problems.append("data check failed")
+    alert = (
+        f'<a class="tr-alert" href="qualite" target="_self">⚠ {escape("; ".join(problems))}</a>'
+        if problems
+        else ""
     )
+    with st.container(key="topbar"):
+        left, right = st.columns([5, 1], vertical_alignment="center")
+        left.markdown(
+            f'<div class="tr-topline"><span class="tr-brand">US Treasury Auctions</span>'
+            f'<span class="tr-meta">Data updated {escape(moment_en(status.get("run_at")))}</span>'
+            f"{alert}</div>",
+            unsafe_allow_html=True,
+        )
+        clicked = right.button(
+            "Refresh now",
+            width="stretch",
+            help="Reloads the auction calendar and today's yields, then recomputes provisional"
+            " forecasts with the existing models. Official forecasts are recorded each evening.",
+        )
+    if clicked:  # les messages s'affichent sous le bandeau, pas dedans
+        _refresh()
 
 
 # --- Petits morceaux de HTML pour les panneaux (textes déjà échappés par l'appelant) --------
@@ -407,26 +464,6 @@ def moment_en(text: object) -> str:
     return f"{date_en(moment)}, {moment:%I:%M %p} ET".replace(" 0", " ", 1)
 
 
-def sidebar() -> None:
-    """Fraîcheur des données et bouton de mise à jour, sur toutes les pages : court et sobre."""
-    quality = json_file("data_quality.json")
-    fetch = json_file(FETCH_STATUS_FILE)
-    with st.sidebar:
-        problems = []
-        if fetch and ad.failed_sources(fetch):
-            problems.append(f"{len(ad.failed_sources(fetch))} source(s) failed to update")
-        if quality and quality.get("status") == "rouge":
-            problems.append("data check failed")
-        if problems:
-            st.caption("⚠️ " + "; ".join(problems) + " (see Data quality)")
-        help_text = (
-            "Reloads the auction calendar and today's yields, then recomputes provisional"
-            " forecasts with the existing models. Official forecasts are recorded each evening."
-        )
-        if st.button("Refresh now", width="stretch", help=help_text):
-            _refresh()
-
-
 def _refresh() -> None:
     from tresor import refresh
 
@@ -434,17 +471,17 @@ def _refresh() -> None:
         try:
             predictions, failure = refresh.light_refresh()
         except refresh.RefreshBusy:
-            st.sidebar.info("A refresh is already running. Try again in a minute.")
+            st.info("A refresh is already running. Try again in a minute.")
             return
         except refresh.ModelsUnavailable:
-            st.sidebar.warning("Models are not available right now. Please try again later.")
+            st.warning("Models are not available right now. Please try again later.")
             return
         except Exception as error:  # l'application reste utilisable
-            st.sidebar.error(f"Refresh failed: {error}")
+            st.error(f"Refresh failed: {error}")
             return
     st.session_state["provisional"] = predictions
     message = "Provisional forecast ready: see Upcoming auctions."
     if failure:
-        st.sidebar.warning(f"Partial refresh ({failure}). {message}")
+        st.warning(f"Partial refresh ({failure}). {message}")
     else:
-        st.sidebar.success(message)
+        st.success(message)
