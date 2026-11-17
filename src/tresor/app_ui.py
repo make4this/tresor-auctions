@@ -114,7 +114,10 @@ def style(figure: go.Figure, height: int = 380) -> go.Figure:
 # Style du tableau de bord, en CSS : mis dans .streamlit/config.toml (polices, coins), ces
 # réglages empêchaient l'application de démarrer sur Streamlit Community Cloud. Les icônes
 # gardent leur propre police.
-FONT = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+FONT = (
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700"
+    "&family=Space+Grotesk:wght@700&display=swap"
+)
 PAGE_CSS = f"""
 <style>
 @import url('{FONT}');
@@ -136,9 +139,11 @@ h1 {{ font-size: 1.85rem !important; padding: 0.2rem 0 0.3rem 0 !important; }}
 .st-key-topbar button {{ background: transparent; border-color: #334155; }}
 .st-key-topbar button p {{ color: #E2E8F0 !important; }}
 .st-key-topbar button:hover {{ border-color: {PRIMARY}; }}
-.tr-topline {{ display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1rem; }}
-.tr-topline .tr-brand {{ color: #FFFFFF; font-weight: 700; font-size: 1.05rem;
-  letter-spacing: -0.01em; }}
+.tr-topline {{ display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; }}
+.tr-topline .tr-logo {{ margin-right: -0.5rem; flex-shrink: 0; }}
+.tr-topline .tr-brand {{ color: #FFFFFF; font-family: 'Space Grotesk', Inter, sans-serif;
+  font-weight: 700; font-size: 1.3rem; letter-spacing: -0.02em; }}
+.tr-topline .tr-cast {{ color: #F97316; }}
 .tr-topline .tr-tagline {{ color: #CBD5E1; font-size: 0.9rem; }}
 .tr-topline .tr-meta {{ color: #94A3B8; font-size: 0.85rem; }}
 .tr-topline .tr-alert {{ color: #FBBF24; font-size: 0.85rem; text-decoration: none; }}
@@ -253,6 +258,18 @@ def page_style() -> None:
     st.markdown(PAGE_CSS, unsafe_allow_html=True)
 
 
+# Logo de CoverCast : un « C » et une courbe de prévision qui monte (le même que sur les slides).
+LOGO = (
+    '<svg class="tr-logo" aria-label="CoverCast logo" width="30" height="30" viewBox="0 0 76 76">'
+    '<circle cx="38" cy="38" r="38" fill="#1E293B"/>'
+    '<path d="M53 24 A20 20 0 1 0 53 52" stroke="#93C5FD" stroke-width="7" fill="none"'
+    ' stroke-linecap="round"/>'
+    '<polyline points="25,46 33,40 40,43 54,28" stroke="#F97316" stroke-width="4" fill="none"'
+    ' stroke-linecap="round" stroke-linejoin="round"/>'
+    '<circle cx="54" cy="28" r="4.5" fill="#F97316"/></svg>'
+)
+
+
 def top_bar() -> None:
     """Bandeau foncé sous les onglets, sur chaque page : nom du site, heure de la dernière mise
     à jour, alerte éventuelle sur les sources, et bouton de mise à jour."""
@@ -272,7 +289,8 @@ def top_bar() -> None:
     with st.container(key="topbar"):
         left, right = st.columns([5, 1], vertical_alignment="center")
         left.markdown(
-            f'<div class="tr-topline"><span class="tr-brand">CoverCast</span>'
+            f'<div class="tr-topline">{LOGO}'
+            '<span class="tr-brand">Cover<span class="tr-cast">Cast</span></span>'
             '<span class="tr-tagline">Demand forecasts for US Treasury auctions</span>'
             f'<span class="tr-meta">Data updated {escape(moment_en(status.get("run_at")))}</span>'
             f"{alert}</div>",

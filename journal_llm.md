@@ -1479,3 +1479,11 @@ L'aide « How to read » explique ces réglages.
 - **Le bandeau du site** affiche « CoverCast — Demand forecasts for US Treasury auctions », et le titre de l'onglet du navigateur est « CoverCast · US Treasury auctions ». Le README présente le nom. L'adresse du site ne change pas.
 
 **Résultat vérifié :** 377 tests réussis, `ruff check .` et `ruff format --check .` propres.
+
+## Logo de CoverCast (17 novembre 2026)
+
+**Ma demande :** un petit logo pour CoverCast, sur les slides et sur le site, et une police plus marquée pour le nom.
+
+**Ce que le LLM a fait :** un logo en SVG, dessiné dans le code (un « C » bleu clair sur un rond sombre, traversé par une courbe orange qui monte, pour la prévision), affiché dans le bandeau du site à côté du nom. Le nom est écrit en Space Grotesk : « Cover » en blanc, « Cast » en orange.
+
+**Résultat vérifié :** suite de tests complète et `ruff` propres ; le bandeau vérifié dans le navigateur.
