@@ -114,10 +114,7 @@ def style(figure: go.Figure, height: int = 380) -> go.Figure:
 # Style du tableau de bord, en CSS : mis dans .streamlit/config.toml (polices, coins), ces
 # réglages empêchaient l'application de démarrer sur Streamlit Community Cloud. Les icônes
 # gardent leur propre police.
-FONT = (
-    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700"
-    "&family=Space+Grotesk:wght@700&display=swap"
-)
+FONT = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
 PAGE_CSS = f"""
 <style>
 @import url('{FONT}');
@@ -141,9 +138,9 @@ h1 {{ font-size: 1.85rem !important; padding: 0.2rem 0 0.3rem 0 !important; }}
 .st-key-topbar button:hover {{ border-color: {PRIMARY}; }}
 .tr-topline {{ display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; }}
 .tr-topline .tr-logo {{ margin-right: -0.5rem; flex-shrink: 0; }}
-.tr-topline .tr-brand {{ color: #FFFFFF; font-family: 'Space Grotesk', Inter, sans-serif;
-  font-weight: 700; font-size: 1.3rem; letter-spacing: -0.02em; }}
-.tr-topline .tr-cast {{ color: #F97316; }}
+.tr-topline .tr-brand {{ color: #FFFFFF; font-weight: 700; font-size: 1.3rem;
+  letter-spacing: -0.03em; }}
+.tr-topline .tr-cast {{ color: #60A5FA; }}
 .tr-topline .tr-tagline {{ color: #CBD5E1; font-size: 0.9rem; }}
 .tr-topline .tr-meta {{ color: #94A3B8; font-size: 0.85rem; }}
 .tr-topline .tr-alert {{ color: #FBBF24; font-size: 0.85rem; text-decoration: none; }}
@@ -258,15 +255,15 @@ def page_style() -> None:
     st.markdown(PAGE_CSS, unsafe_allow_html=True)
 
 
-# Logo de CoverCast : un « C » et une courbe de prévision qui monte (le même que sur les slides).
+# Logo de CoverCast (le même que sur les slides) : deux barres pleines pour les enchères passées
+# et une barre en pointillés pour la prévision.
 LOGO = (
     '<svg class="tr-logo" aria-label="CoverCast logo" width="30" height="30" viewBox="0 0 76 76">'
-    '<circle cx="38" cy="38" r="38" fill="#1E293B"/>'
-    '<path d="M53 24 A20 20 0 1 0 53 52" stroke="#93C5FD" stroke-width="7" fill="none"'
-    ' stroke-linecap="round"/>'
-    '<polyline points="25,46 33,40 40,43 54,28" stroke="#F97316" stroke-width="4" fill="none"'
-    ' stroke-linecap="round" stroke-linejoin="round"/>'
-    '<circle cx="54" cy="28" r="4.5" fill="#F97316"/></svg>'
+    '<rect x="0" y="0" width="76" height="76" rx="18" fill="#2563EB"/>'
+    '<rect x="15" y="40" width="12" height="22" rx="2" fill="#FFFFFF"/>'
+    '<rect x="32" y="28" width="12" height="34" rx="2" fill="#FFFFFF"/>'
+    '<rect x="50.5" y="17.5" width="11" height="43" rx="2" fill="none" stroke="#FFFFFF"'
+    ' stroke-width="3" stroke-dasharray="5 4"/></svg>'
 )
 
 

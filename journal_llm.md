@@ -1484,6 +1484,6 @@ L'aide « How to read » explique ces réglages.
 
 **Ma demande :** un petit logo pour CoverCast, sur les slides et sur le site, et une police plus marquée pour le nom.
 
-**Ce que le LLM a fait :** un logo en SVG, dessiné dans le code (un « C » bleu clair sur un rond sombre, traversé par une courbe orange qui monte, pour la prévision), affiché dans le bandeau du site à côté du nom. Le nom est écrit en Space Grotesk : « Cover » en blanc, « Cast » en orange.
+**Ce que le LLM a fait :** un logo en SVG, dessiné dans le code et affiché dans le bandeau du site à côté du nom. Une première version (un « C » et une courbe orange) ne me plaisait pas ; la version gardée reprend les couleurs du site : un carré bleu (#2563EB) avec deux barres pleines pour les enchères passées et une barre en pointillés pour la prévision. Le nom reste dans la police du site (Inter) : « Cover » en blanc, « Cast » en bleu.
 
 **Résultat vérifié :** suite de tests complète et `ruff` propres ; le bandeau vérifié dans le navigateur.
