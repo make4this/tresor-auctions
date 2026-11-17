@@ -68,7 +68,9 @@ def test_the_main_app_opens_on_the_home_page() -> None:
 
     assert not app.exception, app.exception
     html = home_html(app)
-    assert "US Treasury Auctions" in html and "Upcoming auctions" in html  # bandeau, panneau
+    assert (
+        "CoverCast" in html and "Upcoming auctions" in html
+    )  # nom du site dans le bandeau, panneau
     assert any(button.label == "Refresh now" for button in app.button)
     assert all("Academic project" not in c.value for c in app.caption)
     assert not app.sidebar.markdown and not app.sidebar.button  # navigation en onglets en haut

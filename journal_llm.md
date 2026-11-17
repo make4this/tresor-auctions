@@ -1468,3 +1468,14 @@ L'aide « How to read » explique ces réglages.
 
 
 **Résultat vérifié :** 377 tests réussis, `ruff check .` et `ruff format --check .` propres, `make_figures.py --check` : 79 chiffres, 0 erreur, et le balayage de 305 combinaisons de menus sur toutes les pages, sans erreur. Un test a échoué une fois, pendant que le balayage tournait en parallèle (l'ordinateur était chargé) ; relancée seule, la suite passe entièrement.
+
+## Nom du site : CoverCast (17 novembre 2026)
+
+**Ma demande :** trouver un nom qui n'existe pas, en lien avec le sujet, pour le site et l'oral. Parmi six propositions du LLM, j'ai choisi **CoverCast**, de *bid-to-**cover*** (la mesure principale) et *fore**cast*** (prévision).
+
+**Ce que le LLM a fait :**
+
+- **Vérification du nom :** une recherche sur le web n'a trouvé aucun outil financier ni aucune application de ce nom. Ce n'est pas une recherche de marque déposée.
+- **Le bandeau du site** affiche « CoverCast — Demand forecasts for US Treasury auctions », et le titre de l'onglet du navigateur est « CoverCast · US Treasury auctions ». Le README présente le nom. L'adresse du site ne change pas.
+
+**Résultat vérifié :** 377 tests réussis, `ruff check .` et `ruff format --check .` propres.

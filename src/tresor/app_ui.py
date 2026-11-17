@@ -139,6 +139,7 @@ h1 {{ font-size: 1.85rem !important; padding: 0.2rem 0 0.3rem 0 !important; }}
 .tr-topline {{ display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1rem; }}
 .tr-topline .tr-brand {{ color: #FFFFFF; font-weight: 700; font-size: 1.05rem;
   letter-spacing: -0.01em; }}
+.tr-topline .tr-tagline {{ color: #CBD5E1; font-size: 0.9rem; }}
 .tr-topline .tr-meta {{ color: #94A3B8; font-size: 0.85rem; }}
 .tr-topline .tr-alert {{ color: #FBBF24; font-size: 0.85rem; text-decoration: none; }}
 .tr-topline .tr-alert:hover {{ text-decoration: underline; }}
@@ -271,7 +272,8 @@ def top_bar() -> None:
     with st.container(key="topbar"):
         left, right = st.columns([5, 1], vertical_alignment="center")
         left.markdown(
-            f'<div class="tr-topline"><span class="tr-brand">US Treasury Auctions</span>'
+            f'<div class="tr-topline"><span class="tr-brand">CoverCast</span>'
+            '<span class="tr-tagline">Demand forecasts for US Treasury auctions</span>'
             f'<span class="tr-meta">Data updated {escape(moment_en(status.get("run_at")))}</span>'
             f"{alert}</div>",
             unsafe_allow_html=True,

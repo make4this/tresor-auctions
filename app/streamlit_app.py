@@ -22,7 +22,7 @@ load_fresh("tresor", SOURCE)
 
 from tresor.app_ui import page_style, top_bar  # noqa: E402
 
-st.set_page_config(page_title="US Treasury Auctions", page_icon="📈", layout="wide")
+st.set_page_config(page_title="CoverCast · US Treasury auctions", page_icon="📈", layout="wide")
 
 # Onglets en haut de page, comme sur un site : l'accueil d'abord, puis les pages détaillées.
 PAGES = [

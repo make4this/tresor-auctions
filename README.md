@@ -1,4 +1,6 @@
-# tresor-auctions
+# CoverCast (tresor-auctions)
+
+*CoverCast* : prévision de la demande aux enchères du Trésor américain. Le nom vient de *bid-to-**cover*** (la mesure principale) et de *fore**cast*** (prévision). Site : https://tresor-auctions.streamlit.app
 
 **Peut-on prévoir la qualité d'une adjudication du Trésor américain avant qu'elle ait lieu, avec uniquement des données publiques mises à jour automatiquement ?**
 
