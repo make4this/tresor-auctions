@@ -18,6 +18,7 @@ Le modèle de référence est la moyenne des prévisions de 5 modèles. Elle a �
 - **Tail** (notes et bonds) : R² de +22,1 % [16,3 ; 27,8] contre `mean3`, mais de +2,8 % seulement contre une constante. Le tail reflète surtout le mouvement du marché du jour.
 - **Part des dealers** (notes et bonds) : la prévision fait pire que `mean3`, avec un R² de −28,5 % [−45,9 ; −14,7] (même fichier).
 - **Nouvelles sources** (dealers, CFTC, liquidité) : elles n'améliorent la prévision d'aucune cible ; pour 4 cibles sur 8, elles la dégradent un peu ([new_sources_comparison.csv](data/output/new_sources_comparison.csv)).
+- **Nouvelles données testées en novembre 2026** (bid-to-cover, moyenne des 5, 2014-2026) : la dette américaine gardée pour les banques centrales étrangères, le calendrier des annonces (Fed, inflation, emploi) et les taux allemand et japonais. Aucun groupe n'a un apport dont tout l'intervalle est positif : le modèle du site ne change pas. Le plus proche : les trois groupes ensemble pour les notes et bonds, +0,60 point [−0,02 ; +1,30] (+1,32 point [+0,44 ; +2,31] sur 2020-2026 seulement) ([new_data_test.csv](data/output/new_data_test.csv)).
 - **Lien avec le marché** (notes et bonds, 2009-2026) : pour les 20 % d'enchères dont le bid-to-cover est le plus en dessous de `mean3`, le taux de la maturité varie en moyenne de +2,0 pb [+1,2 ; +2,8] entre la clôture de la veille et celle du jour de l'enchère ; pour les 20 % les plus au-dessus, de −1,4 pb [−1,7 ; −1,0]. C'est une association, pas une cause ([quintiles.csv](data/output/quintiles.csv)).
 - **Stratégie illustrative** : aucun gain démontré. Sur 2020-2026, elle perd 1,40 pb par trade après coût, contre 1,27 pb pour la règle « toujours vendeur », soit un écart de −0,13 pb [−0,84 ; +0,58] ([strategy_summary.csv](data/output/strategy_summary.csv)).
 - Tous les chiffres du rapport et de l'oral, avec le fichier qui produit chacun, sont dans [reports/chiffres_cles.md](reports/chiffres_cles.md). Les figures sont dans [reports/figures/](reports/figures/).
@@ -32,15 +33,17 @@ Les 11 phases du plan sont faites : collecte, nettoyage, variables point-in-time
 
 | Dossier | Contenu |
 |---|---|
-| `src/tresor/sources/` | téléchargement des 11 tables publiques (un fichier par site) |
+| `src/tresor/sources/` | téléchargement des 14 tables publiques (un fichier par site) et du calendrier de la Fed |
 | `src/tresor/clean/` | nettoyage et contrôles de qualité |
-| `src/tresor/features.py` | 46 variables point-in-time (seulement des données publiées avant l'enchère) |
+| `src/tresor/features.py` | 46 variables point-in-time (seulement des données publiées avant l'enchère), plus 9 variables candidates testées à part |
+| `src/tresor/new_data.py` | test des nouvelles données : walk-forward avec et sans chaque groupe |
 | `src/tresor/models.py`, `strategy.py`, `plots.py` | validation walk-forward, interprétation, stratégie, figures |
 | `src/tresor/live.py`, `check_log.py` | modèles finaux, prévisions du soir et journal figé |
 | `src/tresor/models_store.py`, `refresh.py` | modèles déposés en ligne, bouton « Mettre à jour maintenant » |
 | `src/tresor/pipeline.py` | ligne de commande : `python -m tresor.pipeline --help` |
 | `app/` | application Streamlit, en anglais : un tableau de bord en page d'accueil et 7 pages détaillées, dont « Dataset », qui permet de télécharger la base en CSV |
 | `data/raw/`, `data/clean/`, `data/output/` | données brutes, nettoyées, et résultats, mis à jour chaque soir |
+| `data/static/` | calendrier des réunions de la Fed depuis 2000, relu une fois par an (`python -m tresor.sources.fed_calendar`) |
 | `reports/` | figures et chiffres clés pour le rapport et l'oral (`python reports/make_figures.py`) |
 | `tests/` | tests automatiques (sans réseau) |
 | `.github/workflows/` | passage du soir, tests, contrôle du journal figé |
@@ -83,10 +86,11 @@ Les modèles entraînés ne sont pas dans le dépôt. `python -m tresor.pipeline
 python -m tresor.pipeline --help
 ```
 
-- `--fetch` collecte les 11 tables brutes.
+- `--fetch` collecte les 14 tables brutes.
 - `--clean` nettoie, contrôle la qualité et construit les variables.
 - `--backtest` lance la validation walk-forward : 5 modèles, leur moyenne et une variante en écart à `mean3`, contre les benchmarks `naive`, `mean3` et constante, avec l'interprétation (permutation et SHAP) et les figures. Compter environ 2 heures sur 8 cœurs.
 - `--strategy` produit les quintiles et la stratégie illustrative, en quelques secondes.
+- `--new-data` teste les nouvelles données (banques centrales étrangères, calendrier des annonces, taux allemand et japonais) : le walk-forward du site est relancé avec et sans chaque groupe, sur le bid-to-cover. Compter environ une heure sur 8 cœurs. Résultats dans `data/output/new_data_test.csv`.
 - `--train` entraîne les modèles finaux. Rien n'est refait si les données n'ont pas changé.
 - `--predict` prévoit les enchères à venir et les inscrit dans le journal `data/output/predictions_log.parquet`. Une prévision y est figée à partir du jour de l'enchère (date de New York).
 
@@ -144,6 +148,9 @@ Toutes les données viennent de sources publiques et gratuites :
 - la Federal Reserve Bank of New York ;
 - la CFTC ;
 - le CBOE ;
-- FRED (Federal Reserve Bank of St. Louis).
+- FRED (Federal Reserve Bank of St. Louis), dont les dates de publication de l'inflation et de l'emploi ;
+- le calendrier des réunions de la Fed (federalreserve.gov) ;
+- la Bundesbank (taux allemand à 10 ans) ;
+- le ministère des Finances du Japon (taux japonais à 10 ans).
 
 Elles restent soumises aux conditions d'utilisation de chaque producteur. This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of St. Louis.

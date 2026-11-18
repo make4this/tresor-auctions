@@ -11,6 +11,7 @@ import re
 import numpy as np
 import pandas as pd
 
+from tresor import features as ft
 from tresor import models as md
 from tresor.config import MODEL_SAMPLE_START, SIGNAL_THRESHOLD
 from tresor.formats import en
@@ -60,6 +61,9 @@ SOURCE_LABELS = {
     "nyfed_dealer_positions": "New York Fed: dealer positions",
     "cftc_positions": "CFTC: futures positioning",
     "fred_series": "FRED: macro series",
+    "fred_release_dates": "FRED: inflation and jobs release dates",
+    "bundesbank_bund_yield": "Bundesbank: German 10-year yield",
+    "mof_jgb_yield": "Japan Ministry of Finance: 10-year yield",
 }
 # Noms des lignes reçues dans le rapport de nettoyage des enchères.
 INPUT_LABELS = {
@@ -117,6 +121,15 @@ FEATURE_LABELS = {
     "dealer_net_chg_4w_bn": "Dealer positions, same maturity, 4-week change",
     "cftc_am_net_z52": "Asset managers (CFTC)",
     "cftc_lev_net_z52": "Leveraged funds (CFTC)",
+    "foreign_custody_chg_4w": "Foreign central banks' Treasuries at the Fed, 4-week change",
+    "foreign_custody_chg_13w": "Foreign central banks' Treasuries at the Fed, 13-week change",
+    "days_to_fomc": "Days to the next Fed decision",
+    "days_since_fomc": "Days since the last Fed decision",
+    "days_to_cpi": "Days to the next inflation (CPI) release",
+    "days_to_jobs": "Days to the next jobs report",
+    "bund_10y_chg_20d": "German 10-year yield, 20-day change",
+    "jgb_10y_chg_20d": "Japanese 10-year yield, 20-day change",
+    "us_bund_spread_10y": "US minus German 10-year yield",
 }
 LAG_LABELS = {
     "lag1": "last auction",
@@ -520,6 +533,47 @@ def backtest_r2(metrics: pd.DataFrame, period: str = "2020-2026") -> pd.DataFram
     return data[["family", "target", *columns]]
 
 
+# Test des nouvelles données (tresor.new_data) : groupe -> libellé.
+NEW_DATA_GROUPS = {
+    "foreign_official": "Foreign central banks' Treasuries at the Fed",
+    "calendar": "Dates of Fed decisions, inflation and jobs releases",
+    "foreign_rates": "German and Japanese 10-year yields",
+    "all_new": "All three together",
+}
+HELPS, HURTS, NO_EFFECT = "helps", "hurts", "no clear effect"
+
+
+def new_data_rows(table: pd.DataFrame, period: str = "2014-2026") -> pd.DataFrame:
+    """Gain de R² (contre mean3) de chaque groupe sur le modèle du site : moyenne des 5,
+    bid-to-cover. Verdict : aide si tout l'intervalle à 90 % est au-dessus de 0, nuit s'il est
+    en dessous, sinon pas d'effet net."""
+    data = table[
+        (table["period"] == period)
+        & (table["model"] == md.ENSEMBLE)
+        & (table["target"] == "btc")
+        & (table["feature_set"] != "toutes")
+    ].copy()
+    data["group"] = data["feature_set"].str.removeprefix("toutes+")
+    data["verdict"] = np.select(
+        [data["gain_ci_low"] > 0, data["gain_ci_high"] < 0], [HELPS, HURTS], NO_EFFECT
+    )
+    order = {group: index for index, group in enumerate(NEW_DATA_GROUPS)}
+    data["order"] = data["group"].map(order)
+    columns = [
+        "group",
+        "family",
+        "r2_base",
+        "r2_vs_mean3",
+        "gain",
+        "gain_ci_low",
+        "gain_ci_high",
+        "weak_signals",
+        "weak_right",
+        "verdict",
+    ]
+    return data.sort_values(["order", "family"])[columns].reset_index(drop=True)
+
+
 # --- Tableau de bord (page d'accueil) ---------------------------------------------------------
 
 MARKET_SERIES = {
@@ -715,6 +769,11 @@ def column_guide(frame: pd.DataFrame, meanings: dict[str, str]) -> pd.DataFrame:
         meaning = meanings.get(column)
         if meaning is None:
             label = feature_label(column)
-            meaning = f"Predictor: {label}, known before the auction" if label != column else "–"
+            if column in ft.CANDIDATE_COLUMNS:  # testées, hors du modèle du site
+                meaning = f"Candidate predictor (tested, not in the site's model): {label}"
+            elif label != column:
+                meaning = f"Predictor: {label}, known before the auction"
+            else:
+                meaning = "–"
         rows.append({"column": column, "meaning": meaning})
     return pd.DataFrame(rows, columns=["column", "meaning"])

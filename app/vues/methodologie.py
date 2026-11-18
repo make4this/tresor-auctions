@@ -53,7 +53,11 @@ SECTIONS = [
             "<b>FRED</b> (St. Louis Fed): dollar index, Fed balance sheet, reverse repo, Baa"
             " credit spread, inflation expectations;",
             "<b>New York Fed</b>: primary dealer positions; <b>CFTC</b>: positioning in Treasury"
-            " futures.",
+            " futures;",
+            "<b>Collected and tested, not in the model</b>: foreign central banks' Treasuries"
+            " held at the Fed and the dates of inflation and jobs releases (FRED), the dates of"
+            " Fed decisions (federalreserve.gov), German (Bundesbank) and Japanese (Ministry of"
+            " Finance) 10-year yields.",
         ],
     ),
     section(
@@ -110,6 +114,47 @@ for start in range(0, len(SECTIONS), 2):
     left.markdown(SECTIONS[start], unsafe_allow_html=True)
     if start + 1 < len(SECTIONS):
         right.markdown(SECTIONS[start + 1], unsafe_allow_html=True)
+
+
+def points(value: float) -> str:
+    """Gain de R² en points de pourcentage, signé, à deux décimales : « +0.60 pt » (avec une
+    seule, −0,02 s'afficherait « +0.0 » et ferait croire à un intervalle positif)."""
+    return en(value * 100, 2, sign=True, suffix=" pt")
+
+
+def new_data_panel() -> str | None:
+    """Les nouvelles données testées en novembre 2026, avec et sans, sur le modèle du site."""
+    if not (ui.OUTPUT_DIR / "new_data_test.csv").exists():
+        return None
+    rows = ad.new_data_rows(ui.csv("new_data_test.csv"))
+    css = {ad.HELPS: "tr-up", ad.HURTS: "tr-down", ad.NO_EFFECT: ""}
+    lines = []
+    for group, part in rows.groupby("group", sort=False):
+        cells: list[str | tuple[str, str]] = [ad.NEW_DATA_GROUPS.get(group, group)]
+        for family in ("nominal_coupon", "bill"):
+            row = part[part["family"] == family]
+            if row.empty:
+                cells.append("–")
+                continue
+            row = row.iloc[0]
+            text = (
+                f"{points(row['gain'])} [{points(row['gain_ci_low'])};"
+                f" {points(row['gain_ci_high'])}] · {row['verdict']}"
+            )
+            cells.append((text, css[row["verdict"]]))
+        lines.append(cells)
+    body = ui.table(["Data added", "Notes and bonds", "Bills"], lines, wrap={0})
+    note = (
+        "Change in R² against the last-3 average when the data is added to the site's model:"
+        " bid-to-cover, 5-model average, same walk-forward 2014-2026, 90% interval. A group"
+        " joins the site's model only if the whole interval is above zero."
+    )
+    return ui.panel("New data tested (November 2026)", body, note)
+
+
+panel = new_data_panel()
+if panel is not None:
+    st.markdown(panel, unsafe_allow_html=True)
 
 st.markdown(
     section(

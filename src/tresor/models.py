@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -182,13 +182,15 @@ class Task:
     feature_set: str
 
 
-def walk_forward(data: pd.DataFrame, task: Task) -> pd.DataFrame:
+def walk_forward(
+    data: pd.DataFrame, task: Task, feature_sets: Mapping[str, Sequence[str]] = FEATURE_SETS
+) -> pd.DataFrame:
     """Prévisions hors échantillon trimestre par trimestre, fenêtre d'entraînement croissante.
 
     Variante « _ecart » : le modèle apprend l'écart de la cible à mean3, puis on rajoute mean3.
     Il prévoit ainsi la surprise plutôt que le niveau, qui dérive sur 17 ans.
     """
-    features = list(FEATURE_SETS[task.feature_set])
+    features = list(feature_sets[task.feature_set])
     residual = task.model.endswith(RESIDUAL_SUFFIX)
     benchmark = f"{task.target}_mean3"
     data = data.sort_values("auction_date", kind="stable")
@@ -473,11 +475,16 @@ def all_tasks(
     return tasks
 
 
-def run_walk_forward(sample: pd.DataFrame, tasks: Sequence[Task], n_jobs: int = -1) -> pd.DataFrame:
+def run_walk_forward(
+    sample: pd.DataFrame,
+    tasks: Sequence[Task],
+    n_jobs: int = -1,
+    feature_sets: Mapping[str, Sequence[str]] = FEATURE_SETS,
+) -> pd.DataFrame:
     """Lance toutes les tâches en parallèle ; chaque tâche ne voit que sa famille."""
     by_family = {family: part for family, part in sample.groupby("family")}
     results = Parallel(n_jobs=n_jobs)(
-        delayed(walk_forward)(by_family[task.family], task) for task in tasks
+        delayed(walk_forward)(by_family[task.family], task, feature_sets) for task in tasks
     )
     return pd.concat(results, ignore_index=True)
 

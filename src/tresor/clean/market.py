@@ -9,12 +9,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from tresor.sources.raw import us_holidays
+from tresor.sources.raw import add_business_days, us_holidays
 
 MARKET_COLUMNS = ("source", "series", "unit", "date", "value", "available_at")
 
-# « * » : valeur masquée par la New York Fed ; « . » : valeur absente sur FRED.
-MISSING_MARKERS = ["", ".", "null", "*", "N/A"]
+# « * » : valeur masquée par la New York Fed ; « . » : valeur absente sur FRED et à la
+# Bundesbank ; « - » : valeur absente au ministère des Finances du Japon.
+MISSING_MARKERS = ["", ".", "null", "*", "N/A", "-"]
 US_DATE_FORMAT = "%m/%d/%Y"
 ISO_DATE_FORMAT = "%Y-%m-%d"
 
@@ -82,6 +83,9 @@ SERIES_UNITS = {
     "fred_wtregen": "millions de dollars",
     "fred_baa10y": "%",
     "fred_t10yie": "%",
+    "fred_wmtsecl1": "millions de dollars",
+    "bund_10y": "%",
+    "jgb_10y": "%",
 }
 UNIT_BY_PREFIX = {
     "yield_": "%",
@@ -283,6 +287,27 @@ def cftc_long(raw: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def bund_long(raw: pd.DataFrame) -> pd.DataFrame:
+    """Taux allemand à 10 ans. Publié par la Bundesbank le lendemain : jour ouvré suivant
+    (prudent ; la valeur du jour apparaît parfois dès midi, heure de Francfort)."""
+    dates = pd.to_datetime(raw["date"], format=ISO_DATE_FORMAT)
+    available_at = add_business_days(dates, 1)
+    return _series(
+        "bundesbank_bund_yield", "bund_10y", dates, _numbers(raw["yield_10y"]), available_at
+    )
+
+
+def jgb_long(raw: pd.DataFrame) -> pd.DataFrame:
+    """Taux japonais à 10 ans. Tokyo ferme avant l'ouverture de New York : available_at = date,
+    comme les clôtures américaines (la variable n'utilise de toute façon que la veille)."""
+    dates = pd.to_datetime(raw["date"], format=ISO_DATE_FORMAT)
+    return _series("mof_jgb_yield", "jgb_10y", dates, _numbers(raw["yield_10y"]), dates)
+
+
+# Sources ajoutées en novembre 2026 : facultatives, pour qu'une ancienne collecte se nettoie encore.
+OPTIONAL_TABLES = {"bundesbank_bund_yield": bund_long, "mof_jgb_yield": jgb_long}
+
+
 def build_market(raw_tables: Mapping[str, pd.DataFrame]) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Assemble toutes les séries de marché et rend compte de ce qui a été fait."""
     curve, unknown_curve = yield_curve_long(raw_tables["treasury_yield_curve"])
@@ -300,6 +325,11 @@ def build_market(raw_tables: Mapping[str, pd.DataFrame]) -> tuple[pd.DataFrame, 
             tga_long(cash),
             dealers,
             cftc_long(raw_tables["cftc_positions"]),
+            *(
+                build(raw_tables[name])
+                for name, build in OPTIONAL_TABLES.items()
+                if name in raw_tables
+            ),
         ],
         ignore_index=True,
     )

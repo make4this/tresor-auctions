@@ -47,6 +47,13 @@ def _run_strategy() -> None:
     strategy.run_strategy()
 
 
+def _run_new_data() -> None:
+    """Test des nouvelles données : walk-forward avec et sans chaque groupe (environ 1 heure)."""
+    from tresor import new_data
+
+    new_data.run_new_data_test()
+
+
 def _run_train() -> None:
     """Modèles finaux sur toutes les enchères réalisées, sauvegardés dans data/models/."""
     from tresor import live
@@ -83,6 +90,7 @@ STEPS: dict[str, tuple[str, StepFunction]] = {
     "clean": ("nettoyer les données, lancer les contrôles, construire les variables", _run_clean),
     "backtest": ("validation walk-forward, interprétation et figures", _run_backtest),
     "strategy": ("lien avec le marché et stratégie illustrative", _run_strategy),
+    "new_data": ("tester les nouvelles données, avec et sans, en walk-forward", _run_new_data),
     "train": ("entraîner les modèles finaux sur tout l'historique", _run_train),
     "predict": ("prévoir les enchères à venir et mettre à jour le journal figé", _run_predict),
 }
@@ -96,7 +104,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--all", action="store_true", help="lancer toutes les étapes, dans l'ordre")
     for name, (description, _) in STEPS.items():
-        parser.add_argument(f"--{name}", action="store_true", help=description)
+        flag = name.replace("_", "-")  # --new-data
+        parser.add_argument(f"--{flag}", dest=name, action="store_true", help=description)
     return parser
 
 

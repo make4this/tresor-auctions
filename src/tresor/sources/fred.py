@@ -77,7 +77,21 @@ SERIES = (
     # 3 ans (début au 13/11/2023 le jour de la vérification).
     FredSeries("BAA10Y", "spread Baa de Moody's contre le 10 ans", two_business_days),
     FredSeries("T10YIE", "inflation anticipée à 10 ans", two_business_days),
+    # Titres du Trésor gardés par la Fed pour les banques centrales étrangères (rapport H.4.1,
+    # niveau du mercredi, publié le jeudi) : un recul signale moins d'achats étrangers.
+    FredSeries(
+        "WMTSECL1",
+        "dette américaine gardée pour les banques centrales étrangères (mercredi)",
+        friday_after,
+        minimum_lag_days=1,
+    ),
 )
+
+# Publications dont la date est fixée à l'avance (calendrier annuel du BLS) : inflation (CPI)
+# et emploi (Employment Situation). FRED garde la date réelle de chaque publication passée et
+# les dates prévues à venir.
+RELEASES = {"cpi": 10, "jobs": 50}
+RELEASE_COLUMNS = ("release", "date")
 
 # Délai minimal par série du marché nettoyé (« fred_walcl »...), réutilisé par le contrôle
 # bloquant de features.py.
@@ -179,6 +193,31 @@ def fetch_series(client: httpx.Client, series: FredSeries, api_key: str) -> pd.D
         available_at=to_iso_text(available_at),
         available_at_source=known.notna().map({True: "alfred", False: "regle"}),
     )[list(REQUIRED_COLUMNS)]
+
+
+def fetch_release_dates(client: httpx.Client) -> pd.DataFrame:
+    """Dates de publication de l'inflation et de l'emploi depuis 2000, passées et prévues."""
+    api_key = get_fred_api_key()
+    frames = []
+    for name, release_id in RELEASES.items():
+        payload = _get(
+            client,
+            "release/dates",
+            api_key,
+            release_id=release_id,
+            # Toute la période réelle : sans elle, seules les dates de l'année en cours viennent.
+            realtime_start="1776-07-04",
+            realtime_end="9999-12-31",
+            include_release_dates_with_no_data="true",
+            sort_order="asc",
+            limit=10_000,
+        )
+        dates = [row["date"] for row in payload["release_dates"]]
+        if len(dates) < payload["count"]:
+            raise RawDataError(f"dates de publication {name} : liste tronquée")
+        frames.append(pd.DataFrame({"release": name, "date": dates}, dtype=str))
+    frame = pd.concat(frames, ignore_index=True)
+    return frame[frame["date"] >= HISTORY_START.isoformat()].reset_index(drop=True)
 
 
 def fetch_all(client: httpx.Client) -> pd.DataFrame:

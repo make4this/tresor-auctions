@@ -35,6 +35,7 @@ def test_help_lists_every_option(capsys: pytest.CaptureFixture[str]) -> None:
         "--clean",
         "--backtest",
         "--strategy",
+        "--new-data",
         "--train",
         "--predict",
     ):
@@ -55,7 +56,15 @@ def test_steps_follow_pipeline_order_not_option_order(executed_steps: list[str])
 
 def test_all_runs_every_step(executed_steps: list[str]) -> None:
     assert pipeline.main(["--all"]) == 0
-    assert executed_steps == ["fetch", "clean", "backtest", "strategy", "train", "predict"]
+    assert executed_steps == [
+        "fetch",
+        "clean",
+        "backtest",
+        "strategy",
+        "new_data",
+        "train",
+        "predict",
+    ]
 
 
 def test_a_failed_source_does_not_block_the_evening_prediction(
@@ -147,3 +156,8 @@ def test_the_evening_fetch_writes_its_report(monkeypatch: pytest.MonkeyPatch) ->
     pipeline._run_fetch()
 
     assert received == [{"status_path": OUTPUT_DIR / FETCH_STATUS_FILE}]
+
+
+def test_new_data_option_runs_only_the_new_data_test(executed_steps: list[str]) -> None:
+    assert pipeline.main(["--new-data"]) == 0
+    assert executed_steps == ["new_data"]

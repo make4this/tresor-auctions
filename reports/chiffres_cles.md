@@ -2,9 +2,9 @@
 
 Tous les chiffres du rapport et de l'oral, recalculés depuis les fichiers de `data/` par `python reports/make_figures.py`. La commande `python reports/make_figures.py --check` vérifie qu'ils correspondent toujours aux fichiers. Le titre de chaque partie donne l'étape du pipeline qui produit ses fichiers.
 
-Les chiffres marqués « du jour » changent chaque soir avec le passage automatique. Les chiffres marqués « figé » ne changent que si l'on relance `python -m tresor.pipeline --backtest --strategy`.
+Les chiffres marqués « du jour » changent chaque soir avec le passage automatique. Les chiffres marqués « figé » ne changent que si l'on relance `python -m tresor.pipeline --backtest --strategy` (ou `--new-data` pour les nouvelles données).
 
-Données utilisées : contrôle qualité du 14/11/2026 (date de New York), dernière prévision le 14/11/2026 à 20:31 UTC.
+Données utilisées : contrôle qualité du 18/11/2026 (date de New York), dernière prévision le 18/11/2026 à 04:22 UTC.
 
 **Petit glossaire.**
 
@@ -22,20 +22,20 @@ Données utilisées : contrôle qualité du 14/11/2026 (date de New York), derni
 
 | Chiffre | Valeur | Nature | Fichier | Calcul |
 |---|---|---|---|---|
-| Tables brutes collectées (Trésor américain, Fed de New York, FRED, CFTC, CBOE) | 11 | du jour | [data_quality.json](../data/output/data_quality.json) | nombre d'entrées de sources |
+| Tables brutes collectées (Trésor américain, Fed de New York, FRED, CFTC, CBOE, Bundesbank, ministère des Finances du Japon) | 14 | du jour | [data_quality.json](../data/output/data_quality.json) | nombre d'entrées de sources |
 | Enchères reçues de Fiscal Data (depuis 2000) | 7 905 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_in.fiscaldata |
-| Résultats récents reçus de TreasuryDirect | 137 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_in.treasurydirect |
-| Enchères annoncées reçues de TreasuryDirect (calendrier) | 16 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_in.treasurydirect_upcoming |
+| Résultats récents reçus de TreasuryDirect | 140 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_in.treasurydirect |
+| Enchères annoncées reçues de TreasuryDirect (calendrier) | 13 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_in.treasurydirect_upcoming |
 | Enchères présentes dans Fiscal Data et TreasuryDirect, fusionnées | 108 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.duplicates_removed |
 | Enchères exclues au total | 13 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | somme des auctions.excluded.*.rows |
 | dont petites émissions hors calendrier (moins de 1 Md$) | 12 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.excluded.petite_emission_hors_calendrier.rows |
 | Enchères gardées après nettoyage, annoncées comprises | 7 937 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_out |
-| dont enchères annoncées, pas encore réalisées | 16 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_out_by_status.upcoming |
+| dont enchères annoncées, pas encore réalisées | 13 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_out_by_status.upcoming |
 | dont bills | 5 109 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_out_by_family.bill |
 | dont notes et bonds | 1 650 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | auctions.rows_out_by_family.nominal_coupon |
 | dont TIPS, FRN et CMB (non modélisés) | 1 178 | du jour | [cleaning_report.json](../data/output/cleaning_report.json) | somme des autres familles de auctions.rows_out_by_family |
-| Échantillon des modèles : bills, notes et bonds réalisés depuis 2009 | 5 119 | du jour | [features.parquet](../data/clean/features.parquet) | lignes de model_sample (status=completed, depuis 2009), family ∈ [bill, nominal_coupon] |
-| dont bills dans l'échantillon des modèles | 3 757 | du jour | [features.parquet](../data/clean/features.parquet) | même calcul, family=bill |
+| Échantillon des modèles : bills, notes et bonds réalisés depuis 2009 | 5 122 | du jour | [features.parquet](../data/clean/features.parquet) | lignes de model_sample (status=completed, depuis 2009), family ∈ [bill, nominal_coupon] |
+| dont bills dans l'échantillon des modèles | 3 760 | du jour | [features.parquet](../data/clean/features.parquet) | même calcul, family=bill |
 | dont notes et bonds dans l'échantillon des modèles | 1 362 | du jour | [features.parquet](../data/clean/features.parquet) | même calcul, family=nominal_coupon |
 | Variables explicatives point-in-time de chaque modèle | 46 | figé | [feature_importance.csv](../data/output/feature_importance.csv) | variables distinctes (le même nombre pour chaque famille, cible et modèle) |
 | dont variables des nouvelles sources (dealers, CFTC, liquidité) | 9 | figé | [feature_importance.csv](../data/output/feature_importance.csv) | variables distinctes dont group ∈ ['liquidity', 'positioning'] |
@@ -80,6 +80,21 @@ Données utilisées : contrôle qualité du 14/11/2026 (date de New York), derni
 | Cibles où les nouvelles sources améliorent la prévision (intervalle entièrement positif), moyenne des 5, 2014-2026 | 0 sur 8 | figé | [new_sources_comparison.csv](../data/output/new_sources_comparison.csv) | model=moyenne_5 ; gain_ci_low > 0 |
 | Couples modèle-cible où les nouvelles sources dégradent la prévision, tous modèles, 2014-2026 | 17 sur 48 | figé | [new_sources_comparison.csv](../data/output/new_sources_comparison.csv) | toutes les lignes ; gain_ci_high < 0 |
 
+## Nouvelles données testées, bid-to-cover (`--new-data`)
+
+| Chiffre | Valeur | Nature | Fichier | Calcul |
+|---|---|---|---|---|
+| Apport au R² : dette américaine gardée pour les banques centrales étrangères, notes et bonds, 2014-2026 | −0,13 point [−0,58 ; +0,31] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, family=nominal_coupon, target=btc, model=moyenne_5, feature_set=toutes+foreign_official ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Apport au R² : dette américaine gardée pour les banques centrales étrangères, bills, 2014-2026 | −0,22 point [−0,42 ; +0,13] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, family=bill, target=btc, model=moyenne_5, feature_set=toutes+foreign_official ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Apport au R² : calendrier des annonces (Fed, inflation, emploi), notes et bonds, 2014-2026 | −0,05 point [−0,75 ; +0,71] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, family=nominal_coupon, target=btc, model=moyenne_5, feature_set=toutes+calendar ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Apport au R² : calendrier des annonces (Fed, inflation, emploi), bills, 2014-2026 | −0,17 point [−0,27 ; +0,05] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, family=bill, target=btc, model=moyenne_5, feature_set=toutes+calendar ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Apport au R² : taux allemand et japonais à 10 ans, notes et bonds, 2014-2026 | +0,33 point [−0,11 ; +0,81] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, family=nominal_coupon, target=btc, model=moyenne_5, feature_set=toutes+foreign_rates ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Apport au R² : taux allemand et japonais à 10 ans, bills, 2014-2026 | +0,12 point [−0,35 ; +0,92] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, family=bill, target=btc, model=moyenne_5, feature_set=toutes+foreign_rates ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Apport au R² : les trois groupes ensemble, notes et bonds, 2014-2026 | +0,60 point [−0,02 ; +1,30] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, family=nominal_coupon, target=btc, model=moyenne_5, feature_set=toutes+all_new ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Apport au R² : les trois groupes ensemble, bills, 2014-2026 | −0,11 point [−0,71 ; +0,94] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, family=bill, target=btc, model=moyenne_5, feature_set=toutes+all_new ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Apport au R² : les trois groupes ensemble, notes et bonds, 2020-2026 | +1,32 point [+0,44 ; +2,31] | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2020-2026, family=nominal_coupon, target=btc, model=moyenne_5, feature_set=toutes+all_new ; gain [gain_ci_low ; gain_ci_high], en points de pourcentage |
+| Couples groupe-famille dont l'apport est entièrement positif (règle d'entrée dans le modèle du site), moyenne des 5, 2014-2026 | 0 sur 8 | figé | [new_data_test.csv](../data/output/new_data_test.csv) | period=2014-2026, model=moyenne_5, feature_set≠toutes ; gain_ci_low > 0 |
+
 ## Lien avec le marché, notes et bonds (`--strategy`)
 
 | Chiffre | Valeur | Nature | Fichier | Calcul |
@@ -122,7 +137,7 @@ Données utilisées : contrôle qualité du 14/11/2026 (date de New York), derni
 
 | Chiffre | Valeur | Nature | Fichier | Calcul |
 |---|---|---|---|---|
-| Enchères à venir prévues au dernier passage (bills, notes et bonds) | 14 | du jour | [live_status.json](../data/output/live_status.json) | upcoming_auctions |
+| Enchères à venir prévues au dernier passage (bills, notes et bonds) | 11 | du jour | [live_status.json](../data/output/live_status.json) | upcoming_auctions |
 | Lignes du journal des prévisions | 336 | du jour | [predictions_log.parquet](../data/output/predictions_log.parquet) | nombre de lignes |
-| Enchères du journal déjà figées (jour de l'enchère atteint) | 0 | du jour | [predictions_log.parquet](../data/output/predictions_log.parquet) | enchères distinctes dont auction_date ≤ today_new_york de live_status.json |
-| Enchères du journal dont le résultat est publié | 0 | du jour | [live_tracking.parquet](../data/output/live_tracking.parquet) | enchères distinctes dont status=realisee |
+| Enchères du journal déjà figées (jour de l'enchère atteint) | 3 | du jour | [predictions_log.parquet](../data/output/predictions_log.parquet) | enchères distinctes dont auction_date ≤ today_new_york de live_status.json |
+| Enchères du journal dont le résultat est publié | 3 | du jour | [live_tracking.parquet](../data/output/live_tracking.parquet) | enchères distinctes dont status=realisee |

@@ -21,7 +21,9 @@ HOLIDAYS = us_holidays("1990-01-01", "2035-12-31")
 MAX_DELAY_BUSINESS_DAYS = 5
 # Retard connu et compensé par TreasuryDirect : sans tolérance, l'alerte serait permanente.
 MAX_DELAY_OVERRIDES = {"fiscaldata_auctions": 30}
-NO_FRESHNESS_CHECK = {"treasurydirect_upcoming"}  # ce sont des dates futures
+# Dates futures : le calendrier des enchères, et celui des publications (inflation, emploi), qui
+# s'arrête là où FRED s'arrête (souvent en décembre, avant que l'année suivante y entre).
+NO_FRESHNESS_CHECK = {"treasurydirect_upcoming", "fred_release_dates"}
 # Le calendrier ne contient que des enchères à venir : ses effectifs varient normalement.
 NO_ROW_DROP_CHECK = {"treasurydirect_upcoming"}
 ROW_DROP_TOLERANCE = 0.95  # une année qui perd plus de 5 % de ses lignes est suspecte
@@ -52,6 +54,9 @@ GAP_CHECK_START = pd.Timestamp("2009-01-01")  # début de l'échantillon des mod
 # Jours ouvrés manquants tolérés entre deux observations, et depuis la dernière publication.
 MAX_GAP = {"quotidienne": 5, "hebdomadaire": 10}
 MAX_SERIES_DELAY = {"quotidienne": 5, "hebdomadaire": 10}
+# Le marché japonais suit ses propres jours fériés : la « Golden Week » de 2019 (changement
+# d'empereur) a fermé Tokyo du 27 avril au 6 mai, soit 6 jours ouvrés américains sans cotation.
+MAX_GAP_OVERRIDES = {"jgb_10y": 6}
 # Séries arrêtées par leur producteur : pas d'alerte de fraîcheur (leurs trous restent contrôlés).
 ENDED_SERIES = {"fred_dtwexb": "ancien indice dollar, arrêté par la Fed fin 2019"}
 
@@ -228,7 +233,9 @@ def _check_series(name: str, part: pd.DataFrame, today: date) -> tuple[dict[str,
     alerts = []
     if name not in ENDED_SERIES and delay > MAX_SERIES_DELAY[publication]:
         alerts.append(f"{name} : dernière publication le {last_published:%Y-%m-%d}")
-    if gaps and gaps[0]["missing_business_days"] > MAX_GAP[observation]:
+    if gaps and gaps[0]["missing_business_days"] > MAX_GAP_OVERRIDES.get(
+        name, MAX_GAP[observation]
+    ):
         alerts.append(
             f"{name} : trou de {gaps[0]['missing_business_days']} jours ouvrés"
             f" après le {gaps[0]['after']}"

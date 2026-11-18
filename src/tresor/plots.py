@@ -496,10 +496,10 @@ def source_coverage(
     axis.set_xlim(first - pd.Timedelta(days=365), last + pd.Timedelta(days=4 * 365))
     today = pd.Timestamp(str(quality.get("today_new_york")))
     axis.set_title(
-        f"Les {len(rows)} tables publiques et gratuites (Trésor américain, Fed de New York, FRED,"
-        f" CFTC, CBOE) : période couverte et nombre de lignes au {today:%d/%m/%Y}\nL'historique"
-        " des enchères vient de Fiscal Data ; TreasuryDirect ajoute les résultats récents et le"
-        " calendrier.",
+        f"Les {len(rows)} tables publiques et gratuites : période couverte et nombre de lignes au"
+        f" {today:%d/%m/%Y}\nTrésor américain, Fed de New York, FRED, CFTC, CBOE, Bundesbank et"
+        " ministère des Finances du Japon. L'historique des enchères vient de Fiscal Data ;"
+        "\nTreasuryDirect ajoute les résultats récents et le calendrier.",
         fontsize=11,
         color=TEXT,
         loc="left",

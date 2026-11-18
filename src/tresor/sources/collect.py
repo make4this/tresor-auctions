@@ -15,7 +15,16 @@ import pandas as pd
 
 from tresor.config import RAW_DIR
 from tresor.http import SECRET_PARAMETER, FetchError, build_client
-from tresor.sources import cboe, cftc, fiscaldata, fred, nyfed, treasury_rates, treasurydirect
+from tresor.sources import (
+    cboe,
+    cftc,
+    fiscaldata,
+    foreign_rates,
+    fred,
+    nyfed,
+    treasury_rates,
+    treasurydirect,
+)
 from tresor.sources.raw import RawDataError
 
 logger = logging.getLogger(__name__)
@@ -169,6 +178,30 @@ RAW_SOURCES: tuple[RawSource, ...] = (
         date_format="%Y-%m-%d",
         required_columns=fred.REQUIRED_COLUMNS,
         preview_columns=("series_id", "date", "value", "available_at", "available_at_source"),
+    ),
+    RawSource(
+        name="fred_release_dates",
+        fetch=fred.fetch_release_dates,
+        date_column="date",
+        date_format="%Y-%m-%d",
+        required_columns=fred.RELEASE_COLUMNS,
+        preview_columns=fred.RELEASE_COLUMNS,
+    ),
+    RawSource(
+        name="bundesbank_bund_yield",
+        fetch=foreign_rates.fetch_bund,
+        date_column="date",
+        date_format="%Y-%m-%d",
+        required_columns=foreign_rates.COLUMNS,
+        preview_columns=foreign_rates.COLUMNS,
+    ),
+    RawSource(
+        name="mof_jgb_yield",
+        fetch=foreign_rates.fetch_jgb,
+        date_column="date",
+        date_format="%Y-%m-%d",
+        required_columns=foreign_rates.COLUMNS,
+        preview_columns=foreign_rates.COLUMNS,
     ),
 )
 

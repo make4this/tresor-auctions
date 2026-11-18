@@ -13,9 +13,11 @@ import pandas as pd
 
 from tresor.clean.auctions import clean_auctions, families_by_year
 from tresor.clean.checks import run_checks
+from tresor.clean.events import build_events
 from tresor.clean.market import build_market
 from tresor.config import CLEAN_DIR, NEW_YORK_TZ, OUTPUT_DIR, RAW_DIR
 from tresor.sources.collect import RAW_SOURCES
+from tresor.sources.fed_calendar import read_calendar
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +53,12 @@ def run_cleaning(
     """Nettoie tout et renvoie le rapport de qualité."""
     today = today or datetime.now(NEW_YORK_TZ).date()
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Une table absente (source ajoutée depuis la dernière collecte) est simplement ignorée ;
+    # les contrôles de qualité signalent alors la source manquante.
     raw = {
-        source.name: pd.read_parquet(raw_dir / f"{source.name}.parquet") for source in RAW_SOURCES
+        source.name: pd.read_parquet(raw_dir / f"{source.name}.parquet")
+        for source in RAW_SOURCES
+        if (raw_dir / f"{source.name}.parquet").exists()
     }
 
     auctions, auctions_report = clean_auctions(
@@ -64,6 +70,8 @@ def run_cleaning(
     market, market_report = build_market(raw)
     _write_parquet(auctions, clean_dir / "auctions.parquet")
     _write_parquet(market, clean_dir / "market.parquet")
+    events = build_events(raw.get("fred_release_dates"), read_calendar())
+    _write_parquet(events, clean_dir / "events.parquet")
 
     by_year = families_by_year(auctions)
     by_year.to_csv(output_dir / "auctions_by_family_year.csv")

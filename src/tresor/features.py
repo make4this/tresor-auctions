@@ -37,7 +37,7 @@ QUARTER_END_DAYS = 10
 DAILY_MAX_AGE = pd.Timedelta(days=10)
 WEEKLY_MAX_AGE = pd.Timedelta(days=21)  # séries publiées une fois par semaine
 # « fred_dtwexb » couvre l'ancien indice dollar (DTWEXB) et l'actuel (DTWEXBGS).
-WEEKLY_BASES = ("dealer_", "cftc_", "fred_walcl", "fred_wtregen", "fred_dtwexb")
+WEEKLY_BASES = ("dealer_", "cftc_", "fred_walcl", "fred_wtregen", "fred_dtwexb", "fred_wmtsecl1")
 ZSCORE_WEEKS = 52  # écart normalisé sur un an pour les positions, qui ont une tendance de fond
 
 EPOCH = pd.Timestamp("1970-01-01")
@@ -160,6 +160,39 @@ FEATURE_GROUPS: dict[str, tuple[str, ...]] = {
 FEATURE_COLUMNS = tuple(name for names in FEATURE_GROUPS.values() for name in names)
 # Les « nouvelles sources » de l'expérience clé du plan : dealers, CFTC et liquidité.
 NEW_SOURCE_GROUPS = ("liquidity", "positioning")
+
+# --- Variables candidates (novembre 2026) ----------------------------------------------------
+# Calculées et contrôlées comme les autres, mais hors du modèle du site : elles n'y entrent que
+# si le test walk-forward « avec et sans » (tresor.new_data) montre qu'elles aident.
+CANDIDATE_MARKET_FEATURES = {
+    # Dette américaine gardée par la Fed pour les banques centrales étrangères.
+    "foreign_custody_chg_4w": ("foreign_official", "fred_wmtsecl1__pct4"),
+    "foreign_custody_chg_13w": ("foreign_official", "fred_wmtsecl1__pct13"),
+    # Taux étrangers : variation sur un mois et écart de taux entre États-Unis et Allemagne.
+    "bund_10y_chg_20d": ("foreign_rates", "bund_10y__chg20"),
+    "jgb_10y_chg_20d": ("foreign_rates", "jgb_10y__chg20"),
+    "us_bund_spread_10y": ("foreign_rates", "us_bund_spread_10y"),
+}
+# Jours jusqu'à la prochaine annonce (0 : le jour même) et depuis la dernière décision de la Fed,
+# plafonnés : au-delà de 45 jours, l'annonce est trop loin pour compter.
+CALENDAR_FEATURES = {
+    "days_to_fomc": ("fomc", "to"),
+    "days_since_fomc": ("fomc", "since"),
+    "days_to_cpi": ("cpi", "to"),
+    "days_to_jobs": ("jobs", "to"),
+}
+CALENDAR_CAP_DAYS = 45
+CANDIDATE_GROUPS: dict[str, tuple[str, ...]] = {
+    "foreign_official": tuple(
+        n for n, spec in CANDIDATE_MARKET_FEATURES.items() if spec[0] == "foreign_official"
+    ),
+    "calendar": tuple(CALENDAR_FEATURES),
+    "foreign_rates": tuple(
+        n for n, spec in CANDIDATE_MARKET_FEATURES.items() if spec[0] == "foreign_rates"
+    ),
+}
+CANDIDATE_COLUMNS = tuple(name for names in CANDIDATE_GROUPS.values() for name in names)
+ALL_FEATURE_COLUMNS = (*FEATURE_COLUMNS, *CANDIDATE_COLUMNS)
 
 ID_COLUMNS = (
     "cusip",
@@ -285,6 +318,15 @@ def derived_series(market: pd.DataFrame) -> DerivedSeries:
     add("tga_bn__chg20", "tga_close", lambda: change(scaled(base["tga_close"], 1e-3), 20))
     add("fred_rrpontsyd__chg20", "fred_rrpontsyd", lambda: change(base["fred_rrpontsyd"], 20))
     add("fred_walcl__pct13", "fred_walcl", lambda: pct_change(base["fred_walcl"], 13))
+    add("fred_wmtsecl1__pct4", "fred_wmtsecl1", lambda: pct_change(base["fred_wmtsecl1"], 4))
+    add("fred_wmtsecl1__pct13", "fred_wmtsecl1", lambda: pct_change(base["fred_wmtsecl1"], 13))
+    add("bund_10y__chg20", "bund_10y", lambda: change(base["bund_10y"], 20))
+    add("jgb_10y__chg20", "jgb_10y", lambda: change(base["jgb_10y"], 20))
+    add(
+        "us_bund_spread_10y",
+        "yield_10y+bund_10y",
+        lambda: combine(base["yield_10y"], base["bund_10y"], operator.sub),
+    )
     for dealer in {*DEALER_SERIES.values(), "dealer_total"}:
         add(f"{dealer}_bn__z52", dealer, lambda d=dealer: zscore(base[d], ZSCORE_WEEKS))
         add(f"{dealer}_bn__chg4", dealer, lambda d=dealer: change(scaled(base[d], 1e-3), 4))
@@ -329,7 +371,7 @@ def market_features(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Variables de marché, de liquidité et de positionnement à t-1."""
     values, known = {}, {}
-    for name, (_, series) in FIXED_MARKET_FEATURES.items():
+    for name, (_, series) in {**FIXED_MARKET_FEATURES, **CANDIDATE_MARKET_FEATURES}.items():
         values[name], known[name] = _point_in_time(rows["auction_date"], derived, series)
     for name, (_, by_maturity, suffix) in MATURITY_MARKET_FEATURES.items():
         value = pd.Series(np.nan, index=rows.index)
@@ -340,6 +382,42 @@ def market_features(
                 rows.loc[index, "auction_date"], derived, series
             )
         values[name], known[name] = value, seen
+    return pd.DataFrame(values), pd.DataFrame(known)
+
+
+def calendar_features(
+    rows: pd.DataFrame, events: pd.DataFrame | None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Jours jusqu'à la prochaine annonce et depuis la dernière décision de la Fed.
+
+    Une annonce à venir ne compte que si sa date était déjà publique avant l'enchère
+    (`known_at`, le 1er décembre de l'année d'avant) ; sinon la variable reste vide.
+    """
+    dates = rows["auction_date"].to_numpy(dtype="datetime64[ns]")
+    values, known = {}, {}
+    for name, (event, direction) in CALENDAR_FEATURES.items():
+        value = np.full(len(rows), np.nan)
+        seen = np.full(len(rows), np.datetime64("NaT"), dtype="datetime64[ns]")
+        if events is not None and not events.empty:
+            part = events[events["event"] == event].sort_values("date")
+            event_dates = part["date"].to_numpy(dtype="datetime64[ns]")
+            known_at = part["known_at"].to_numpy(dtype="datetime64[ns]")
+            if direction == "to":  # prochaine annonce, le jour même compris
+                index = np.searchsorted(event_dates, dates, side="left")
+                found = index < len(event_dates)
+                safe = np.minimum(index, len(event_dates) - 1)
+                found &= known_at[safe] < dates  # date déjà publique avant l'enchère
+                days = (event_dates[safe] - dates) / np.timedelta64(1, "D")
+                seen = np.where(found, known_at[safe], seen)
+            else:  # dernière décision, strictement avant le jour de l'enchère
+                index = np.searchsorted(event_dates, dates, side="left") - 1
+                found = index >= 0
+                safe = np.maximum(index, 0)
+                days = (dates - event_dates[safe]) / np.timedelta64(1, "D")
+                seen = np.where(found, event_dates[safe], seen)
+            value = np.where(found, np.minimum(days, CALENDAR_CAP_DAYS), np.nan)
+        values[name] = pd.Series(value, index=rows.index)
+        known[name] = pd.Series(seen, index=rows.index)
     return pd.DataFrame(values), pd.DataFrame(known)
 
 
@@ -473,7 +551,7 @@ def auction_features(rows: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def build_features(
-    auctions: pd.DataFrame, market: pd.DataFrame
+    auctions: pd.DataFrame, market: pd.DataFrame, events: pd.DataFrame | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Table des variables et des cibles, et date de publication de chaque information utilisée."""
     rows = auctions[auctions["family"].isin(MODELED_FAMILIES)].sort_values(
@@ -489,6 +567,7 @@ def build_features(
     history_values, history_known = history_features(rows)
     demand_values, demand_known = recent_demand(rows)
     auction_values, auction_known = auction_features(rows)
+    calendar_values, calendar_known = calendar_features(rows, events)
 
     features = pd.concat(
         [
@@ -497,12 +576,15 @@ def build_features(
             history_values,
             demand_values,
             market_values,
+            calendar_values,
             rows[list(TARGETS)],
         ],
         axis=1,
     )
-    provenance = pd.concat([auction_known, history_known, demand_known, market_known], axis=1)
-    return features, provenance[list(FEATURE_COLUMNS)]
+    provenance = pd.concat(
+        [auction_known, history_known, demand_known, market_known, calendar_known], axis=1
+    )
+    return features, provenance[list(ALL_FEATURE_COLUMNS)]
 
 
 # --- Contrôles et sorties ------------------------------------------------------------------
@@ -515,9 +597,10 @@ def look_ahead_violations(features: pd.DataFrame, provenance: pd.DataFrame) -> p
     Toutes les autres : publiées strictement avant ce jour.
     """
     dates = features["auction_date"]
-    present = features[list(FEATURE_COLUMNS)].notna()
+    names = [name for name in ALL_FEATURE_COLUMNS if name in provenance.columns]
+    present = features[names].notna()
     counts = {}
-    for name in FEATURE_COLUMNS:
+    for name in names:
         known = provenance[name]
         if name in AUCTION_FEATURES:
             too_late = known > dates
@@ -538,6 +621,7 @@ def minimum_publication_dates(market: pd.DataFrame) -> pd.Series:
         "fiscaldata_debt": lambda d: add_business_days(d, 2),
         "nyfed_dealer_positions": lambda d: d + pd.Timedelta(days=8),
         "cftc_positions": lambda d: d + pd.to_timedelta(4 - d.dt.day_of_week, unit="D"),
+        "bundesbank_bund_yield": lambda d: add_business_days(d, 1),
     }
     for source, rule in rules.items():
         rows = market["source"].eq(source)
@@ -569,7 +653,7 @@ def missing_rates(features: pd.DataFrame) -> pd.DataFrame:
     """Part de valeurs manquantes (%) par variable et par famille : sur tout l'échantillon des
     modèles (depuis 2009) et sur la période de test du walk-forward (depuis 2014)."""
     sample = model_sample(features)
-    columns = [*FEATURE_COLUMNS, *TARGETS]
+    columns = [*ALL_FEATURE_COLUMNS, *TARGETS]
     parts = {}
     for label, part in {
         "2009+": sample,
@@ -583,7 +667,7 @@ def missing_rates(features: pd.DataFrame) -> pd.DataFrame:
 
 
 def _group_of(name: str) -> str:
-    for group, names in FEATURE_GROUPS.items():
+    for group, names in {**FEATURE_GROUPS, **CANDIDATE_GROUPS}.items():
         if name in names:
             return group
     return "cible"
@@ -593,7 +677,9 @@ def run_features(clean_dir: Path = CLEAN_DIR, output_dir: Path = OUTPUT_DIR) -> 
     """Construit les variables, refuse toute fuite d'information, écrit la table et le bilan."""
     auctions = pd.read_parquet(clean_dir / "auctions.parquet")
     market = pd.read_parquet(clean_dir / "market.parquet")
-    features, provenance = build_features(auctions, market)
+    events_path = clean_dir / "events.parquet"
+    events = pd.read_parquet(events_path) if events_path.exists() else None
+    features, provenance = build_features(auctions, market, events)
 
     # Deux contrôles bloquants : les dates de publication du marché respectent les délais
     # minimaux de chaque source, et aucune variable n'utilise une information publiée trop tard.

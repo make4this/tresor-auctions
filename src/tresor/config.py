@@ -19,6 +19,7 @@ CLEAN_DIR: Final[Path] = DATA_DIR / "clean"  # tables nettoyées
 OUTPUT_DIR: Final[Path] = DATA_DIR / "output"  # prédictions, métriques, contrôles
 CACHE_DIR: Final[Path] = DATA_DIR / "cache"  # téléchargements qui ne changent plus
 MODELS_DIR: Final[Path] = DATA_DIR / "models"  # modèles finaux entraînés (joblib)
+STATIC_DIR: Final[Path] = DATA_DIR / "static"  # tables fixes, relues une fois par an (calendriers)
 FIGURES_DIR: Final[Path] = PROJECT_ROOT / "reports" / "figures"
 
 # Les heures d'enchère et le statut « à venir » se raisonnent à l'heure de New York.

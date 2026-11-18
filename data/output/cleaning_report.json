@@ -1,5 +1,5 @@
 {
-  "today_new_york": "2026-11-17",
+  "today_new_york": "2026-11-18",
   "auctions": {
     "rows_in": {
       "fiscaldata": 7905,
@@ -143,14 +143,17 @@
     }
   },
   "market": {
-    "rows": 186279,
+    "rows": 200941,
     "raw_rows": {
+      "bundesbank_bund_yield": 9819,
       "cboe_vix": 9318,
       "cftc_positions": 5692,
       "fiscaldata_auctions": 7905,
       "fiscaldata_cash_balance": 16782,
       "fiscaldata_debt": 6745,
-      "fred_series": 32755,
+      "fred_release_dates": 674,
+      "fred_series": 34003,
+      "mof_jgb_yield": 6584,
       "nyfed_dealer_positions": 9790,
       "treasury_bill_rates": 6224,
       "treasury_yield_curve": 6723,
@@ -206,6 +209,13 @@
         "rows": 2021,
         "first_date": "2018-10-16",
         "last_date": "2026-11-17"
+      },
+      "bund_10y": {
+        "source": "bundesbank_bund_yield",
+        "unit": "%",
+        "rows": 6830,
+        "first_date": "2000-01-03",
+        "last_date": "2026-11-18"
       },
       "cftc_10y_am_net": {
         "source": "cftc_positions",
@@ -431,12 +441,26 @@
         "first_date": "2002-12-18",
         "last_date": "2026-11-11"
       },
+      "fred_wmtsecl1": {
+        "source": "fred_series",
+        "unit": "millions de dollars",
+        "rows": 1248,
+        "first_date": "2002-12-18",
+        "last_date": "2026-11-11"
+      },
       "fred_wtregen": {
         "source": "fred_series",
         "unit": "millions de dollars",
         "rows": 1248,
         "first_date": "2002-12-18",
         "last_date": "2026-11-11"
+      },
+      "jgb_10y": {
+        "source": "mof_jgb_yield",
+        "unit": "%",
+        "rows": 6584,
+        "first_date": "2000-01-04",
+        "last_date": "2026-11-17"
       },
       "tga_close": {
         "source": "fiscaldata_cash_balance",
@@ -559,6 +583,7 @@
       "bill_52w": 1602,
       "bill_6w": 5786,
       "bill_8w": 4203,
+      "bund_10y": 2989,
       "dealer_coupons_3to6y": 179,
       "dealer_coupons_6to11y": 179,
       "dealer_coupons_gt11y": 179,

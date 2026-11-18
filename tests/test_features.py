@@ -96,9 +96,13 @@ def market() -> pd.DataFrame:
     )
 
 
-def build(rows: list[dict[str, object]], market_frame: pd.DataFrame | None = None):
+def build(
+    rows: list[dict[str, object]],
+    market_frame: pd.DataFrame | None = None,
+    events: pd.DataFrame | None = None,
+):
     frame = market() if market_frame is None else market_frame
-    return ft.build_features(pd.DataFrame(rows), frame)
+    return ft.build_features(pd.DataFrame(rows), frame, events)
 
 
 def row_of(features: pd.DataFrame, cusip: str) -> pd.Series:
@@ -366,41 +370,162 @@ def test_sample_missing_rates_and_feature_groups() -> None:
     assert "dealer_net_z52" not in without and "rate_level" in without
 
 
+# --- Variables candidates (nouvelles données de novembre 2026) --------------------------------
+
+
+def with_candidates() -> pd.DataFrame:
+    """Le marché de test, plus les taux allemand et japonais et la garde étrangère hebdomadaire."""
+    weekly = pd.date_range("2023-10-04", "2024-07-31", freq="7D")  # mercredis
+    custody = pd.DataFrame(
+        {
+            "series": "fred_wmtsecl1",
+            "date": weekly,
+            "value": 3e6 * (1 + 0.01 * np.arange(len(weekly))),
+            "available_at": weekly + pd.Timedelta(days=1),  # publié le jeudi
+        }
+    )
+    return pd.concat(
+        [
+            market(),
+            daily("bund_10y", "2023-10-02", "2024-07-31", 2.5, lag_days=1),
+            daily("jgb_10y", "2023-10-02", "2024-07-31", 0.8),
+            custody,
+        ],
+        ignore_index=True,
+    )
+
+
+def events() -> pd.DataFrame:
+    """Décisions de la Fed, inflation et emploi, connues le 1er décembre de l'année d'avant."""
+    rows = [
+        ("fomc", "2024-01-31"),
+        ("fomc", "2024-03-20"),
+        ("fomc", "2024-05-01"),
+        ("cpi", "2024-02-13"),
+        ("cpi", "2024-03-12"),
+        ("jobs", "2024-02-02"),
+        ("jobs", "2024-03-08"),
+        ("jobs", "2025-01-10"),  # l'année suivante : pas encore publique en 2024
+    ]
+    frame = pd.DataFrame(rows, columns=["event", "date"])
+    frame["date"] = pd.to_datetime(frame["date"])
+    frame["known_at"] = pd.to_datetime((frame["date"].dt.year - 1).astype(str) + "-12-01")
+    return frame
+
+
+def test_days_to_and_since_announcements() -> None:
+    rows = [auction("FEB", "2024-02-13"), auction("MAR", "2024-03-21")]
+
+    features, provenance = build(rows, with_candidates(), events())
+
+    feb, mar = row_of(features, "FEB"), row_of(features, "MAR")
+    assert feb["days_to_cpi"] == 0  # inflation publiée le jour même de l'enchère
+    assert feb["days_to_fomc"] == 36  # 13/2 -> 20/3
+    assert feb["days_since_fomc"] == 13  # 31/1 -> 13/2
+    assert feb["days_to_jobs"] == 24  # 13/2 -> 8/3
+    assert mar["days_since_fomc"] == 1  # décision de la veille
+    assert mar["days_to_fomc"] == 41
+    assert ft.look_ahead_violations(features, provenance).sum() == 0
+
+
+def test_an_announcement_not_yet_scheduled_is_left_empty() -> None:
+    # Après le 8/3/2024, la prochaine publication de l'emploi connue est en janvier 2025, dont
+    # la date n'est publique qu'au 1er décembre 2024 : la variable reste vide en avril 2024.
+    features, _ = build([auction("APR", "2024-04-15")], with_candidates(), events())
+
+    assert math.isnan(row_of(features, "APR")["days_to_jobs"])
+    assert math.isnan(row_of(features, "APR")["days_to_cpi"])  # aucune date après mars
+
+
+def test_days_are_capped() -> None:
+    far = events().assign(date=lambda e: e["date"] + pd.DateOffset(years=1))
+    far["known_at"] = pd.Timestamp("2023-12-01")
+
+    features, _ = build([auction("FEB", "2024-02-13")], with_candidates(), far)
+
+    assert row_of(features, "FEB")["days_to_fomc"] == ft.CALENDAR_CAP_DAYS
+
+
+def test_without_events_the_calendar_is_empty() -> None:
+    features, _ = build([auction("FEB", "2024-02-13")], with_candidates())
+
+    assert row_of(features, "FEB")[list(ft.CALENDAR_FEATURES)].isna().all()
+
+
+def test_foreign_candidates_use_the_previous_publications() -> None:
+    frame = with_candidates()
+
+    features, _ = build([auction("X", "2024-04-17")], frame)  # un mercredi
+
+    x = row_of(features, "X")
+    # Taux allemand publié le lendemain : la dernière valeur connue le 17/4 est celle du 15/4.
+    expected = value_on(frame, "yield_10y", "2024-04-15") - value_on(
+        frame, "bund_10y", "2024-04-15"
+    )
+    assert x["us_bund_spread_10y"] == pytest.approx(expected)
+    # Garde étrangère : niveau du mercredi 10/4 (publié le 11/4) contre celui du 13/3.
+    expected = (
+        value_on(frame, "fred_wmtsecl1", "2024-04-10")
+        / value_on(frame, "fred_wmtsecl1", "2024-03-13")
+        - 1
+    )
+    assert x["foreign_custody_chg_4w"] == pytest.approx(expected)
+    assert x["jgb_10y_chg_20d"] == pytest.approx(0.2)  # 20 jours de hausse de 0,01
+
+
+def test_candidates_stay_out_of_the_site_model() -> None:
+    assert not set(ft.CANDIDATE_COLUMNS) & set(ft.FEATURE_COLUMNS)
+    assert set(ft.CANDIDATE_GROUPS) == {"foreign_official", "calendar", "foreign_rates"}
+
+
 # --- Test anti-fuite obligatoire ------------------------------------------------------------
 
 
 def truncated_inputs(
-    auctions: pd.DataFrame, market_frame: pd.DataFrame, cusip: str, day: pd.Timestamp
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Ce qu'on savait le matin de l'enchère : enchères passées, données publiées avant t, et
-    l'enchère du jour sans ses résultats."""
+    auctions: pd.DataFrame,
+    market_frame: pd.DataFrame,
+    cusip: str,
+    day: pd.Timestamp,
+    events: pd.DataFrame | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None]:
+    """Ce qu'on savait le matin de l'enchère : enchères passées, données publiées avant t,
+    annonces déjà au calendrier, et l'enchère du jour sans ses résultats."""
     past = auctions[auctions["auction_date"] < day]
     current = auctions[auctions["cusip"].eq(cusip) & auctions["auction_date"].eq(day)]
     current = current.assign(**{column: NAN for column in TARGET_COLUMNS}, status="upcoming")
     past_market = market_frame[market_frame["available_at"] < day]
-    return pd.concat([past, current], ignore_index=True), past_market
+    known_events = None if events is None else events[events["known_at"] < day]
+    return pd.concat([past, current], ignore_index=True), past_market, known_events
 
 
 def assert_same_features_with_truncated_data(
-    auctions: pd.DataFrame, market_frame: pd.DataFrame, sample: pd.DataFrame
+    auctions: pd.DataFrame,
+    market_frame: pd.DataFrame,
+    sample: pd.DataFrame,
+    events: pd.DataFrame | None = None,
 ) -> None:
-    full, _ = ft.build_features(auctions, market_frame)
+    """Variables du modèle et variables candidates : identiques sans le futur."""
+    columns = list(ft.ALL_FEATURE_COLUMNS)
+    full, _ = ft.build_features(auctions, market_frame, events)
     full = full.set_index(["cusip", "auction_date"])
     for cusip, day in zip(sample["cusip"], sample["auction_date"], strict=True):
-        past_auctions, past_market = truncated_inputs(auctions, market_frame, cusip, day)
-        partial, _ = ft.build_features(past_auctions, past_market)
+        past_auctions, past_market, past_events = truncated_inputs(
+            auctions, market_frame, cusip, day, events
+        )
+        partial, _ = ft.build_features(past_auctions, past_market, past_events)
         partial = partial.set_index(["cusip", "auction_date"])
-        expected = full.loc[(cusip, day), list(ft.FEATURE_COLUMNS)].astype(float)
-        actual = partial.loc[(cusip, day), list(ft.FEATURE_COLUMNS)].astype(float)
+        expected = full.loc[(cusip, day), columns].astype(float)
+        actual = partial.loc[(cusip, day), columns].astype(float)
         pd.testing.assert_series_equal(
             actual, expected, check_names=False, obj=f"{cusip} {day:%Y-%m-%d}"
         )
 
 
 def test_no_feature_uses_information_published_too_late() -> None:
-    features, provenance = build(weekly_bills() + monthly_notes())
+    features, provenance = build(weekly_bills() + monthly_notes(), with_candidates(), events())
 
     assert ft.look_ahead_violations(features, provenance).sum() == 0
+    assert set(ft.CANDIDATE_COLUMNS) <= set(provenance.columns)
 
 
 def test_features_are_identical_when_the_future_is_erased() -> None:
@@ -409,7 +534,7 @@ def test_features_are_identical_when_the_future_is_erased() -> None:
     auctions = pd.DataFrame(rows)
     sample = auctions[auctions["cusip"].isin(["B3", "B8", "B15", "B19", "N10Y2", "N10Y5", "NEXT"])]
 
-    assert_same_features_with_truncated_data(auctions, market(), sample)
+    assert_same_features_with_truncated_data(auctions, with_candidates(), sample, events())
 
 
 def test_a_leak_would_be_detected() -> None:
@@ -435,6 +560,7 @@ def test_publication_dates_earlier_than_the_source_allows_are_detected() -> None
 # --- Mêmes contrôles sur les vraies données -------------------------------------------------
 
 REAL_DATA = (CLEAN_DIR / "auctions.parquet").exists() and (CLEAN_DIR / "market.parquet").exists()
+REAL_EVENTS = CLEAN_DIR / "events.parquet"
 PERIODS = (("2009-01-01", "2013-12-31"), ("2014-01-01", "2019-12-31"), ("2020-01-01", "2026-12-31"))
 
 
@@ -442,6 +568,11 @@ PERIODS = (("2009-01-01", "2013-12-31"), ("2014-01-01", "2019-12-31"), ("2020-01
 def real_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
     auctions = pd.read_parquet(CLEAN_DIR / "auctions.parquet")
     return auctions, pd.read_parquet(CLEAN_DIR / "market.parquet")
+
+
+@pytest.fixture(scope="module")
+def real_events() -> pd.DataFrame | None:
+    return pd.read_parquet(REAL_EVENTS) if REAL_EVENTS.exists() else None
 
 
 def stratified_sample(auctions: pd.DataFrame) -> pd.DataFrame:
@@ -462,9 +593,11 @@ def stratified_sample(auctions: pd.DataFrame) -> pd.DataFrame:
 
 
 @pytest.mark.skipif(not REAL_DATA, reason="données nettoyées absentes")
-def test_real_data_has_no_look_ahead(real_inputs: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+def test_real_data_has_no_look_ahead(
+    real_inputs: tuple[pd.DataFrame, pd.DataFrame], real_events: pd.DataFrame | None
+) -> None:
     auctions, market_frame = real_inputs
-    features, provenance = ft.build_features(auctions, market_frame)
+    features, provenance = ft.build_features(auctions, market_frame, real_events)
 
     assert ft.look_ahead_violations(features, provenance).sum() == 0
     assert ft.publication_lag_violations(market_frame).sum() == 0
@@ -472,10 +605,10 @@ def test_real_data_has_no_look_ahead(real_inputs: tuple[pd.DataFrame, pd.DataFra
 
 @pytest.mark.skipif(not REAL_DATA, reason="données nettoyées absentes")
 def test_real_features_are_identical_when_the_future_is_erased(
-    real_inputs: tuple[pd.DataFrame, pd.DataFrame],
+    real_inputs: tuple[pd.DataFrame, pd.DataFrame], real_events: pd.DataFrame | None
 ) -> None:
     auctions, market_frame = real_inputs
     sample = stratified_sample(auctions)
     assert set(sample["maturity_bucket"]) >= {"2Y", "5Y", "7Y", "10Y", "20Y", "13W", "8W", "17W"}
 
-    assert_same_features_with_truncated_data(auctions, market_frame, sample)
+    assert_same_features_with_truncated_data(auctions, market_frame, sample, real_events)

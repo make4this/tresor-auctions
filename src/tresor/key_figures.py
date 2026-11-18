@@ -51,6 +51,9 @@ SOURCE_LABELS = {
     "nyfed_dealer_positions": "New York Fed : positions des dealers",
     "cftc_positions": "CFTC : positions sur les futures",
     "fred_series": "FRED : séries macroéconomiques",
+    "fred_release_dates": "FRED : dates de publication de l'inflation et de l'emploi",
+    "bundesbank_bund_yield": "Bundesbank : taux allemand à 10 ans",
+    "mof_jgb_yield": "Ministère des Finances du Japon : taux à 10 ans",
 }
 STAMP = "Données utilisées : "
 
@@ -60,6 +63,7 @@ VALIDATION = "Validation walk-forward (`--backtest`)"
 MARKET = "Lien avec le marché, notes et bonds (`--strategy`)"
 STRATEGY = "Stratégie illustrative, notes et bonds (`--strategy`)"
 LIVE = "Prévisions en direct (`--predict`)"
+NEW_DATA = "Nouvelles données testées, bid-to-cover (`--new-data`)"
 
 
 @dataclass(frozen=True)
@@ -176,7 +180,8 @@ def _data_figure(label: str, source: str, how: str, compute: Callable[[Path], st
 
 DATA_FIGURES = (
     _data_figure(
-        "Tables brutes collectées (Trésor américain, Fed de New York, FRED, CFTC, CBOE)",
+        "Tables brutes collectées (Trésor américain, Fed de New York, FRED, CFTC, CBOE, Bundesbank,"
+        " ministère des Finances du Japon)",
         "output/data_quality.json",
         "nombre d'entrées de sources",
         lambda d: _count(len(_json(d / "output", "data_quality.json")["sources"])),
@@ -472,6 +477,71 @@ VALIDATION_FIGURES = (
 )
 
 
+# --- Nouvelles données (novembre 2026) ------------------------------------------------------
+
+NEW_DATA_FILE = "output/new_data_test.csv"
+NEW_DATA_GROUPS = {
+    "foreign_official": "dette américaine gardée pour les banques centrales étrangères",
+    "calendar": "calendrier des annonces (Fed, inflation, emploi)",
+    "foreign_rates": "taux allemand et japonais à 10 ans",
+    "all_new": "les trois groupes ensemble",
+}
+
+
+def _new_data_gain(group: str, family: str, period: str) -> KeyFigure:
+    conditions = {
+        "period": period,
+        "family": family,
+        "target": "btc",
+        "model": REFERENCE,
+        "feature_set": f"toutes+{group}",
+    }
+
+    def compute(data: Path) -> str:
+        row = _row(pd.read_csv(data / NEW_DATA_FILE), **conditions)
+        # Deux décimales : un écart de −0,02 point ne doit pas s'afficher « +0,0 ».
+        low = fr(100 * row["gain_ci_low"], 2, sign=True)
+        high = fr(100 * row["gain_ci_high"], 2, sign=True)
+        return f"{fr(100 * row['gain'], 2, sign=True)} point [{low} ; {high}]"
+
+    return KeyFigure(
+        NEW_DATA,
+        f"Apport au R² : {NEW_DATA_GROUPS[group]}, {FAMILIES[family]}, {period}",
+        NEW_DATA_FILE,
+        f"{_conditions(**conditions)} ; gain [gain_ci_low ; gain_ci_high], en points de"
+        " pourcentage",
+        compute,
+    )
+
+
+def _new_data_kept(data: Path) -> str:
+    table = pd.read_csv(data / NEW_DATA_FILE)
+    part = table[
+        (table["period"] == "2014-2026")
+        & (table["model"] == REFERENCE)
+        & (table["feature_set"] != "toutes")
+    ]
+    return f"{_count((part['gain_ci_low'] > 0).sum())} sur {_count(len(part))}"
+
+
+NEW_DATA_FIGURES = (
+    *(
+        _new_data_gain(group, family, "2014-2026")
+        for group in NEW_DATA_GROUPS
+        for family in FAMILIES
+    ),
+    _new_data_gain("all_new", "nominal_coupon", EVALUATION),
+    KeyFigure(
+        NEW_DATA,
+        "Couples groupe-famille dont l'apport est entièrement positif (règle d'entrée dans le"
+        " modèle du site), moyenne des 5, 2014-2026",
+        NEW_DATA_FILE,
+        f"period=2014-2026, model={REFERENCE}, feature_set≠toutes ; gain_ci_low > 0",
+        _new_data_kept,
+    ),
+)
+
+
 # --- Marché et stratégie ---------------------------------------------------------------------
 
 QUINTILES = "output/quintiles.csv"
@@ -694,6 +764,7 @@ KEY_FIGURES: tuple[KeyFigure, ...] = (
     *DATA_FIGURES,
     *(_delay_figure(label) for label in DELAY_LABELS),
     *VALIDATION_FIGURES,
+    *NEW_DATA_FIGURES,
     *MARKET_FIGURES,
     *STRATEGY_FIGURES,
     *LIVE_FIGURES,
@@ -730,7 +801,7 @@ qui produit ses fichiers.
 
 Les chiffres marqués « du jour » changent chaque soir avec le passage automatique. Les chiffres \
 marqués « figé » ne changent que si l'on relance \
-`python -m tresor.pipeline --backtest --strategy`.
+`python -m tresor.pipeline --backtest --strategy` (ou `--new-data` pour les nouvelles données).
 
 {stamp}
 

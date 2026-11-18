@@ -1487,3 +1487,29 @@ L'aide « How to read » explique ces réglages.
 **Ce que le LLM a fait :** un logo en SVG, dessiné dans le code et affiché dans le bandeau du site à côté du nom. Une première version (un « C » et une courbe orange) ne me plaisait pas ; la version gardée reprend les couleurs du site : un carré bleu (#2563EB) avec deux barres pleines pour les enchères passées et une barre en pointillés pour la prévision. Le nom reste dans la police du site (Inter) : « Cover » en blanc, « Cast » en bleu.
 
 **Résultat vérifié :** suite de tests complète et `ruff` propres ; le bandeau vérifié dans le navigateur.
+
+## Nouvelles données, testées avec et sans (18 novembre 2026)
+
+**Ma demande :** après l'oral, ajouter de nouvelles données et les tester.
+
+**Ce que le LLM a vérifié d'abord :** trois des idées proposées pendant la préparation de l'oral (indice dollar, bilan de la Fed, trésorerie du Trésor) étaient déjà dans le modèle. Les trois vraies nouveautés :
+
+- **Banques centrales étrangères** : la dette américaine que la Fed garde pour elles (FRED, série WMTSECL1, niveau du mercredi publié le jeudi, dates réelles de publication par ALFRED depuis 2013).
+- **Calendrier des annonces** : jours jusqu'à la prochaine décision de la Fed, jusqu'à la prochaine publication de l'inflation et de l'emploi, et depuis la dernière décision de la Fed. Les dates de l'inflation et de l'emploi viennent de FRED. Celles de la Fed sont lues une fois sur federalreserve.gov et gardées dans `data/static/fomc_meetings.csv`. Seules les réunions prévues au calendrier comptent : les réunions d'urgence, conférences téléphoniques et votes écrits ne pouvaient pas être connus à l'avance.
+- **Taux étrangers** : taux allemand à 10 ans (Bundesbank, compté publié le jour ouvré suivant, par prudence) et japonais (ministère des Finances du Japon), plus l'écart entre les taux américain et allemand.
+
+**Règle point-in-time des dates d'annonce :** une date est comptée connue à partir du 1er décembre de l'année d'avant (la Fed et le BLS publient leur calendrier annuel avant). Limite assumée : une publication déplacée en cours d'année (fermeture de l'administration en octobre 2013 et à l'automne 2025) garde sa date réelle.
+
+**Le test :** les 9 nouvelles variables sont calculées chaque soir mais restent hors du modèle du site. Le walk-forward du site est relancé à l'identique sur le bid-to-cover (5 modèles, trimestres depuis 2014), avec le modèle du site seul, puis avec chaque groupe en plus, puis les trois ensemble. Règle fixée avant de voir les résultats : un groupe n'entre dans le modèle du site que si tout l'intervalle à 90 % de son apport au R² est au-dessus de zéro sur 2014-2026.
+
+**Résultat :** aucun groupe ne remplit la règle (0 sur 8). Les banques centrales étrangères et le calendrier n'apportent rien. Les taux étrangers et les trois groupes ensemble aident un peu pour les notes et bonds : +0,60 point [−0,02 ; +1,30] sur 2014-2026, et +1,32 point [+0,44 ; +2,31] sur 2020-2026 seulement. Choisir d'après la seule période récente serait choisir après avoir vu le test : le modèle du site ne change donc pas, et ces variables restent suivies.
+
+**Erreurs trouvées et corrigées :**
+
+- Le calendrier de la Fed affiche 2 réunions les 15 et 16 septembre 2003 : une seule est gardée, le jour de la décision. Un contrôle exige 8 réunions par an.
+- La page de la Fed écrit tantôt « April/May », tantôt « Apr/May » : les deux sont lus.
+- Le ministère japonais écrit « - » pour une valeur absente : ajouté aux marques de valeur manquante (trouvé par un test).
+- Les marchés japonais ont fermé 6 jours ouvrés pendant la « Golden Week » de 2019 : le contrôle des trous tolère ce cas pour cette série.
+- Le test a d'abord tourné très lentement : lancé en arrière-plan, macOS le cantonnait aux cœurs économes, et une session RStudio occupait 3 cœurs. La priorité normale a été rendue aux processus du test, qui a pris 2 h 07.
+
+**Affichage :** un panneau « New data tested » sur la page Methodology, les nouvelles colonnes dans le jeu de données téléchargeable (page Dataset) et les nouvelles sources dans la page Data quality. Les chiffres sont dans `reports/chiffres_cles.md`, partie « Nouvelles données testées ».

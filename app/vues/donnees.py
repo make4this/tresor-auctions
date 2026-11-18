@@ -38,9 +38,10 @@ DATASETS = [
         "model_dataset_point_in_time.csv",
         ad.MODEL_ID_COLUMNS,
         "One row per bill, note and bond auction since 2000: the predictors used by the models,"
-        " each built only from values published strictly before the auction day, and the 4"
-        " measures to forecast. The models learn from 2009 on; earlier rows feed the"
-        " last-auction averages.",
+        " the candidate predictors tested in November 2026 (not used by the site's model), each"
+        " built only from values published strictly before the auction day, and the 4 measures"
+        " to forecast. The models learn from 2009 on; earlier rows feed the last-auction"
+        " averages.",
     ),
     (
         "forecasts",
