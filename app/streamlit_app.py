@@ -24,7 +24,7 @@ from tresor.app_ui import page_style, top_bar  # noqa: E402
 
 st.set_page_config(page_title="CoverCast · US Treasury auctions", page_icon="📈", layout="wide")
 
-# Onglets en haut de page, comme sur un site : l'accueil d'abord, puis les pages détaillées.
+# Pages du site, dans l'ordre des onglets : l'accueil d'abord, puis les pages détaillées.
 PAGES = [
     st.Page("vues/accueil.py", title="Home", default=True),
     st.Page("vues/prochaines.py", title="Upcoming auctions"),
@@ -36,7 +36,8 @@ PAGES = [
     st.Page("vues/methodologie.py", title="Methodology"),
 ]
 
-page = st.navigation(PAGES, position="top")
+# Les onglets sont dessinés dans le bandeau du site (app_ui.top_bar), pas par Streamlit.
+page = st.navigation(PAGES, position="hidden")
 page_style()
-top_bar()
+top_bar(PAGES, page)
 page.run()

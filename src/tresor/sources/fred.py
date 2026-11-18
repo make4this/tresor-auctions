@@ -89,8 +89,13 @@ SERIES = (
 
 # Publications dont la date est fixée à l'avance (calendrier annuel du BLS) : inflation (CPI)
 # et emploi (Employment Situation). FRED garde la date réelle de chaque publication passée et
-# les dates prévues à venir.
+# les dates prévues à venir, mais aussi quelques dates qui ne sont pas des publications du mois
+# (révision des coefficients saisonniers du CPI en février, par exemple).
 RELEASES = {"cpi": 10, "jobs": 50}
+# L'indice des prix non corrigé des variations saisonnières n'est jamais révisé : chacune de ses
+# versions ALFRED est une vraie publication du CPI. Il sert à écarter les dates parasites.
+CPI_CHECK_SERIES = "CPIAUCNS"
+CPI_VINTAGE = "cpi_vintage"
 RELEASE_COLUMNS = ("release", "date")
 
 # Délai minimal par série du marché nettoyé (« fred_walcl »...), réutilisé par le contrôle
@@ -216,6 +221,12 @@ def fetch_release_dates(client: httpx.Client) -> pd.DataFrame:
         if len(dates) < payload["count"]:
             raise RawDataError(f"dates de publication {name} : liste tronquée")
         frames.append(pd.DataFrame({"release": name, "date": dates}, dtype=str))
+    vintages = _get(
+        client, "series/vintagedates", api_key, series_id=CPI_CHECK_SERIES, limit=10_000
+    )
+    if len(vintages["vintage_dates"]) < vintages["count"]:
+        raise RawDataError(f"{CPI_CHECK_SERIES} : liste des versions tronquée")
+    frames.append(pd.DataFrame({"release": CPI_VINTAGE, "date": vintages["vintage_dates"]}))
     frame = pd.concat(frames, ignore_index=True)
     return frame[frame["date"] >= HISTORY_START.isoformat()].reset_index(drop=True)
 

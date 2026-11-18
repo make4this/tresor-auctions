@@ -52,7 +52,7 @@ days_since_fomc,calendar,0.0,0.0,0.0,0.0
 days_to_cpi,calendar,0.0,0.0,0.0,0.0
 days_to_jobs,calendar,0.0,0.0,0.0,0.0
 bund_10y_chg_20d,foreign_rates,0.0,0.0,0.0,0.0
-jgb_10y_chg_20d,foreign_rates,0.0,0.1,0.0,0.1
+jgb_10y_chg_20d,foreign_rates,0.1,0.1,0.1,0.1
 us_bund_spread_10y,foreign_rates,0.0,0.0,0.0,0.0
 btc,cible,0.0,0.0,0.0,0.0
 dealer_share,cible,0.0,0.0,0.0,0.0

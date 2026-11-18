@@ -622,6 +622,9 @@ def minimum_publication_dates(market: pd.DataFrame) -> pd.Series:
         "nyfed_dealer_positions": lambda d: d + pd.Timedelta(days=8),
         "cftc_positions": lambda d: d + pd.to_timedelta(4 - d.dt.day_of_week, unit="D"),
         "bundesbank_bund_yield": lambda d: add_business_days(d, 1),
+        # Publié à 9 h 30 à Tokyo le jour ouvré japonais suivant : au plus tôt le soir même
+        # à New York, jamais avant.
+        "mof_jgb_yield": lambda d: d,
     }
     for source, rule in rules.items():
         rows = market["source"].eq(source)

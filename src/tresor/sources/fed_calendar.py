@@ -8,7 +8,13 @@ année depuis 2000) ; on relance la commande une fois par an, quand la Fed publi
 Seules les réunions prévues au calendrier comptent. Les réunions d'urgence (« unscheduled »),
 les conférences téléphoniques et les votes par écrit (« notation vote ») ne pouvaient pas être
 connus à l'avance : les garder ferait entrer le futur dans les variables. Une réunion prévue
-puis annulée (mars 2020) reste, puisqu'elle figurait au calendrier la veille.
+puis annulée (mars 2020) reste, puisqu'elle figurait au calendrier la veille. Une réunion de
+stratégie sans décision de politique monétaire (« Monetary Policy Strategy Meeting », octobre
+2027) n'est pas une décision et ne compte pas.
+
+Limite connue, sans effet : le 16 mai 2012, la Fed a décalé d'un jour trois réunions de 2012
+(1er août, 13 septembre, 12 décembre). Avant cette date, la prochaine réunion était toujours
+celle du 20 juin au plus tard : aucune enchère n'a utilisé les dates d'avant le décalage.
 """
 
 from __future__ import annotations
@@ -34,32 +40,41 @@ HISTORICAL_URL = "https://www.federalreserve.gov/monetarypolicy/fomchistorical{y
 CALENDAR_FILE = STATIC_DIR / "fomc_meetings.csv"
 COLUMNS = ("decision_date", "first_day", "label")
 
-# « January 30-31 », « April/May 30-1 », « March 17-18* » : mois (un ou deux), jour(s).
-WHEN = re.compile(r"^(?P<months>[A-Za-z]+(?:/[A-Za-z]+)?)\s+(?P<days>\d{1,2}(?:-\d{1,2})?)")
+# « January 30-31 », « April/May 30-1 », « July 31-August 1 », « March 17-18* ».
+WHEN = re.compile(
+    r"^(?P<first_month>[A-Za-z]+)(?:/(?P<second_month>[A-Za-z]+))?\s+(?P<first_day>\d{1,2})"
+    r"(?:-(?:(?P<end_month>[A-Za-z]+)\s+)?(?P<last_day>\d{1,2}))?"
+)
 NOT_SCHEDULED = ("unscheduled", "conference call", "notation vote")
+STRATEGY = "monetary policy strategy meeting"  # réunion sans décision
+EXPECTED_PER_YEAR = 8  # réunions prévues par an depuis 1981, réunions de stratégie comprises
 
 
-def _dates(months: str, days: str, year: int) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """Premier jour et jour de la décision (le dernier jour de la réunion)."""
+def _day(month: str, number: str, year: int) -> pd.Timestamp:
     # « April/May » ou « Apr/May » selon les années : les trois premières lettres suffisent.
-    month_names, day_numbers = months.split("/"), days.split("-")
-
-    def day(month: str, number: str) -> pd.Timestamp:
-        return pd.to_datetime(f"{month[:3].title()} {number} {year}", format="%b %d %Y")
-
-    return day(month_names[0], day_numbers[0]), day(month_names[-1], day_numbers[-1])
+    return pd.to_datetime(f"{month[:3].title()} {number} {year}", format="%b %d %Y")
 
 
 def _meeting(text: str, year: int) -> dict[str, object] | None:
-    """Une réunion prévue au calendrier, ou None (réunion d'urgence, appel, vote écrit)."""
+    """Une réunion prévue au calendrier, ou None (réunion d'urgence, appel, vote écrit).
+
+    `decision` vaut False pour une réunion de stratégie, qui ne donne pas de décision.
+    """
     label = " ".join(html.unescape(text).split())
     if any(word in label.lower() for word in NOT_SCHEDULED):
         return None
     match = WHEN.match(label)
     if match is None:
         return None
-    first, last = _dates(match["months"], match["days"], year)
-    return {"decision_date": last, "first_day": first, "label": label}
+    end_month = match["end_month"] or match["second_month"] or match["first_month"]
+    first = _day(match["first_month"], match["first_day"], year)
+    last = _day(end_month, match["last_day"] or match["first_day"], year)
+    return {
+        "decision_date": last,
+        "first_day": first,
+        "label": label,
+        "decision": STRATEGY not in label.lower(),
+    }
 
 
 def parse_historical(page: str, year: int) -> pd.DataFrame:
@@ -71,25 +86,30 @@ def parse_historical(page: str, year: int) -> pd.DataFrame:
         meeting = _meeting(title.split(" - ")[0], year)
         if meeting is not None:
             meetings.append(meeting)
-    return pd.DataFrame(meetings, columns=list(COLUMNS))
+    return pd.DataFrame(meetings, columns=[*COLUMNS, "decision"])
 
 
 def parse_current(page: str) -> pd.DataFrame:
-    """Page des cinq dernières années et des suivantes : une section « 2026 FOMC Meetings »."""
+    """Page des cinq dernières années et des suivantes : une section « 2026 FOMC Meetings »,
+    puis un bloc par réunion (mois, jours et, pour une réunion de stratégie, sa mention)."""
     headers = list(re.finditer(r"(\d{4}) FOMC Meetings", page))
     meetings = []
     for index, header in enumerate(headers):
         end = headers[index + 1].start() if index + 1 < len(headers) else len(page)
         section = page[header.end() : end]
-        months = re.findall(r"fomc-meeting__month[^>]*>\s*<strong>([^<]+)</strong>", section)
-        days = re.findall(r"fomc-meeting__date[^>]*>([^<]+)<", section)
-        if len(months) != len(days):
-            raise RawDataError(f"calendrier de la Fed {header[1]} : mois et jours ne collent pas")
-        for month, day in zip(months, days, strict=True):
-            meeting = _meeting(f"{month.strip()} {day.strip()}", int(header[1]))
+        blocks = re.split(r'<div class="[^"]*\bfomc-meeting"', section)[1:]
+        for block in blocks:
+            month = re.search(r"fomc-meeting__month[^>]*>\s*<strong>([^<]+)</strong>", block)
+            days = re.search(r"fomc-meeting__date[^>]*>([^<]+)<", block)
+            if month is None or days is None:
+                raise RawDataError(f"calendrier de la Fed {header[1]} : réunion illisible")
+            text = f"{month[1].strip()} {days[1].strip()}"
+            if STRATEGY in html.unescape(block).lower():
+                text += " (Monetary Policy Strategy Meeting)"
+            meeting = _meeting(text, int(header[1]))
             if meeting is not None:
                 meetings.append(meeting)
-    return pd.DataFrame(meetings, columns=list(COLUMNS))
+    return pd.DataFrame(meetings, columns=[*COLUMNS, "decision"])
 
 
 def build_calendar(client: httpx.Client) -> pd.DataFrame:
@@ -110,10 +130,12 @@ def build_calendar(client: httpx.Client) -> pd.DataFrame:
     calendar = calendar[~((following - calendar["decision_date"]).dt.days < 4)]
     by_year = calendar["decision_date"].dt.year.value_counts()
     # La Fed tient 8 réunions prévues par an depuis 1981 : un autre nombre trahit une page mal lue.
-    odd = by_year[by_year != 8]
+    odd = by_year[by_year != EXPECTED_PER_YEAR]
     if not odd.empty:
         raise RawDataError(f"calendrier de la Fed : nombre de réunions inattendu {odd.to_dict()}")
-    return calendar.reset_index(drop=True)
+    # Seules les réunions qui donnent une décision entrent dans le calendrier.
+    calendar = calendar[calendar["decision"].astype(bool)]
+    return calendar[list(COLUMNS)].reset_index(drop=True)
 
 
 def read_calendar(path: Path = CALENDAR_FILE) -> pd.DataFrame:

@@ -159,7 +159,7 @@ def test_the_expected_demand_chart_can_be_reshaped(today: pd.Timestamp) -> None:
     assert [t["type"] for t in traces()] == ["bar"]  # par défaut : l'écart en barres
     app.segmented_control(key="hero_view").set_value("levels").run()
     # Valeurs côte à côte : des barres cacheraient l'écart, la vue passe en points reliés.
-    assert [t.get("name") for t in traces()] == [None, "Last-3 average", "Forecast"]
+    assert [t.get("name") for t in traces()] == [None, "Usual (last-3 average)", "Forecast"]
     assert all(t["type"] == "scatter" for t in traces())
     app.segmented_control(key="hero_style").set_value("line").run()
     assert all(t["mode"] == "lines+markers" for t in traces())
@@ -293,7 +293,7 @@ def test_the_live_page_shows_realised_results(monkeypatch: pytest.MonkeyPatch) -
         ad.closer(e * 100, b * 100, 1)
         for e, b in zip(realised["error"], realised["bench_error"], strict=True)
     ]
-    labels = {ad.FORECAST: "Forecast", ad.LAST3: "Last 3", ad.TIE: "Tie"}
+    labels = {ad.FORECAST: "Forecast", ad.LAST3: "Usual", ad.TIE: "Tie"}
     assert list(table["Closer"]) == [labels[w] for w in winners[::-1]]
     wins = en(winners.count(ad.FORECAST), 0)
     assert f"last-3 average for {wins} of {en(len(winners), 0)} auctions" in home_html(app)
@@ -563,3 +563,22 @@ def test_the_method_page_quotes_the_files() -> None:
     text = " ".join(m.value for m in app.markdown)
     assert f"{en(coupons * 100, 1, sign=True)}% R²" in text
     assert "LLM" not in text and not app.caption  # ni mention des LLM ni versions sur le site
+
+
+def test_the_site_header_links_every_page_and_marks_the_current_one() -> None:
+    app = main().run()
+
+    links = [link.label for link in app.get("page_link")]
+    assert links[:8] == [
+        "Home",
+        "Upcoming auctions",
+        "Live track record",
+        "Model performance",
+        "History",
+        "Dataset",
+        "Data quality",
+        "Methodology",
+    ]
+    html = home_html(app)
+    assert "Every weekday evening, CoverCast forecasts" in html  # phrase d'accueil
+    assert "Is the signal reliable?" in html

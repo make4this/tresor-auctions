@@ -59,7 +59,7 @@ def shown(value: float, sign: bool = False) -> str:
 
 CLOSER_TAGS = {
     ad.FORECAST: '<span class="tr-tag tr-strong">Forecast</span>',
-    ad.LAST3: '<span class="tr-tag tr-normal">Last 3</span>',
+    ad.LAST3: '<span class="tr-tag tr-normal">Usual</span>',
     ad.TIE: '<span class="tr-tag tr-normal">Tie</span>',
 }
 
@@ -163,10 +163,10 @@ else:
                     "Date",
                     "Auction",
                     "Forecast",
-                    "Last 3",
+                    "Usual",
                     "Actual",
                     "Forecast error",
-                    "Last-3 error",
+                    "Usual error",
                     "Closer",
                 ],
                 rows,
@@ -202,7 +202,7 @@ if not waiting.empty:
         ui.panel(
             "Waiting for a result",
             ui.table(
-                ["Date", "Auction", "Forecast", "Last 3", "Status", "Forecast made on"],
+                ["Date", "Auction", "Forecast", "Usual", "Status", "Forecast made on"],
                 rows,
                 right={2, 3},
                 scroll=True,

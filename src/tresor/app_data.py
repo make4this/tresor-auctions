@@ -543,14 +543,16 @@ NEW_DATA_GROUPS = {
 HELPS, HURTS, NO_EFFECT = "helps", "hurts", "no clear effect"
 
 
-def new_data_rows(table: pd.DataFrame, period: str = "2014-2026") -> pd.DataFrame:
-    """Gain de R² (contre mean3) de chaque groupe sur le modèle du site : moyenne des 5,
-    bid-to-cover. Verdict : aide si tout l'intervalle à 90 % est au-dessus de 0, nuit s'il est
-    en dessous, sinon pas d'effet net."""
+def new_data_rows(
+    table: pd.DataFrame, period: str = "2014-2026", target: str = "btc"
+) -> pd.DataFrame:
+    """Gain de R² (contre mean3) de chaque groupe sur le modèle du site, moyenne des 5, pour une
+    cible. Verdict : aide si tout l'intervalle à 90 % est au-dessus de 0, nuit s'il est en
+    dessous, sinon pas d'effet net."""
     data = table[
         (table["period"] == period)
         & (table["model"] == md.ENSEMBLE)
-        & (table["target"] == "btc")
+        & (table["target"] == target)
         & (table["feature_set"] != "toutes")
     ].copy()
     data["group"] = data["feature_set"].str.removeprefix("toutes+")

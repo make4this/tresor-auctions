@@ -63,7 +63,7 @@ VALIDATION = "Validation walk-forward (`--backtest`)"
 MARKET = "Lien avec le marché, notes et bonds (`--strategy`)"
 STRATEGY = "Stratégie illustrative, notes et bonds (`--strategy`)"
 LIVE = "Prévisions en direct (`--predict`)"
-NEW_DATA = "Nouvelles données testées, bid-to-cover (`--new-data`)"
+NEW_DATA = "Nouvelles données testées (`--new-data`)"
 
 
 @dataclass(frozen=True)
@@ -488,11 +488,11 @@ NEW_DATA_GROUPS = {
 }
 
 
-def _new_data_gain(group: str, family: str, period: str) -> KeyFigure:
+def _new_data_gain(group: str, family: str, period: str, target: str = "btc") -> KeyFigure:
     conditions = {
         "period": period,
         "family": family,
-        "target": "btc",
+        "target": target,
         "model": REFERENCE,
         "feature_set": f"toutes+{group}",
     }
@@ -506,7 +506,7 @@ def _new_data_gain(group: str, family: str, period: str) -> KeyFigure:
 
     return KeyFigure(
         NEW_DATA,
-        f"Apport au R² : {NEW_DATA_GROUPS[group]}, {FAMILIES[family]}, {period}",
+        f"Apport au R² : {NEW_DATA_GROUPS[group]}, {FAMILIES[family]}, {TARGETS[target]}, {period}",
         NEW_DATA_FILE,
         f"{_conditions(**conditions)} ; gain [gain_ci_low ; gain_ci_high], en points de"
         " pourcentage",
@@ -514,14 +514,35 @@ def _new_data_gain(group: str, family: str, period: str) -> KeyFigure:
     )
 
 
-def _new_data_kept(data: Path) -> str:
-    table = pd.read_csv(data / NEW_DATA_FILE)
-    part = table[
-        (table["period"] == "2014-2026")
-        & (table["model"] == REFERENCE)
-        & (table["feature_set"] != "toutes")
-    ]
-    return f"{_count((part['gain_ci_low'] > 0).sum())} sur {_count(len(part))}"
+def _new_data_count(target: str, worse: bool) -> KeyFigure:
+    """Couples groupe-famille dont tout l'intervalle est positif (règle d'entrée dans le modèle
+    du site) ou, avec `worse`, entièrement négatif (la donnée dégrade la prévision)."""
+
+    def compute(data: Path) -> str:
+        table = pd.read_csv(data / NEW_DATA_FILE)
+        part = table[
+            (table["period"] == "2014-2026")
+            & (table["target"] == target)
+            & (table["model"] == REFERENCE)
+            & (table["feature_set"] != "toutes")
+        ]
+        hits = (part["gain_ci_high"] < 0) if worse else (part["gain_ci_low"] > 0)
+        return f"{_count(hits.sum())} sur {_count(len(part))}"
+
+    kind = (
+        "entièrement négatif (la donnée dégrade)"
+        if worse
+        else ("entièrement positif (règle d'entrée dans le modèle du site)")
+    )
+    return KeyFigure(
+        NEW_DATA,
+        f"Couples groupe-famille dont l'apport est {kind}, {TARGETS[target]}, moyenne des 5,"
+        " 2014-2026",
+        NEW_DATA_FILE,
+        f"period=2014-2026, target={target}, model={REFERENCE}, feature_set≠toutes ;"
+        f" {'gain_ci_high < 0' if worse else 'gain_ci_low > 0'}",
+        compute,
+    )
 
 
 NEW_DATA_FIGURES = (
@@ -531,14 +552,7 @@ NEW_DATA_FIGURES = (
         for family in FAMILIES
     ),
     _new_data_gain("all_new", "nominal_coupon", EVALUATION),
-    KeyFigure(
-        NEW_DATA,
-        "Couples groupe-famille dont l'apport est entièrement positif (règle d'entrée dans le"
-        " modèle du site), moyenne des 5, 2014-2026",
-        NEW_DATA_FILE,
-        f"period=2014-2026, model={REFERENCE}, feature_set≠toutes ; gain_ci_low > 0",
-        _new_data_kept,
-    ),
+    *(_new_data_count(target, worse) for target in TARGETS for worse in (False, True)),
 )
 
 

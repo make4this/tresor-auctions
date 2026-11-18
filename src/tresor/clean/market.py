@@ -297,11 +297,31 @@ def bund_long(raw: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def jgb_available_at(dates: pd.Series) -> pd.Series:
+    """Le ministère publie le taux du jour d à 9 h 30 (Tokyo) le jour ouvré japonais suivant,
+    soit la veille au soir à New York : available_at = jour ouvré japonais suivant - 1 jour.
+
+    Le jour ouvré japonais suivant est la ligne suivante du fichier (le ministère ne publie que
+    les jours de marché à Tokyo) ; pour la dernière ligne, le jour de semaine suivant.
+    Source : https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/qa.htm
+    """
+    ordered = dates.sort_values()
+    following = ordered.shift(-1)
+    weekday_after = pd.Series(
+        np.busday_offset(ordered.to_numpy(dtype="datetime64[D]"), 1, roll="forward"),
+        index=ordered.index,
+    ).astype("datetime64[ns]")
+    following = following.fillna(weekday_after)
+    return (following - pd.Timedelta(days=1)).reindex(dates.index)
+
+
 def jgb_long(raw: pd.DataFrame) -> pd.DataFrame:
-    """Taux japonais à 10 ans. Tokyo ferme avant l'ouverture de New York : available_at = date,
-    comme les clôtures américaines (la variable n'utilise de toute façon que la veille)."""
+    """Taux japonais à 10 ans, connu le soir (New York) qui précède le jour ouvré japonais
+    suivant (voir jgb_available_at)."""
     dates = pd.to_datetime(raw["date"], format=ISO_DATE_FORMAT)
-    return _series("mof_jgb_yield", "jgb_10y", dates, _numbers(raw["yield_10y"]), dates)
+    return _series(
+        "mof_jgb_yield", "jgb_10y", dates, _numbers(raw["yield_10y"]), jgb_available_at(dates)
+    )
 
 
 # Sources ajoutées en novembre 2026 : facultatives, pour qu'une ancienne collecte se nettoie encore.

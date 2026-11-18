@@ -47,7 +47,32 @@ with tabs[0]:
         & (metrics["period"] == period)
         & (metrics["feature_set"] == "toutes")
     ]
+    # L'essentiel d'abord : la prévision du site (moyenne des 5) sur chaque mesure, en clair.
+    words = {"better": "beats the simple rule", "worse": "worse than the simple rule",
+             "unclear": "no clear difference"}  # fmt: skip
+    site = data[data["model"] == "moyenne_5"].set_index("target")
+    tiles = [
+        (
+            f'<span class="tr-{ad.verdict(site.loc[t, "r2_ci_low"], site.loc[t, "r2_ci_high"])}'
+            f'-text">{en(site.loc[t, "r2_vs_mean3"] * 100, 0, sign=True)}%</span>',
+            f"<b>{escape(label)}</b>: "
+            + words[ad.verdict(site.loc[t, "r2_ci_low"], site.loc[t, "r2_ci_high"])],
+        )
+        for t, label in ad.TARGET_LABELS.items()
+        if t in site.index
+    ]
+    st.markdown(
+        ui.panel(
+            "In short: the site's forecast (5-model average)",
+            ui.stats(tiles),
+            f"Out of sample, {period}. +10% = squared errors 10% smaller than the simple rule"
+            " (average of the last 3 auctions). Every model in detail below.",
+        ),
+        unsafe_allow_html=True,
+    )
+    # La moyenne des 5 en tête du tableau, puis les modèles seuls et les références.
     order = [name for name in ad.MODEL_LABELS if name in set(data["model"])]
+    order = sorted(order, key=lambda name: name != "moyenne_5")
     rows = []
     for model in order:
         part = data[data["model"] == model].set_index("target")

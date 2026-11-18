@@ -1513,3 +1513,34 @@ L'aide « How to read » explique ces réglages.
 - Le test a d'abord tourné très lentement : lancé en arrière-plan, macOS le cantonnait aux cœurs économes, et une session RStudio occupait 3 cœurs. La priorité normale a été rendue aux processus du test, qui a pris 2 h 07.
 
 **Affichage :** un panneau « New data tested » sur la page Methodology, les nouvelles colonnes dans le jeu de données téléchargeable (page Dataset) et les nouvelles sources dans la page Data quality. Les chiffres sont dans `reports/chiffres_cles.md`, partie « Nouvelles données testées ».
+
+## Relecture par 5 agents et fuites corrigées (18 novembre 2026)
+
+**Ma demande :** mettre 5 agents pour vérifier le travail sur les nouvelles données et trouver d'autres variables intéressantes.
+
+**Ce que le LLM a fait :** 5 agents en parallèle, en lecture seule, chacun avec un angle : relecture du code à la recherche de fuites, variables calculables avec les données déjà collectées, nouvelles sources gratuites, littérature académique, méthode statistique du test. Le LLM a vérifié lui-même leurs affirmations principales avant de s'en servir.
+
+**Fuites trouvées par la relecture, confirmées et corrigées :**
+
+- **Taux japonais :** le ministère publie le taux du jour à 9 h 30 (Tokyo) le jour ouvré japonais *suivant* (page Q&A du ministère). Le code le comptait connu le jour même : les jours fériés japonais, une enchère utilisait un taux pas encore publié (environ 360 lignes). Correction : connu la veille au soir (New York) du jour ouvré japonais suivant.
+- **Dates de l'inflation et de l'emploi :** FRED donne la date *réelle* des publications déplacées par les fermetures de l'administration (2013, 2025, 2026), connue seulement au dernier moment. Correction : le calendrier tel qu'il était publié à l'avance. Les dates prévues à l'origine viennent des communiqués archivés du BLS et de sa page des dates révisées (`data/static/release_reschedules.csv`, une source par ligne), et les publications annulées reprennent leur date prévue.
+- **Dates parasites :** FRED liste aussi des dates qui ne sont pas des publications du mois (révision des coefficients saisonniers du CPI en février, annonces sur l'emploi). Correction : pour l'inflation, seules les dates où l'indice non corrigé (CPIAUCNS, jamais révisé) reçoit une nouvelle version ; pour l'emploi, la première date du mois. Résultat vérifié : exactement 12 publications par an pour chacune.
+- **Calendrier de la Fed :** « July 31-August 1 » (2012) était lu comme le 31 juillet ; c'est le 1er août. La réunion d'octobre 2027 est une réunion de stratégie, sans décision : elle ne compte plus.
+
+**Le test avec et sans a été relancé** sur les 4 cibles avec les variables corrigées : les premiers chiffres du bid-to-cover avaient été calculés avec ces fuites (qui avantageaient les nouvelles variables).
+
+## Expérience utilisateur du site (18 novembre 2026)
+
+**Ma demande :** améliorer l'expérience utilisateur du site, « pas folle ».
+
+**Diagnostic du LLM, en parcourant chaque page comme un visiteur :** l'en-tête était en deux morceaux (onglets de Streamlit au-dessus, bandeau CoverCast en dessous) ; rien n'expliquait à l'arrivée ce que fait le site ni comment lire « Weaker » ; le graphique de l'accueil avait 13 boutons au-dessus de lui ; les tableaux parlaient en jargon (« Last 3 », « Gap ») ; la page Model performance montrait 11 modèles × 4 mesures sans dire l'essentiel ; sur téléphone, le menu occupait tout le premier écran.
+
+**Ce que le LLM a changé :**
+
+- **Un seul en-tête** : logo, nom, date de mise à jour, bouton de mise à jour, puis les onglets dans la même barre foncée ; l'onglet actif est en blanc, souligné de bleu. Sur téléphone, les onglets tiennent sur une ligne que l'on fait défiler au doigt, et le bouton se réduit à son icône.
+- **Accueil** : une phrase dit ce que fait le site, avec la légende des trois signaux (Weaker, Normal, Stronger). Sous la prochaine enchère, une carte « Is the signal reliable? » donne le résultat clé (notes et bonds : 77 % de « weaker » justes, contre 52 % pour une enchère quelconque) et un lien vers toutes les enchères à venir.
+- **Graphique** : les réglages (vue, forme, axe, période, titres) sont rangés dans un bouton « Customize chart » ; le graphique est plus grand.
+- **Mots simples** : « Last 3 » devient « Usual » (le niveau habituel) et « Gap » devient « Difference », sur l'accueil, Upcoming auctions et Live track record.
+- **Model performance** : un panneau « In short » en tête donne les 4 scores de la prévision du site, colorés et dits en clair ; la moyenne des 5 modèles est en tête du tableau détaillé.
+
+**Vérifié :** chaque page dans le navigateur, sur ordinateur (1 440 px) et sur téléphone (375 px) ; tests du site, dont un nouveau test de l'en-tête.

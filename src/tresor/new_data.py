@@ -39,9 +39,9 @@ FEATURE_SETS: dict[str, tuple[str, ...]] = {
     },
     f"{BASE}+{ALL_NEW}": (*md.FEATURE_SETS[BASE], *ft.CANDIDATE_COLUMNS),
 }
-# Le bid-to-cover d'abord : c'est la cible du signal du site. Les autres cibles se testent en
-# passant `targets` (environ 25 minutes par cible sur 8 cœurs).
-TARGETS = ("btc",)
+# Les 4 cibles. Compter de 30 minutes à 1 heure par cible sur 8 cœurs libres ; on peut n'en
+# relancer qu'une partie avec `targets`, les résultats des autres cibles sont alors gardés.
+TARGETS = ft.TARGETS
 TEST_PERIODS = ("2014-2026", "2020-2026")
 PREDICTIONS_FILE = "new_data_predictions.parquet"
 RESULTS_FILE = "new_data_test.csv"
@@ -86,7 +86,8 @@ def compare(predictions: pd.DataFrame) -> pd.DataFrame:
                     if feature_set == BASE
                     else md.bootstrap_r2(candidate, other=base)
                 )
-                signals, right = weak_signal(candidate)
+                # Le signal « plus faible » du site ne porte que sur le bid-to-cover.
+                signals, right = weak_signal(candidate) if target == "btc" else (np.nan, np.nan)
                 rows.append(
                     {
                         "period": period,
@@ -128,12 +129,21 @@ def run_new_data_test(
     targets: Sequence[str] = TARGETS,
     n_jobs: int = -1,
 ) -> pd.DataFrame:
-    """Walk-forward avec et sans chaque groupe de nouvelles données, puis la comparaison."""
+    """Walk-forward avec et sans chaque groupe de nouvelles données, puis la comparaison.
+
+    Les prévisions déjà enregistrées pour les autres cibles sont gardées : la comparaison porte
+    toujours sur toutes les cibles testées.
+    """
     sample = ft.model_sample(pd.read_parquet(clean_dir / "features.parquet"))
     predictions = md.run_walk_forward(
         sample, tasks(targets=targets), n_jobs=n_jobs, feature_sets=FEATURE_SETS
     )
     predictions = md.add_ensemble(md.add_constant_benchmark(predictions, sample))
+    previous_path = output_dir / PREDICTIONS_FILE
+    if previous_path.exists():
+        previous = pd.read_parquet(previous_path)
+        kept = previous[~previous["target"].isin(targets)]
+        predictions = pd.concat([kept, predictions[kept.columns]], ignore_index=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     _write(predictions, output_dir / PREDICTIONS_FILE)
     table = compare(predictions)

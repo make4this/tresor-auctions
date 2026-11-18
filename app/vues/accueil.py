@@ -61,6 +61,20 @@ auctions = ui.parquet("auctions.parquet", folder="clean")
 upcoming = ad.upcoming_table(log, auctions, ui.today_new_york())
 record = ad.signal_track_record(ui.parquet("backtest_predictions.parquet"))
 
+# --- En une phrase : ce que fait le site et comment lire le signal -------------------------
+st.markdown(
+    '<div class="tr-welcome"><div class="tr-welcome-text">Every weekday evening, CoverCast'
+    " forecasts the demand at each upcoming US Treasury auction, measured by the"
+    " <b>bid-to-cover</b> (amount bid ÷ amount sold), and compares it with the <b>usual"
+    " level</b>: the average of the last 3 auctions of the same maturity.</div>"
+    '<div class="tr-legend">'
+    f"<span>{ui.demand_tag(ad.WEAK)} forecast at least {THRESHOLD} below usual</span>"
+    f"<span>{ui.demand_tag(ad.NORMAL)} within {THRESHOLD}</span>"
+    f"<span>{ui.demand_tag(ad.STRONG)} at least {THRESHOLD} above usual</span>"
+    "</div></div>",
+    unsafe_allow_html=True,
+)
+
 # --- Bandeau animé : toutes les enchères annoncées défilent (deux fois, pour boucler) ---------
 if not upcoming.empty:
     ticks = "".join(
@@ -97,13 +111,37 @@ with hero:
             f'<div class="tr-what">{escape(first["title"])} · {escape(family)} · {escape(size)}'
             f"</div>{ui.demand_tag(first['signal'])}"
             f'<div class="tr-line">Bid-to-cover expected at <b>{en(first["pred_btc"], 2)}</b>,'
-            f" against <b>{en(first['bench_mean3_btc'], 2)}</b> on average over the last 3 auctions"
-            f" (gap {en(first['gap_btc'], 3, sign=True)}).</div>"
+            f" against a usual level of <b>{en(first['bench_mean3_btc'], 2)}</b> (average of the"
+            f" last 3 auctions): a difference of {en(first['gap_btc'], 3, sign=True)}.</div>"
             f'<div class="tr-foot">All {len(upcoming)} announced auctions: {counts[ad.WEAK]}'
             f" weaker, {counts[ad.NORMAL]} normal, {counts[ad.STRONG]} stronger.</div></div>",
             unsafe_allow_html=True,
         )
-VIEWS = {"gap": "Gap", "levels": "Forecast vs last 3"}
+        st.page_link(
+            "vues/prochaines.py", label="See all upcoming auctions", icon=":material/arrow_forward:"
+        )
+    # Fiabilité du signal, en une phrase par famille : ce qui permet de lui faire confiance.
+    lines = []
+    for family, label in ad.FAMILY_LABELS.items():
+        row = record.set_index("family").loc[family] if family in set(record["family"]) else None
+        if row is None or not row["weak_count"]:
+            continue
+        lines.append(
+            f'<div class="tr-trust-row"><span class="tr-trust-value">'
+            f"{en(row['weak_then_below'] * 100, 0)}%</span><span>{escape(label)}: when"
+            f" CoverCast says {ui.demand_tag(ad.WEAK)}, demand does come in below usual"
+            f" ({en(row['base_rate_below'] * 100, 0)}% for any auction).</span></div>"
+        )
+    if lines:
+        st.markdown(
+            ui.panel(
+                "Is the signal reliable?",
+                f'<div class="tr-trust">{"".join(lines)}</div>',
+                "Out-of-sample tests, 2014-2026. Live results: Live track record page.",
+            ),
+            unsafe_allow_html=True,
+        )
+VIEWS = {"gap": "Difference", "levels": "Forecast vs usual"}
 STYLES = {"bars": "Bars", "dots": "Dots", "line": "Line"}
 AXES = {"auction": "By auction", "date": "By date"}
 HORIZONS = {"7": "Next 7 days", "14": "Next 14 days", "all": "All announced"}
@@ -133,8 +171,8 @@ def expected_chart(table: pd.DataFrame, view: str, style: str, axis: str) -> go.
         )
     ]  # fmt: skip
     hover = (
-        "%{customdata[0]}, %{customdata[1]}<br>forecast %{customdata[2]} vs last 3"
-        " %{customdata[3]}<br>gap %{customdata[4]}<extra></extra>"
+        "%{customdata[0]}, %{customdata[1]}<br>forecast %{customdata[2]} vs usual"
+        " %{customdata[3]}<br>difference %{customdata[4]}<extra></extra>"
     )
     figure = go.Figure()
 
@@ -161,15 +199,15 @@ def expected_chart(table: pd.DataFrame, view: str, style: str, axis: str) -> go.
                 pairs_y += [low, high, None]
             figure.add_scatter(x=pairs_x, y=pairs_y, mode="lines", showlegend=False,
                                hoverinfo="skip", line={"color": "#CBD5E1", "width": 2})  # fmt: skip
-        add(table["bench_mean3_btc"], "Last-3 average", "#94A3B8")
+        add(table["bench_mean3_btc"], "Usual (last-3 average)", "#94A3B8")
         add(table["pred_btc"], "Forecast", colours, "diamond")
         figure.update_yaxes(title="Bid-to-cover")
         figure.update_layout(showlegend=True, barmode="group")
     else:
-        add(table["gap_btc"], "Gap", colours)
+        add(table["gap_btc"], "Difference", colours)
         for level in (-SIGNAL_THRESHOLD, SIGNAL_THRESHOLD):
             figure.add_hline(y=level, line={"color": ui.MUTED, "dash": "dot", "width": 1})
-        figure.update_yaxes(title="Gap in bid-to-cover", zeroline=True)
+        figure.update_yaxes(title="Forecast − usual", zeroline=True)
         figure.update_layout(showlegend=False)
     if axis == "date":
         noon = table["auction_date"].min() + pd.Timedelta(hours=12)
@@ -192,40 +230,41 @@ with (
         "gaps",
         "Expected demand, auction by auction",
         [
-            "<b>Gap</b>: forecast bid-to-cover minus the average of the last 3 auctions of the"
-            " same maturity. <b>Forecast vs last 3</b>: the two values side by side.",
-            f"<b>Red</b>: gap of −{THRESHOLD} or less, weaker demand expected. <b>Green</b>:"
+            "<b>Difference</b>: forecast bid-to-cover minus the usual level (average of the last"
+            " 3 auctions of the same maturity). <b>Forecast vs usual</b>: the two side by side.",
+            f"<b>Red</b>: −{THRESHOLD} or less, weaker demand expected. <b>Green</b>:"
             f" +{THRESHOLD} or more, stronger. <b>Grey</b>: normal. Dotted lines: thresholds.",
-            "Change the shape (bars, dots, line), the axis (one place per auction, or real"
-            " dates), the securities and the period with the buttons above the chart.",
+            "<b>Customize chart</b> changes the view, the shape, the axis, the period and the"
+            " securities.",
         ],
     ),
 ):
     if upcoming.empty:
         ui.small("The chart appears once auctions are announced.")
     else:
-        top, bottom = st.columns(2), st.columns(2)
-        view = top[0].segmented_control(
-            "View", list(VIEWS), default="gap", format_func=VIEWS.get, required=True,
-            key="hero_view", label_visibility="collapsed",
-        ) or "gap"  # fmt: skip
-        style = top[1].segmented_control(
-            "Shape", list(STYLES), default="bars", format_func=STYLES.get, required=True,
-            key="hero_style", label_visibility="collapsed",
-        ) or "bars"  # fmt: skip
-        axis = bottom[0].segmented_control(
-            "Axis", list(AXES), default="auction", format_func=AXES.get, required=True,
-            key="hero_axis", label_visibility="collapsed",
-        ) or "auction"  # fmt: skip
-        horizon = bottom[1].segmented_control(
-            "Period", list(HORIZONS), default="all", format_func=HORIZONS.get, required=True,
-            key="hero_horizon", label_visibility="collapsed",
-        ) or "all"  # fmt: skip
-        families = st.pills(
-            "Securities", list(ad.FAMILY_LABELS), selection_mode="multi",
-            default=list(ad.FAMILY_LABELS), format_func=ad.FAMILY_LABELS.get,
-            key="hero_families", label_visibility="collapsed",
-        ) or list(ad.FAMILY_LABELS)  # fmt: skip
+        # Un seul bouton au-dessus du graphique : les réglages s'ouvrent dans un menu.
+        with st.popover("Customize chart", icon=":material/tune:"):
+            view = st.segmented_control(
+                "View", list(VIEWS), default="gap", format_func=VIEWS.get, required=True,
+                key="hero_view",
+            ) or "gap"  # fmt: skip
+            style = st.segmented_control(
+                "Shape", list(STYLES), default="bars", format_func=STYLES.get, required=True,
+                key="hero_style",
+            ) or "bars"  # fmt: skip
+            axis = st.segmented_control(
+                "Axis", list(AXES), default="auction", format_func=AXES.get, required=True,
+                key="hero_axis",
+            ) or "auction"  # fmt: skip
+            horizon = st.segmented_control(
+                "Period", list(HORIZONS), default="all", format_func=HORIZONS.get,
+                required=True, key="hero_horizon",
+            ) or "all"  # fmt: skip
+            families = st.pills(
+                "Securities", list(ad.FAMILY_LABELS), selection_mode="multi",
+                default=list(ad.FAMILY_LABELS), format_func=ad.FAMILY_LABELS.get,
+                key="hero_families",
+            ) or list(ad.FAMILY_LABELS)  # fmt: skip
         shown = upcoming[upcoming["family"].isin(families)]
         if horizon != "all":
             limit = ui.today_new_york() + pd.Timedelta(days=int(horizon))
@@ -238,7 +277,7 @@ with (
         if shown.empty:
             ui.small("No announced auction for this choice.")
         else:
-            ui.chart(expected_chart(shown.reset_index(drop=True), view, style, axis), height=300)
+            ui.chart(expected_chart(shown.reset_index(drop=True), view, style, axis), height=380)
 
 # --- Deux colonnes : à gauche les enchères, à droite les panneaux courts ---------------------
 # Conteneur nommé : sous 1 240 px de large, le CSS empile les deux colonnes (app_ui.PAGE_CSS).

@@ -5,6 +5,7 @@ Les chiffres cités sont lus dans les fichiers du backtest et de la stratégie.
 
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 
 from tresor import app_data as ad
@@ -122,32 +123,51 @@ def points(value: float) -> str:
     return en(value * 100, 2, sign=True, suffix=" pt")
 
 
+def gain_cell(row: pd.Series) -> tuple[str, str]:
+    """« +0.60 pt [−0.02 pt; +1.30 pt] · no clear effect », coloré selon le verdict."""
+    css = {ad.HELPS: "tr-up", ad.HURTS: "tr-down", ad.NO_EFFECT: ""}
+    text = (
+        f"{points(row['gain'])} [{points(row['gain_ci_low'])};"
+        f" {points(row['gain_ci_high'])}] · {row['verdict']}"
+    )
+    return text, css[row["verdict"]]
+
+
+def new_data_lines(rows: pd.DataFrame, prefix: str = "") -> list[list[str | tuple[str, str]]]:
+    """Une ligne par groupe de données : notes et bonds, puis bills."""
+    lines = []
+    for group, part in rows.groupby("group", sort=False):
+        cells: list[str | tuple[str, str]] = [prefix + ad.NEW_DATA_GROUPS.get(group, group)]
+        for family in ("nominal_coupon", "bill"):
+            row = part[part["family"] == family]
+            cells.append("–" if row.empty else gain_cell(row.iloc[0]))
+        lines.append(cells)
+    return lines
+
+
 def new_data_panel() -> str | None:
     """Les nouvelles données testées en novembre 2026, avec et sans, sur le modèle du site."""
     if not (ui.OUTPUT_DIR / "new_data_test.csv").exists():
         return None
-    rows = ad.new_data_rows(ui.csv("new_data_test.csv"))
-    css = {ad.HELPS: "tr-up", ad.HURTS: "tr-down", ad.NO_EFFECT: ""}
+    table = ui.csv("new_data_test.csv")
+    headers = ["Data added", "Notes and bonds", "Bills"]
+    body = ui.table(headers, new_data_lines(ad.new_data_rows(table)), wrap={0})
+    others = [target for target in ad.TARGET_LABELS if target != "btc"]
     lines = []
-    for group, part in rows.groupby("group", sort=False):
-        cells: list[str | tuple[str, str]] = [ad.NEW_DATA_GROUPS.get(group, group)]
-        for family in ("nominal_coupon", "bill"):
-            row = part[part["family"] == family]
-            if row.empty:
-                cells.append("–")
-                continue
-            row = row.iloc[0]
-            text = (
-                f"{points(row['gain'])} [{points(row['gain_ci_low'])};"
-                f" {points(row['gain_ci_high'])}] · {row['verdict']}"
-            )
-            cells.append((text, css[row["verdict"]]))
-        lines.append(cells)
-    body = ui.table(["Data added", "Notes and bonds", "Bills"], lines, wrap={0})
+    for target in others:
+        rows = ad.new_data_rows(table, target=target)
+        if not rows.empty:
+            lines += new_data_lines(rows, prefix=f"{ad.TARGET_LABELS[target].capitalize()}: ")
+    if lines:
+        body += (
+            '<div class="tr-panel-head" style="margin-top:14px">Other measures</div>'
+            + ui.table(headers, lines, wrap={0})
+        )
     note = (
         "Change in R² against the last-3 average when the data is added to the site's model:"
-        " bid-to-cover, 5-model average, same walk-forward 2014-2026, 90% interval. A group"
-        " joins the site's model only if the whole interval is above zero."
+        " 5-model average, same walk-forward 2014-2026, 90% interval; bid-to-cover first, then"
+        " the other measures. A group joins the site's model only if the whole interval is"
+        " above zero."
     )
     return ui.panel("New data tested (November 2026)", body, note)
 

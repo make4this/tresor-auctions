@@ -123,18 +123,27 @@ p, li, label, td, th, input, textarea, summary, small, .stCaption, h1, h2, h3, h
 [data-testid="stNavSectionHeader"] {{ font-family: Inter, sans-serif !important; }}
 h1, h2, h3, h4 {{ font-weight: 600 !important; letter-spacing: -0.01em; }}
 h1 {{ font-size: 1.85rem !important; padding: 0.2rem 0 0.3rem 0 !important; }}
-.block-container {{ padding-top: 2.2rem; padding-left: 2rem; padding-right: 2rem; }}
-/* Onglets en haut (st.navigation position="top") : barre blanche, onglet actif souligné. */
-[data-testid="stHeader"] {{ background: #FFFFFF; border-bottom: 1px solid #E2E6EC; }}
-[data-testid="stHeader"] a, [data-testid="stHeader"] a span {{
-  font-family: Inter, sans-serif !important; font-weight: 500; color: #374151; }}
-[data-testid="stHeader"] a[aria-current="page"],
-[data-testid="stHeader"] a[aria-current="page"] span {{ color: {PRIMARY}; font-weight: 600; }}
-/* Bandeau foncé : nom du site, mise à jour, alerte et bouton. */
-.st-key-topbar {{ background-color: {NAVY}; border-radius: 6px; padding: 0.55rem 1rem;
-  margin-bottom: 0.4rem; }}
+.block-container {{ padding-top: 2.4rem; padding-left: 2rem; padding-right: 2rem; }}
+/* L'en-tête de Streamlit ne garde que son menu, sans fond : l'en-tête du site est en dessous. */
+[data-testid="stHeader"] {{ background: transparent; height: 2.2rem; }}
+/* En-tête du site : nom, mise à jour, alerte, bouton, puis les onglets. */
+.st-key-topbar {{ background-color: {NAVY}; border-radius: 8px; padding: 0.6rem 1rem 0.2rem 1rem;
+  margin-bottom: 0.9rem; gap: 0.35rem; }}
+.st-key-topnav {{ border-top: 1px solid #1E293B; padding-top: 0.15rem; flex-wrap: wrap;
+  gap: 0.1rem 0.4rem !important; }}
+.st-key-topnav [data-testid="stPageLink"] a {{ padding: 0.35rem 0.6rem; border-radius: 0;
+  border-bottom: 2px solid transparent; background: transparent !important; }}
+.st-key-topnav [data-testid="stPageLink"] a p,
+.st-key-topnav [data-testid="stPageLink"] a span {{ color: #CBD5E1 !important;
+  font-family: Inter, sans-serif !important; font-size: 0.9rem; font-weight: 500; }}
+.st-key-topnav [data-testid="stPageLink"] a:hover p {{ color: #FFFFFF !important; }}
+.st-key-topnav [class*="st-key-nav_on_"] a {{ border-bottom-color: #60A5FA; }}
+.st-key-topnav [class*="st-key-nav_on_"] a p {{ color: #FFFFFF !important; font-weight: 600; }}
+.st-key-topnav [class*="st-key-nav_"],
+.st-key-topnav > [data-testid="stLayoutWrapper"] {{ width: auto !important;
+  flex: 0 0 auto !important; min-width: 0 !important; }}
 .st-key-topbar button {{ background: transparent; border-color: #334155; }}
-.st-key-topbar button p {{ color: #E2E8F0 !important; }}
+.st-key-topbar button p, .st-key-topbar button span {{ color: #E2E8F0 !important; }}
 .st-key-topbar button:hover {{ border-color: {PRIMARY}; }}
 .tr-topline {{ display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; }}
 .tr-topline .tr-logo {{ margin-right: -0.5rem; flex-shrink: 0; }}
@@ -175,6 +184,21 @@ h1 {{ font-size: 1.85rem !important; padding: 0.2rem 0 0.3rem 0 !important; }}
   .tr-track, .tr-hero, .st-key-panel_gaps {{ animation: none; }}
 }}
 .tr-intro {{ color: #4B5563; font-size: 0.95rem; margin: 0 0 0.9rem 0; }}
+/* Accueil : ce que fait le site, en une phrase, et la légende du signal. */
+.tr-welcome {{ display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.6rem;
+  margin: 0 0 0.9rem 0; }}
+.tr-welcome-text {{ flex: 1 1 32rem; color: #1F2937; font-size: 0.98rem; line-height: 1.5; }}
+.tr-legend {{ display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; color: #4B5563;
+  font-size: 0.82rem; }}
+.tr-legend span {{ display: inline-flex; align-items: center; gap: 0.35rem; }}
+/* Carte « Is the signal reliable? » sous la prochaine enchère. */
+.tr-trust {{ padding: 0 0.9rem 0.2rem 0.9rem; }}
+.tr-trust-row {{ display: flex; gap: 0.8rem; align-items: baseline; padding: 0.35rem 0;
+  font-size: 0.86rem; color: #374151; line-height: 1.45; }}
+.tr-trust-row + .tr-trust-row {{ border-top: 1px solid #F1F3F6; }}
+.tr-trust-value {{ font-size: 1.5rem; font-weight: 700; color: #111827; min-width: 3.6rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums; }}
 .tr-panel {{ background: #FFFFFF; border: 1px solid #E2E6EC; border-radius: 6px;
   margin-bottom: 0.9rem; overflow-x: auto; }}
 .tr-panel-head {{ font-weight: 600; font-size: 1.05rem; padding: 0.7rem 0.9rem 0.5rem 0.9rem;
@@ -226,6 +250,9 @@ table.tr-table tr:last-child td {{ border-bottom: none; }}
 .tr-grid .tr-colhead {{ text-align: center; color: #374151; font-weight: 600;
   padding: 0.2rem 0; }}
 .tr-better {{ background: #DCF2E3; color: #14532D; }}
+.tr-better-text {{ color: {UP}; }}
+.tr-worse-text {{ color: {ALERT}; }}
+.tr-unclear-text {{ color: #374151; }}
 .tr-worse {{ background: #FBE3E3; color: #7F1D1D; }}
 .tr-unclear {{ background: #F1F3F5; color: #374151; }}
 .tr-stats {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }}
@@ -245,6 +272,18 @@ table.tr-table tr:last-child td {{ border-bottom: none; }}
 }}
 @media (max-width: 640px) {{
   table.tr-table td, table.tr-table th {{ padding: 0.4rem 0.5rem; }}
+  /* Téléphone : un en-tête court, onglets sur une ligne que l'on fait défiler au doigt. */
+  .tr-topline .tr-tagline {{ display: none; }}
+  .tr-topline .tr-meta {{ font-size: 0.78rem; }}
+  .st-key-topbar {{ padding: 0.5rem 0.7rem 0.1rem 0.7rem; }}
+  .st-key-topbar [data-testid="stHorizontalBlock"] {{ flex-wrap: nowrap !important; gap: 0.5rem; }}
+  .st-key-topbar [data-testid="stColumn"] {{ min-width: 0 !important; }}
+  .st-key-topbar [data-testid="stColumn"]:last-child {{ flex: 0 0 auto !important;
+    width: auto !important; }}
+  .st-key-topbar [data-testid="stColumn"]:last-child button p {{ display: none; }}
+  .st-key-topnav {{ flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }}
+  .st-key-topnav::-webkit-scrollbar {{ display: none; }}
+  .tr-welcome-text {{ font-size: 0.92rem; }}
 }}
 </style>
 """
@@ -267,9 +306,9 @@ LOGO = (
 )
 
 
-def top_bar() -> None:
-    """Bandeau foncé sous les onglets, sur chaque page : nom du site, heure de la dernière mise
-    à jour, alerte éventuelle sur les sources, et bouton de mise à jour."""
+def top_bar(pages: list | None = None, current: object | None = None) -> None:
+    """En-tête du site, sur chaque page : nom et logo, heure de la dernière mise à jour, alerte
+    éventuelle sur les sources, bouton de mise à jour, puis les onglets des pages."""
     status = json_file(live.STATUS_FILE)
     quality = json_file("data_quality.json")
     fetch = json_file(FETCH_STATUS_FILE)
@@ -295,10 +334,18 @@ def top_bar() -> None:
         )
         clicked = right.button(
             "Refresh now",
+            icon=":material/refresh:",
             width="stretch",
             help="Reloads the auction calendar and today's yields, then recomputes provisional"
             " forecasts with the existing models. Official forecasts are recorded each evening.",
         )
+        if pages:
+            with st.container(horizontal=True, key="topnav", gap="small"):
+                for item in pages:
+                    active = current is not None and item.url_path == current.url_path
+                    # Onglet actif : souligné, dans un conteneur nommé que le CSS reconnaît.
+                    with st.container(key=f"nav_{'on' if active else 'off'}_{item.url_path}"):
+                        st.page_link(item, label=item.title)
     if clicked:  # les messages s'affichent sous le bandeau, pas dedans
         _refresh()
 
@@ -415,9 +462,8 @@ def upcoming_guide(more: bool = False) -> list[str]:
     guide = [
         "<b>Forecast</b>: bid-to-cover expected by the average of 5 models, using only data"
         " public the evening before.",
-        "<b>Last 3</b>: average bid-to-cover of the last 3 auctions of the same maturity, the"
-        " usual level.",
-        f"<b>Gap</b> = Forecast − Last 3. <b>Weaker</b> if −{threshold} or less,"
+        "<b>Usual</b>: average bid-to-cover of the last 3 auctions of the same maturity.",
+        f"<b>Difference</b> = Forecast − Usual. <b>Weaker</b> if −{threshold} or less,"
         f" <b>Stronger</b> if +{threshold} or more, otherwise <b>Normal</b>.",
         "<b>Size (est.)</b>: not announced yet, so the size of the previous auction is used.",
     ]
@@ -432,7 +478,7 @@ def upcoming_guide(more: bool = False) -> list[str]:
 
 def upcoming_html(frame: pd.DataFrame, more: bool = False) -> str:
     """Tableau des enchères à venir ; `more` ajoute les prévisions des trois autres mesures."""
-    headers = ["Date", "Auction", "Size", "Forecast", "Last 3", "Gap", "Demand"]
+    headers = ["Date", "Auction", "Size", "Forecast", "Usual", "Difference", "Demand"]
     if more:
         headers += ["Dealer share", "Indirect share", "Tail"]
     rows = []
