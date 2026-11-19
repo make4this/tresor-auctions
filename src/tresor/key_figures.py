@@ -488,6 +488,13 @@ NEW_DATA_GROUPS = {
 }
 
 
+def _points(value: float) -> str:
+    """Gain de R² en points, à 2 décimales ; un gain négatif minuscule garde son signe."""
+    if value < 0 and round(value * 100, 2) == 0:
+        return "−0,00"
+    return fr(100 * value, 2, sign=True)
+
+
 def _new_data_gain(group: str, family: str, period: str, target: str = "btc") -> KeyFigure:
     conditions = {
         "period": period,
@@ -500,9 +507,8 @@ def _new_data_gain(group: str, family: str, period: str, target: str = "btc") ->
     def compute(data: Path) -> str:
         row = _row(pd.read_csv(data / NEW_DATA_FILE), **conditions)
         # Deux décimales : un écart de −0,02 point ne doit pas s'afficher « +0,0 ».
-        low = fr(100 * row["gain_ci_low"], 2, sign=True)
-        high = fr(100 * row["gain_ci_high"], 2, sign=True)
-        return f"{fr(100 * row['gain'], 2, sign=True)} point [{low} ; {high}]"
+        low, high = _points(row["gain_ci_low"]), _points(row["gain_ci_high"])
+        return f"{_points(row['gain'])} point [{low} ; {high}]"
 
     return KeyFigure(
         NEW_DATA,
@@ -532,7 +538,7 @@ def _new_data_count(target: str, worse: bool) -> KeyFigure:
     kind = (
         "entièrement négatif (la donnée dégrade)"
         if worse
-        else ("entièrement positif (règle d'entrée dans le modèle du site)")
+        else ("entièrement positif (premier critère d'entrée dans le modèle du site)")
     )
     return KeyFigure(
         NEW_DATA,
@@ -545,6 +551,31 @@ def _new_data_count(target: str, worse: bool) -> KeyFigure:
     )
 
 
+def _new_data_holm(data: Path) -> str:
+    table = pd.read_csv(data / NEW_DATA_FILE)
+    part = table[
+        (table["period"] == "2014-2026")
+        & (table["model"] == REFERENCE)
+        & (table["feature_set"] != "toutes")
+    ]
+    return f"{_count((part['p_holm'] < 0.05).sum())} sur {_count(len(part))}"
+
+
+def _new_data_years(data: Path, group: str, family: str, target: str) -> str:
+    row = _row(
+        pd.read_csv(data / NEW_DATA_FILE),
+        period="2014-2026",
+        family=family,
+        target=target,
+        model=REFERENCE,
+        feature_set=f"toutes+{group}",
+    )
+    return (
+        f"{_count(row['years_positive'])} années sur {_count(row['years'])} ;"
+        f" p = {fr(row['p_sign_flip'], 3)} ; corrigée : {fr(row['p_holm'], 2)}"
+    )
+
+
 NEW_DATA_FIGURES = (
     *(
         _new_data_gain(group, family, "2014-2026")
@@ -553,6 +584,23 @@ NEW_DATA_FIGURES = (
     ),
     _new_data_gain("all_new", "nominal_coupon", EVALUATION),
     *(_new_data_count(target, worse) for target in TARGETS for worse in (False, True)),
+    KeyFigure(
+        NEW_DATA,
+        "Comparaisons dont le gain tient après la correction de Holm (p < 0,05), moyenne des 5,"
+        " 2014-2026",
+        NEW_DATA_FILE,
+        f"period=2014-2026, model={REFERENCE}, feature_set≠toutes ; p_holm < 0,05",
+        lambda d: _new_data_holm(d),
+    ),
+    KeyFigure(
+        NEW_DATA,
+        "Taux allemand et japonais, notes et bonds, bid-to-cover, 2014-2026 : années de gain,"
+        " probabilité par inversion des signes, corrigée de Holm",
+        NEW_DATA_FILE,
+        f"period=2014-2026, family=nominal_coupon, target=btc, model={REFERENCE},"
+        " feature_set=toutes+foreign_rates ; years_positive/years, p_sign_flip, p_holm",
+        lambda d: _new_data_years(d, "foreign_rates", "nominal_coupon", "btc"),
+    ),
 )
 
 

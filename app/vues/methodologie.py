@@ -120,12 +120,14 @@ for start in range(0, len(SECTIONS), 2):
 def points(value: float) -> str:
     """Gain de R² en points de pourcentage, signé, à deux décimales : « +0.60 pt » (avec une
     seule, −0,02 s'afficherait « +0.0 » et ferait croire à un intervalle positif)."""
+    if value < 0 and round(value * 100, 2) == 0:  # −0,00002 : le signe reste visible
+        return "−0.00 pt"
     return en(value * 100, 2, sign=True, suffix=" pt")
 
 
 def gain_cell(row: pd.Series) -> tuple[str, str]:
     """« +0.60 pt [−0.02 pt; +1.30 pt] · no clear effect », coloré selon le verdict."""
-    css = {ad.HELPS: "tr-up", ad.HURTS: "tr-down", ad.NO_EFFECT: ""}
+    css = {ad.HELPS: "tr-up", ad.PROMISING: "tr-up", ad.HURTS: "tr-down", ad.NO_EFFECT: ""}
     text = (
         f"{points(row['gain'])} [{points(row['gain_ci_low'])};"
         f" {points(row['gain_ci_high'])}] · {row['verdict']}"
@@ -166,8 +168,11 @@ def new_data_panel() -> str | None:
     note = (
         "Change in R² against the last-3 average when the data is added to the site's model:"
         " 5-model average, same walk-forward 2014-2026, 90% interval; bid-to-cover first, then"
-        " the other measures. A group joins the site's model only if the whole interval is"
-        " above zero."
+        " the other measures. <b>Promising</b>: the whole interval is above zero, but with 32"
+        " comparisons such a result can come from chance (it does not survive a Holm"
+        " correction). A group joins the site's model only with a <b>clear gain</b>, which"
+        " survives it. None does so far: German and Japanese yields are the closest, for the"
+        " bid-to-cover of notes and bonds (positive in 10 of 13 years)."
     )
     return ui.panel("New data tested (November 2026)", body, note)
 

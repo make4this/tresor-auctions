@@ -540,15 +540,16 @@ NEW_DATA_GROUPS = {
     "foreign_rates": "German and Japanese 10-year yields",
     "all_new": "All three together",
 }
-HELPS, HURTS, NO_EFFECT = "helps", "hurts", "no clear effect"
+HELPS, PROMISING, HURTS, NO_EFFECT = "clear gain", "promising", "hurts", "no clear effect"
 
 
 def new_data_rows(
     table: pd.DataFrame, period: str = "2014-2026", target: str = "btc"
 ) -> pd.DataFrame:
     """Gain de R² (contre mean3) de chaque groupe sur le modèle du site, moyenne des 5, pour une
-    cible. Verdict : aide si tout l'intervalle à 90 % est au-dessus de 0, nuit s'il est en
-    dessous, sinon pas d'effet net."""
+    cible. Verdict : gain net si tout l'intervalle à 90 % est au-dessus de 0 et que le gain tient
+    après la correction de Holm (p < 0,05) ; prometteur si seul l'intervalle est positif ; nuit
+    si tout l'intervalle est en dessous de 0 ; sinon pas d'effet net."""
     data = table[
         (table["period"] == period)
         & (table["model"] == md.ENSEMBLE)
@@ -556,8 +557,12 @@ def new_data_rows(
         & (table["feature_set"] != "toutes")
     ].copy()
     data["group"] = data["feature_set"].str.removeprefix("toutes+")
+    holm = data["p_holm"] if "p_holm" in data else pd.Series(np.nan, index=data.index)
+    positive = data["gain_ci_low"] > 0
     data["verdict"] = np.select(
-        [data["gain_ci_low"] > 0, data["gain_ci_high"] < 0], [HELPS, HURTS], NO_EFFECT
+        [positive & (holm < 0.05), positive, data["gain_ci_high"] < 0],
+        [HELPS, PROMISING, HURTS],
+        NO_EFFECT,
     )
     order = {group: index for index, group in enumerate(NEW_DATA_GROUPS)}
     data["order"] = data["group"].map(order)

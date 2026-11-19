@@ -368,6 +368,10 @@ def test_site_summary_gives_a_verdict_per_group() -> None:
     summary = ad.new_data_rows(table)
 
     assert summary["group"].tolist() == ["foreign_official", "calendar", "foreign_rates"]
+    # Intervalle positif sans correction de Holm connue : prometteur, pas un gain net.
+    assert summary["verdict"].tolist() == [ad.NO_EFFECT, ad.PROMISING, ad.HURTS]
+    table["p_holm"] = [0.01, 0.01, 0.5, 0.01, 0.01]  # calendar, foreign_rates, foreign_official
+    summary = ad.new_data_rows(table)
     assert summary["verdict"].tolist() == [ad.NO_EFFECT, ad.HELPS, ad.HURTS]
 
 
@@ -388,3 +392,26 @@ def test_a_partial_run_keeps_the_other_targets(tmp_path, monkeypatch) -> None:
     saved = pd.read_parquet(tmp_path / nd.PREDICTIONS_FILE)
     assert set(saved["target"]) == {"btc", "tail_bp"}
     assert table.loc[table["target"] == "tail_bp", "weak_signals"].isna().all()
+
+
+def test_sign_flip_and_holm() -> None:
+    # 3 années toutes positives : seul le tirage « tout positif » fait aussi bien, p = 1/8.
+    assert nd.sign_flip_p(np.array([0.01, 0.02, 0.03])) == pytest.approx(1 / 8)
+    assert nd.sign_flip_p(np.array([-0.01, -0.02])) == 1.0
+    adjusted = nd.holm(pd.Series([0.01, 0.04, 0.03]))
+    # Triées : 0,01 × 3 = 0,03 ; 0,03 × 2 = 0,06 ; 0,04 × 1 = 0,04 -> 0,06 (jamais en baisse).
+    assert adjusted.round(4).tolist() == [0.03, 0.06, 0.06]
+
+
+def test_compare_adds_yearly_tests() -> None:
+    table = nd.compare(fake_predictions())
+
+    row = table[
+        (table["period"] == "2014-2026")
+        & (table["model"] == md.ENSEMBLE)
+        & (table["feature_set"] == "toutes+calendar")
+    ].iloc[0]
+    # Le jeu « + calendrier » gagne chaque année (8 ans) : p = 1/2^8, une seule comparaison.
+    assert row["years_positive"] == row["years"] == 8
+    assert row["p_sign_flip"] == pytest.approx(1 / 2**8)
+    assert row["p_holm"] == pytest.approx(1 / 2**8)

@@ -1544,3 +1544,9 @@ L'aide « How to read » explique ces réglages.
 - **Model performance** : un panneau « In short » en tête donne les 4 scores de la prévision du site, colorés et dits en clair ; la moyenne des 5 modèles est en tête du tableau détaillé.
 
 **Vérifié :** chaque page dans le navigateur, sur ordinateur (1 440 px) et sur téléphone (375 px) ; tests du site, dont un nouveau test de l'en-tête.
+
+**Résultats du test relancé, variables corrigées (19 novembre 2026), moyenne des 5, 2014-2026 :**
+
+- Taux allemand et japonais, bid-to-cover des notes et bonds : +0,58 point [+0,23 ; +0,97], positif 10 années sur 13. Les trois groupes ensemble : +0,63 point [+0,09 ; +1,20]. Pour le tail des notes et bonds, les trois groupes ensemble : +0,39 point, positif 11 années sur 13.
+- Banques centrales étrangères et calendrier : aucun apport ; le calendrier dégrade un peu le bid-to-cover et le tail des bills.
+- La règle d'origine (intervalle à 90 % au-dessus de zéro) aurait fait entrer les taux étrangers. Mais un agent statisticien a rappelé qu'avec 32 comparaisons (4 groupes × 2 familles × 4 cibles), quelques intervalles positifs viennent du hasard. Le LLM a ajouté un test exact par inversion des signes des gains annuels, corrigé de Holm : aucune comparaison ne tient (meilleure probabilité corrigée : 0,06 pour le tail, 0,22 pour le bid-to-cover). Cette exigence a été ajoutée après coup, dans le sens prudent : le modèle du site ne change pas. Les taux étrangers sont classés « promising » sur la page Methodology et restent calculés chaque soir.
