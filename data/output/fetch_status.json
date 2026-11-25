@@ -1,90 +1,90 @@
 {
-  "run_at": "2026-11-24T06:59:19.367980+00:00",
+  "run_at": "2026-11-25T05:28:06.812286+00:00",
   "failed": [],
   "sources": {
     "fiscaldata_auctions": {
       "ok": true,
       "rows": 7905,
       "last_date": "2026-10-22",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "treasurydirect_recent": {
       "ok": true,
-      "rows": 149,
-      "last_date": "2026-11-23",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 153,
+      "last_date": "2026-11-24",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "treasurydirect_upcoming": {
       "ok": true,
-      "rows": 11,
+      "rows": 7,
       "last_date": "2026-12-01",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "treasury_yield_curve": {
       "ok": true,
-      "rows": 6727,
-      "last_date": "2026-11-23",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 6728,
+      "last_date": "2026-11-24",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "treasury_bill_rates": {
       "ok": true,
-      "rows": 6228,
-      "last_date": "2026-11-23",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 6229,
+      "last_date": "2026-11-24",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "cboe_vix": {
       "ok": true,
-      "rows": 9322,
-      "last_date": "2026-11-23",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 9323,
+      "last_date": "2026-11-24",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "fiscaldata_debt": {
       "ok": true,
-      "rows": 6749,
-      "last_date": "2026-11-20",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 6750,
+      "last_date": "2026-11-23",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "fiscaldata_cash_balance": {
       "ok": true,
-      "rows": 16798,
-      "last_date": "2026-11-20",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 16802,
+      "last_date": "2026-11-23",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "nyfed_dealer_positions": {
       "ok": true,
       "rows": 9799,
       "last_date": "2026-11-11",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "cftc_positions": {
       "ok": true,
       "rows": 5698,
       "last_date": "2026-11-17",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "fred_series": {
       "ok": true,
-      "rows": 34023,
-      "last_date": "2026-11-23",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 34026,
+      "last_date": "2026-11-24",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "fred_release_dates": {
       "ok": true,
       "rows": 997,
       "last_date": "2026-12-10",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "bundesbank_bund_yield": {
       "ok": true,
-      "rows": 9824,
-      "last_date": "2026-11-23",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 9825,
+      "last_date": "2026-11-24",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     },
     "mof_jgb_yield": {
       "ok": true,
-      "rows": 6587,
-      "last_date": "2026-11-20",
-      "last_success_at": "2026-11-24T06:59:19.367980+00:00"
+      "rows": 6588,
+      "last_date": "2026-11-24",
+      "last_success_at": "2026-11-25T05:28:06.812286+00:00"
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "today_new_york": "2026-11-24",
+  "today_new_york": "2026-11-25",
   "sources": {
     "fiscaldata_auctions": {
       "rows": 7905,
@@ -64,34 +64,34 @@
       "first_date": "2000-01-03",
       "last_date": "2026-10-22",
       "last_published": "2026-10-22",
-      "business_days_since_last": 22,
+      "business_days_since_last": 23,
       "alerts": [],
       "status": "vert"
     },
     "treasurydirect_recent": {
-      "rows": 149,
+      "rows": 153,
       "rows_by_year": {
-        "2026": 149
+        "2026": 153
       },
       "rows_by_year_reference": {
-        "2026": 149
+        "2026": 153
       },
       "first_date": "2026-05-18",
-      "last_date": "2026-11-23",
-      "last_published": "2026-11-23",
+      "last_date": "2026-11-24",
+      "last_published": "2026-11-24",
       "business_days_since_last": 1,
       "alerts": [],
       "status": "vert"
     },
     "treasurydirect_upcoming": {
-      "rows": 11,
+      "rows": 7,
       "rows_by_year": {
-        "2026": 11
+        "2026": 7
       },
       "rows_by_year_reference": {
         "2026": 16
       },
-      "first_date": "2026-11-24",
+      "first_date": "2026-11-25",
       "last_date": "2026-12-01",
       "last_published": "2026-12-01",
       "business_days_since_last": -4,
@@ -99,7 +99,7 @@
       "status": "vert"
     },
     "treasury_yield_curve": {
-      "rows": 6727,
+      "rows": 6728,
       "rows_by_year": {
         "2000": 251,
         "2001": 248,
@@ -127,7 +127,7 @@
         "2023": 250,
         "2024": 250,
         "2025": 249,
-        "2026": 224
+        "2026": 225
       },
       "rows_by_year_reference": {
         "2000": 251,
@@ -156,17 +156,17 @@
         "2023": 250,
         "2024": 250,
         "2025": 249,
-        "2026": 224
+        "2026": 225
       },
       "first_date": "2000-01-03",
-      "last_date": "2026-11-23",
-      "last_published": "2026-11-23",
+      "last_date": "2026-11-24",
+      "last_published": "2026-11-24",
       "business_days_since_last": 1,
       "alerts": [],
       "status": "vert"
     },
     "treasury_bill_rates": {
-      "rows": 6228,
+      "rows": 6229,
       "rows_by_year": {
         "2002": 250,
         "2003": 250,
@@ -192,7 +192,7 @@
         "2023": 250,
         "2024": 250,
         "2025": 249,
-        "2026": 224
+        "2026": 225
       },
       "rows_by_year_reference": {
         "2002": 250,
@@ -219,17 +219,17 @@
         "2023": 250,
         "2024": 250,
         "2025": 249,
-        "2026": 224
+        "2026": 225
       },
       "first_date": "2002-01-02",
-      "last_date": "2026-11-23",
-      "last_published": "2026-11-23",
+      "last_date": "2026-11-24",
+      "last_published": "2026-11-24",
       "business_days_since_last": 1,
       "alerts": [],
       "status": "vert"
     },
     "cboe_vix": {
-      "rows": 9322,
+      "rows": 9323,
       "rows_by_year": {
         "1990": 253,
         "1991": 252,
@@ -267,7 +267,7 @@
         "2023": 257,
         "2024": 259,
         "2025": 258,
-        "2026": 231
+        "2026": 232
       },
       "rows_by_year_reference": {
         "1990": 253,
@@ -306,17 +306,17 @@
         "2023": 257,
         "2024": 259,
         "2025": 258,
-        "2026": 231
+        "2026": 232
       },
       "first_date": "1990-01-02",
-      "last_date": "2026-11-23",
-      "last_published": "2026-11-23",
+      "last_date": "2026-11-24",
+      "last_published": "2026-11-24",
       "business_days_since_last": 1,
       "alerts": [],
       "status": "vert"
     },
     "fiscaldata_debt": {
-      "rows": 6749,
+      "rows": 6750,
       "rows_by_year": {
         "2000": 250,
         "2001": 247,
@@ -344,7 +344,7 @@
         "2023": 250,
         "2024": 251,
         "2025": 250,
-        "2026": 224
+        "2026": 225
       },
       "rows_by_year_reference": {
         "2000": 250,
@@ -373,17 +373,17 @@
         "2023": 250,
         "2024": 251,
         "2025": 250,
-        "2026": 224
+        "2026": 225
       },
       "first_date": "2000-01-03",
-      "last_date": "2026-11-20",
-      "last_published": "2026-11-24",
+      "last_date": "2026-11-23",
+      "last_published": "2026-11-25",
       "business_days_since_last": 0,
       "alerts": [],
       "status": "vert"
     },
     "fiscaldata_cash_balance": {
-      "rows": 16798,
+      "rows": 16802,
       "rows_by_year": {
         "2005": 122,
         "2006": 502,
@@ -406,7 +406,7 @@
         "2023": 1000,
         "2024": 1004,
         "2025": 1000,
-        "2026": 896
+        "2026": 900
       },
       "rows_by_year_reference": {
         "2005": 122,
@@ -430,11 +430,11 @@
         "2023": 1000,
         "2024": 1004,
         "2025": 1000,
-        "2026": 896
+        "2026": 900
       },
       "first_date": "2005-10-03",
-      "last_date": "2026-11-20",
-      "last_published": "2026-11-23",
+      "last_date": "2026-11-23",
+      "last_published": "2026-11-24",
       "business_days_since_last": 1,
       "alerts": [],
       "status": "vert"
@@ -506,7 +506,7 @@
       "first_date": "1998-01-28",
       "last_date": "2026-11-11",
       "last_published": "2026-11-19",
-      "business_days_since_last": 3,
+      "business_days_since_last": 4,
       "alerts": [],
       "status": "vert"
     },
@@ -561,12 +561,12 @@
       "first_date": "2006-06-13",
       "last_date": "2026-11-17",
       "last_published": "2026-11-20",
-      "business_days_since_last": 2,
+      "business_days_since_last": 3,
       "alerts": [],
       "status": "vert"
     },
     "fred_series": {
-      "rows": 34023,
+      "rows": 34026,
       "rows_by_year": {
         "2000": 572,
         "2001": 574,
@@ -594,7 +594,7 @@
         "2023": 1196,
         "2024": 1204,
         "2025": 1203,
-        "2026": 1068
+        "2026": 1071
       },
       "rows_by_year_reference": {
         "2000": 572,
@@ -623,11 +623,11 @@
         "2023": 1196,
         "2024": 1204,
         "2025": 1203,
-        "2026": 1068
+        "2026": 1071
       },
       "first_date": "2000-01-03",
-      "last_date": "2026-11-23",
-      "last_published": "2026-11-23",
+      "last_date": "2026-11-24",
+      "last_published": "2026-11-24",
       "business_days_since_last": 1,
       "alerts": [],
       "status": "vert"
@@ -700,7 +700,7 @@
       "status": "vert"
     },
     "bundesbank_bund_yield": {
-      "rows": 9824,
+      "rows": 9825,
       "rows_by_year": {
         "2000": 366,
         "2001": 365,
@@ -728,7 +728,7 @@
         "2023": 365,
         "2024": 366,
         "2025": 365,
-        "2026": 327
+        "2026": 328
       },
       "rows_by_year_reference": {
         "2000": 366,
@@ -757,17 +757,17 @@
         "2023": 365,
         "2024": 366,
         "2025": 365,
-        "2026": 327
+        "2026": 328
       },
       "first_date": "2000-01-01",
-      "last_date": "2026-11-23",
-      "last_published": "2026-11-23",
+      "last_date": "2026-11-24",
+      "last_published": "2026-11-24",
       "business_days_since_last": 1,
       "alerts": [],
       "status": "vert"
     },
     "mof_jgb_yield": {
-      "rows": 6587,
+      "rows": 6588,
       "rows_by_year": {
         "2000": 248,
         "2001": 246,
@@ -795,7 +795,7 @@
         "2023": 246,
         "2024": 245,
         "2025": 243,
-        "2026": 215
+        "2026": 216
       },
       "rows_by_year_reference": {
         "2000": 248,
@@ -824,12 +824,12 @@
         "2023": 246,
         "2024": 245,
         "2025": 243,
-        "2026": 215
+        "2026": 216
       },
       "first_date": "2000-01-04",
-      "last_date": "2026-11-20",
-      "last_published": "2026-11-20",
-      "business_days_since_last": 2,
+      "last_date": "2026-11-24",
+      "last_published": "2026-11-24",
+      "business_days_since_last": 1,
       "alerts": [],
       "status": "vert"
     }
@@ -933,8 +933,8 @@
       "bill_13w": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -957,8 +957,8 @@
       "bill_17w": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -981,8 +981,8 @@
       "bill_26w": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1005,8 +1005,8 @@
       "bill_4w": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1029,8 +1029,8 @@
       "bill_52w": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1053,8 +1053,8 @@
       "bill_6w": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1077,8 +1077,8 @@
       "bill_8w": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1101,8 +1101,8 @@
       "bund_10y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-24",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-25",
         "business_days_since_last_publication": 0,
         "largest_gaps_since_2009": [
           {
@@ -1127,7 +1127,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1151,7 +1151,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1175,7 +1175,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1199,7 +1199,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1223,7 +1223,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1247,7 +1247,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1271,7 +1271,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1295,7 +1295,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1319,7 +1319,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1343,7 +1343,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1367,7 +1367,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1391,7 +1391,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-06",
@@ -1415,7 +1415,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2016-03-08",
@@ -1439,7 +1439,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2016-03-08",
@@ -1463,7 +1463,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2016-03-08",
@@ -1487,7 +1487,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2010-03-02",
@@ -1511,7 +1511,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2010-03-02",
@@ -1535,7 +1535,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-17",
         "last_published": "2026-11-20",
-        "business_days_since_last_publication": 2,
+        "business_days_since_last_publication": 3,
         "largest_gaps_since_2009": [
           {
             "after": "2010-03-02",
@@ -1559,7 +1559,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-11",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1583,7 +1583,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-11",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1607,7 +1607,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-11",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1631,7 +1631,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-11",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1655,7 +1655,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-11",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1679,7 +1679,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-11",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1701,8 +1701,8 @@
       "debt_public": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-20",
-        "last_published": "2026-11-24",
+        "last_date": "2026-11-23",
+        "last_published": "2026-11-25",
         "business_days_since_last_publication": 0,
         "largest_gaps_since_2009": [
           {
@@ -1725,8 +1725,8 @@
       "debt_total": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-20",
-        "last_published": "2026-11-24",
+        "last_date": "2026-11-23",
+        "last_published": "2026-11-25",
         "business_days_since_last_publication": 0,
         "largest_gaps_since_2009": [
           {
@@ -1749,8 +1749,8 @@
       "fred_baa10y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-20",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-23",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1775,7 +1775,7 @@
         "observation": "quotidienne",
         "last_date": "2019-12-31",
         "last_published": "2020-01-06",
-        "business_days_since_last_publication": 1722,
+        "business_days_since_last_publication": 1723,
         "largest_gaps_since_2009": [
           {
             "after": "2010-02-05",
@@ -1799,7 +1799,7 @@
         "observation": "quotidienne",
         "last_date": "2026-11-20",
         "last_published": "2026-11-23",
-        "business_days_since_last_publication": 1,
+        "business_days_since_last_publication": 2,
         "largest_gaps_since_2009": [
           {
             "after": "2010-02-05",
@@ -1821,8 +1821,8 @@
       "fred_rrpontsyd": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1845,8 +1845,8 @@
       "fred_t10yie": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1871,7 +1871,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-18",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1895,7 +1895,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-18",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1919,7 +1919,7 @@
         "observation": "hebdomadaire",
         "last_date": "2026-11-18",
         "last_published": "2026-11-19",
-        "business_days_since_last_publication": 3,
+        "business_days_since_last_publication": 4,
         "largest_gaps_since_2009": [
           {
             "after": "2009-01-07",
@@ -1941,9 +1941,9 @@
       "jgb_10y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-20",
-        "last_published": "2026-11-22",
-        "business_days_since_last_publication": 2,
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
+        "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
             "after": "2019-04-26",
@@ -1965,8 +1965,8 @@
       "tga_close": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-20",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-23",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -1989,8 +1989,8 @@
       "vix_close": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2013,8 +2013,8 @@
       "yield_10y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2037,8 +2037,8 @@
       "yield_1m": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2061,8 +2061,8 @@
       "yield_1y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2085,8 +2085,8 @@
       "yield_20y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2109,8 +2109,8 @@
       "yield_2m": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2133,8 +2133,8 @@
       "yield_2y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2157,8 +2157,8 @@
       "yield_30y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2181,8 +2181,8 @@
       "yield_3m": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2205,8 +2205,8 @@
       "yield_3y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2229,8 +2229,8 @@
       "yield_4m": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2253,8 +2253,8 @@
       "yield_5y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2277,8 +2277,8 @@
       "yield_6m": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2301,8 +2301,8 @@
       "yield_6w": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
@@ -2325,8 +2325,8 @@
       "yield_7y": {
         "publication": "quotidienne",
         "observation": "quotidienne",
-        "last_date": "2026-11-23",
-        "last_published": "2026-11-23",
+        "last_date": "2026-11-24",
+        "last_published": "2026-11-24",
         "business_days_since_last_publication": 1,
         "largest_gaps_since_2009": [
           {
