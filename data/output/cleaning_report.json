@@ -1,5 +1,5 @@
 {
-  "today_new_york": "2026-11-26",
+  "today_new_york": "2026-11-27",
   "auctions": {
     "rows_in": {
       "fiscaldata": 7905,
@@ -143,9 +143,9 @@
     }
   },
   "market": {
-    "rows": 201151,
+    "rows": 201153,
     "raw_rows": {
-      "bundesbank_bund_yield": 9826,
+      "bundesbank_bund_yield": 9827,
       "cboe_vix": 9324,
       "cftc_positions": 5698,
       "fiscaldata_auctions": 7905,
@@ -153,7 +153,7 @@
       "fiscaldata_debt": 6751,
       "fred_release_dates": 997,
       "fred_series": 34029,
-      "mof_jgb_yield": 6589,
+      "mof_jgb_yield": 6590,
       "nyfed_dealer_positions": 9799,
       "treasury_bill_rates": 6230,
       "treasury_yield_curve": 6729,
@@ -213,9 +213,9 @@
       "bund_10y": {
         "source": "bundesbank_bund_yield",
         "unit": "%",
-        "rows": 6835,
+        "rows": 6836,
         "first_date": "2000-01-03",
-        "last_date": "2026-11-25"
+        "last_date": "2026-11-26"
       },
       "cftc_10y_am_net": {
         "source": "cftc_positions",
@@ -458,9 +458,9 @@
       "jgb_10y": {
         "source": "mof_jgb_yield",
         "unit": "%",
-        "rows": 6589,
+        "rows": 6590,
         "first_date": "2000-01-04",
-        "last_date": "2026-11-25"
+        "last_date": "2026-11-26"
       },
       "tga_close": {
         "source": "fiscaldata_cash_balance",
